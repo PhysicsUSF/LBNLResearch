@@ -4,10 +4,9 @@ import os
 import pyfits
 import sncosmo as snc
 
-import matplotlib.pyplot as plt
 from pprint import pprint
 
-#dirname = os.path.dirname(__file__)
+dirname = os.path.dirname(__file__)
 
 
 ##########################################################################################
@@ -16,13 +15,13 @@ from pprint import pprint
 SN2012CU = []
 
 # get files from 12cu data folder (exclude .yaml file)
-FILES = [f for f in os.listdir('data/SNF-0201-INCR01a-2012cu') if f[-4:]!='yaml']
+FILES = [f for f in os.listdir( dirname + '/data/SNF-0201-INCR01a-2012cu' ) if f[-4:]!='yaml']
 
 # date of B-max (given in .yaml file)
 BMAX = 56104.7862735
 
 for f in FILES:
-    filename = 'data/SNF-0201-INCR01a-2012cu/'+f
+    filename = dirname + '/data/SNF-0201-INCR01a-2012cu/' + f
     header = pyfits.getheader(filename)
     
     JD = header['JD']
