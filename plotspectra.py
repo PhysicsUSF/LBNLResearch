@@ -11,10 +11,24 @@ Test file for loader
 import loader as l
 import matplotlib.pyplot as plt
 import numpy as np
+from pprint import pprint
 
 def main():
     zp     = l.load_filters()
     sn12cu = l.get_12cu()
+    sn11fe = l.get_11fe('pl', av=1.85, p=-2.1)
+
+    print 'SN12CU'
+    pprint( sn12cu )
+
+    print 'SN11FE'
+    pprint( sn11fe )
+
+    sn12cu_phases = [t[0] for t in sn12cu]
+    sn11fe_interpolated = l.interpolate_spectra(sn12cu_phases, sn11fe)
+
+    print 'INTERPOLATED SN11FE'
+    pprint( sn11fe_interpolated )
 
     interp_phase = 12.5
     

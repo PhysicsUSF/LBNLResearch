@@ -62,7 +62,7 @@ def load_filters():
 ##### EXTINCTION LAWS ####################################################################
 
 
-# Goobar Power Law artificial reddening law
+# Goobar (2008) power law artificial reddening law
 def redden_pl(wave, flux, Av, p):
     #wavelength in angstroms
     #lamv = 5500
@@ -80,7 +80,7 @@ def redden_pl(wave, flux, Av, p):
     return VAL
 
 
-# Fitzpatrick-Massa artificial reddening law
+# Fitzpatrick-Massa (1999) artificial reddening law
 def redden_fm(wave, flux, ebv, R_V, *args, **kwargs):
     '''
     given wavelength and flux info of a spectrum, return:
@@ -225,7 +225,7 @@ def get_12cu():
     BMAX = 56104.7862735
 
 
-    phases = {}  # dictionary of spectra to be concatenated; keys are phases
+    _12CU = {}  # dictionary of spectra to be concatenated; keys are phases
 
     for f in FILES:
         filename = dirname + '/data/SNF-0201-INCR01a-2012cu/' + f
@@ -233,7 +233,7 @@ def get_12cu():
         
         JD = header['JD']
         MJD = JD - 2400000.5  # convert JD to MJD
-        PHASE = round(MJD - BMAX, 1)  # convert to phase by subtracting date of BMAX
+        phase = round(MJD - BMAX, 1)  # convert to phase by subtracting date of BMAX
 
         flux = pyfits.getdata(filename)  # this is the flux data
 
@@ -242,14 +242,14 @@ def get_12cu():
 
         wave = np.array([float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])])
 
-        if not phases.has_key(PHASE):
-            phases[PHASE] = []
+        if not _12CU.has_key(phase):
+            _12CU[phase] = []
             
-        phases[PHASE].append({'wave': wave, 'flux': flux})
+        _12CU[phase].append({'wave': wave, 'flux': flux})
 
 
     # concatenate spectra at same phases
-    for phase, dict_list in phases.items():
+    for phase, dict_list in _12CU.items():
         wave_concat = np.array([])
         flux_concat = np.array([])
 
@@ -268,7 +268,7 @@ def get_12cu():
         SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat)) )
 
 
-    return sorted(SN2012CU, key=lambda t: t[0])
+    return sorted(SN2012CU, key=lambda t: t[0])  # sort by phase
 
 
 ##########################################################################################
@@ -293,17 +293,17 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
     # get fits files from 12cu data folder (exclude README file)
     FILES = [f for f in os.listdir( dirname + '/data/sn2011fe' ) if f[-3:]!='txt']
 
-    for name in phases:
-        F = dirname+'/data/sn2011fe/11fe'+name+'.fit'
+    for f in FILES:
+        filename = dirname + '/data/sn2011fe/' + f
 
-        header = pyfits.getheader(F)
+        header = pyfits.getheader(filename)
 
         CRVAL1 = header['CRVAL1'] # coordinate start value
         CDELT1 = header['CDELT1'] # coordinate increment per pixel
         TMAX   = header['TMAX']   # phase in days relative to B-band maximum
         
         phase = float(TMAX)
-        flux = pyfits.getdata(F,0)
+        flux = pyfits.getdata(filename,0)
         wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
         
         SN2011FE.append({
@@ -328,7 +328,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
     elif redtype=='pl':
         if av!=None and p!=None:
             return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)))
-                    for D in _SN2011FE]
+                    for D in SN2011FE]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
     else:
@@ -337,7 +337,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
 
 
 ##########################################################################################
-##### LINEAR INTERPOLATE HELPER FUNCTION #################################################
+##### SPECTRUM LINEAR INTERPOLATION HELPER FUNCTION ######################################
 
     
 def interpolate_spectra(phase_array, spectra):
@@ -351,46 +351,63 @@ def interpolate_spectra(phase_array, spectra):
 
         interpolated_spectra = loader.interpolate_spectra( [0.0, 12.0, 24.0], loader.get_12cu() )
 
+    The output is also going to be in the for as the input for spectra, with an interpolated
+    spectrum in a tuple with each phase in phase_array.  However, there will be a None value
+    in place of the spectrum if either the phase is out of the phase range for the given spectra
+    or the wavelength arrays do not match, i.e.:
+
+        [(-6.5, <sncosmo.spectral.Spectrum object at 0x3480f10>),
+         (-3.5, <sncosmo.spectral.Spectrum object at 0x3480890>),
+         ...
+         (46.5, <sncosmo.spectral.Spectrum object at 0x3414cd0>),
+         (188.8, None),
+         (201.8, None)]
     
-    NOTE:   This function assumes that the wavelength array is the same for each spectrum in the
-            the given list.
+    **NOTE: This function assumes that the wavelength array is the same for each spectrum in the
+            the given list.  It will return None when trying to interpolate between two spectra
+            with different wavelength arrays.
         
     '''
     interpolated = []
     phases  = [t[0] for t in spectra]
     spectra = [t[1] for t in spectra]
 
-    if type(phase_array) != type(np.array([])):
+    if type(phase_array) == type([]):
+        phase_array = np.array(phase_array)
+    elif type(phase_array) != type(np.array([])):
         try:
             phase_array = np.array([float(phase_array)])
         except:
             return None
-
     
     def interpolate(phase, start=0):
         if phase < phases[0]:
             return (None, 0)
 
-        LIM = len(phases)
+        LIM = len(phases)-1
         i = start
         while i < LIM:
             if phase < phases[i+1]:
-                p1, p2 = phases[i], phases[i+1]
-                S1, S2 = spectra[i].flux, spectra[i+1].flux
-                W1, W2 = spectra[i].wave, spectra[i+1].wave
+                p1, p2 = float(phases[i]), float(phases[i+1])
+                S1, S2 = spectra[i].flux, spectra[i+1].flux  # these are numpy arrays
+                W1, W2 = spectra[i].wave, spectra[i+1].wave  # these are numpy arrays
+                
+                # check in wavelength arrays are the same, if not then return None for the
+                #  interpolated spectrum
                 if not np.all((W1, W2)):
                     return (None, i)
-                S_interp = S1 + ((S2-S1)/(p2-p1))*(phase-p1)
+                
+                S_interp = S1 + ((S2-S1)/(p2-p1))*(float(phase)-p1)  # linear interpolation
                 return (snc.Spectrum(W1, S_interp), i)
             i += 1
 
         return (None, 0)
 
     LIM = phase_array.shape[0]
-    search_index = 0
+    search_index = 0  # keep track of current place in phases array in order to speed up interpolation
     for i in xrange(LIM):
         S_interp, search_index = interpolate(phase_array[i], search_index)
-        interpolated.append((phase_array[i], S_interp))
+        interpolated.append((round(phase_array[i], 1), S_interp))  # round phase because of weird numpy floats
 
     if len(interpolated) == 1:
         return interpolated[0]
