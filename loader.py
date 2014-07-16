@@ -1,105 +1,401 @@
 # -*- coding: utf-8 -*-
+'''
+::Author::
+Andrew Stocker
+
+::Description::
+Loader script for 2012cu and 2011fe spectra, Pereira (2013) tophat UBVRI filters, and
+the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The extinction laws are
+modified to artificially apply reddening.
+
+::Last Modified::
+07/16/2014
+
+::Notes::
+Source for A_lambda values for 2012cu -> http://ned.ipac.caltech.edu/forms/byname.html
+
+'''
 import numpy as np
 import os
 import pyfits
 import sncosmo as snc
-
 from pprint import pprint
-
 dirname = os.path.dirname(__file__)
+
+
+##########################################################################################
+##### LOAD UBVRi FILTERS #################################################################
+
+
+def load_filters():
+    '''
+    Load UBVRI tophat filters defined in Pereira (2013) into the sncosmo registry.  Also
+    returns a dictionary of zero-point values in Vega system flux for each filter.
+
+    Example usage:
+
+        ZP_CACHE = loader.load_filters()
+        U_band_zp = ZP_CACHE['U']
+    '''
+    ZP_CACHE = {}  # dictionary for zero point fluxes of filters
+
+    for f in 'UBVRI':
+        filter_name = 'tophat_'+f
+        file_name = dirname + '/data/filters/' + filter_name + '.dat'
+        
+        try:
+            snc.get_bandpass(filter_name)
+        except:
+            data = np.genfromtxt(file_name)
+            bandpass = snc.Bandpass( data[:,0], data[:,1] )
+            snc.registry.register(bandpass, filter_name)
+
+        zpsys = snc.get_magsystem('vega')
+        zp_phot = zpsys.zpbandflux(filter_name)
+
+        ZP_CACHE[f] = zp_phot
+
+    return ZP_CACHE
+
+
+##########################################################################################
+##### EXTINCTION LAWS ####################################################################
+
+
+# Goobar Power Law artificial reddening law
+def redden_pl(wave, flux, Av, p):
+    #wavelength in angstroms
+    #lamv = 5500
+    lamv = 5366
+    a = 1.
+    x = np.array(wave)
+    #A_V = R_V * ebv
+
+    Alam_over_Av = 1. - a + a*(x**p)/(lamv**p)
+    A_lambda = -1* Av * Alam_over_Av
+
+    Rv = 1./(a*(0.8**p - 1.))
+    #print "###Rv value:", Rv
+    VAL = flux * 10.**(0.4 * A_lambda)
+    return VAL
+
+
+# Fitzpatrick-Massa artificial reddening law
+def redden_fm(wave, flux, ebv, R_V, *args, **kwargs):
+    '''
+    given wavelength and flux info of a spectrum, return:
+    reddened spectrum fluxes (ebv < 0)
+    unreddened spectrum fluxes (ebv > 0)
+    '''
+    # Import needed modules
+    from scipy.interpolate import InterpolatedUnivariateSpline as spline
+    import numpy as n
+
+    # Set defaults
+    lmc2_set, avglmc_set, extcurve_set = None, None, None
+    gamma, x0, c1, c2, c3, c4 = None, None, None, None, None, None
+    
+    x = 10000. / n.array([wave])                # Convert to inverse microns
+    curve = x * 0.
+
+    # Read in keywords
+    for arg in args:
+        if arg.lower() == 'lmc2': lmc2_set = 1
+        if arg.lower() == 'avglmc': avglmc_set = 1
+        if arg.lower() == 'extcurve': extcurve_set = 1
+        
+    for key in kwargs:
+        if key.lower() == 'x0':
+            x0 = kwargs[key]
+        if key.lower() == 'gamma':
+            gamma = kwargs[key]
+        if key.lower() == 'c4':
+            c4 = kwargs[key]
+        if key.lower() == 'c3':
+            c3 = kwargs[key]
+        if key.lower() == 'c2':
+            c2 = kwargs[key]
+        if key.lower() == 'c1':
+            c1 = kwargs[key]
+
+    if R_V == None: R_V = 3.1
+
+    if lmc2_set == 1:
+        if x0 == None: x0 = 4.626
+        if gamma == None: gamma =  1.05	
+        if c4 == None: c4 = 0.42   
+        if c3 == None: c3 = 1.92	
+        if c2 == None: c2 = 1.31
+        if c1 == None: c1 = -2.16
+    elif avglmc_set == 1:
+        if x0 == None: x0 = 4.596  
+        if gamma == None: gamma = 0.91
+        if c4 == None: c4 = 0.64  
+        if c3 == None: c3 =  2.73	
+        if c2 == None: c2 = 1.11
+        if c1 == None: c1 = -1.28
+    else:
+        if x0 == None: x0 = 4.596  
+        if gamma == None: gamma = 0.99
+        if c4 == None: c4 = 0.41
+        if c3 == None: c3 =  3.23	
+        if c2 == None: c2 = -0.824 + 4.717 / R_V
+        if c1 == None: c1 = 2.030 - 3.007 * c2
+    
+    # Compute UV portion of A(lambda)/E(B-V) curve using FM fitting function and 
+    # R-dependent coefficients
+ 
+    xcutuv = 10000.0 / 2700.0
+    xspluv = 10000.0 / n.array([2700.0, 2600.0])
+   
+    iuv = n.where(x >= xcutuv)
+    iuv_comp = n.where(x < xcutuv)
+
+    if len(x[iuv]) > 0: xuv = n.concatenate( (xspluv, x[iuv]) )
+    else: xuv = xspluv.copy()
+
+    yuv = c1  + c2 * xuv
+    yuv = yuv + c3 * xuv**2 / ( ( xuv**2 - x0**2 )**2 + ( xuv * gamma )**2 )
+
+    filter1 = xuv.copy()
+    filter1[n.where(xuv <= 5.9)] = 5.9
+    
+    yuv = yuv + c4 * ( 0.5392 * ( filter1 - 5.9 )**2 + 0.05644 * ( filter1 - 5.9 )**3 )
+    yuv = yuv + R_V
+    yspluv = yuv[0:2].copy()                  # save spline points
+    
+    if len(x[iuv]) > 0: curve[iuv] = yuv[2:len(yuv)]      # remove spline points
+
+    # Compute optical portion of A(lambda)/E(B-V) curve
+    # using cubic spline anchored in UV, optical, and IR
+
+    xsplopir = n.concatenate(([0], 10000.0 / n.array([26500.0, 12200.0, 6000.0, 5470.0, 4670.0, 4110.0])))
+    ysplir   = n.array([0.0, 0.26469, 0.82925]) * R_V / 3.1
+    ysplop   = [n.polyval(n.array([2.13572e-04, 1.00270, -4.22809e-01]), R_V ), 
+                n.polyval(n.array([-7.35778e-05, 1.00216, -5.13540e-02]), R_V ),
+                n.polyval(n.array([-3.32598e-05, 1.00184, 7.00127e-01]), R_V ),
+                n.polyval(n.array([-4.45636e-05, 7.97809e-04, -5.46959e-03, 1.01707, 1.19456] ), R_V ) ]
+    
+    ysplopir = n.concatenate( (ysplir, ysplop) )
+    
+    if len(iuv_comp) > 0:
+        cubic = spline(n.concatenate( (xsplopir,xspluv) ), n.concatenate( (ysplopir,yspluv) ), k=3)
+        curve[iuv_comp] = cubic( x[iuv_comp] )
+
+    # Now apply extinction correction to input flux vector
+    curve = ebv * curve[0]
+    flux = flux * 10.**(0.4 * curve)
+    
+    return flux
 
 
 ##########################################################################################
 ##### LOAD SN2012CU SPECTRA ##############################################################
 
 
-SN2012CU = []
+def get_12cu():
+    '''
+    Function to get SN2012CU spectra.  This returns a sorted list of the form;
 
-# get files from 12cu data folder (exclude .yaml file)
-FILES = [f for f in os.listdir( dirname + '/data/SNF-0201-INCR01a-2012cu' ) if f[-4:]!='yaml']
+        [(phase0, sncosmo.Spectrum), (phase1, sncosmo.Spectrum), ... ]
 
-# date of B-max (given in .yaml file)
-BMAX = 56104.7862735
+    To split the list it is easy to use a list comprehension;
 
+        phases  = [t[0] for t in SN2012CU]
+        spectra = [t[1] for t in SN2012CU]
 
-phases = {}  # dictionary of spectra to be concatenated
+    To get the synthetic photometry it is also easy to use a list comprehension coupled with
+    sncosmo's built-in bandflux() method;
 
-for f in FILES:
-    filename = dirname + '/data/SNF-0201-INCR01a-2012cu/' + f
-    header = pyfits.getheader(filename)
+        bandfluxes = [t[1].bandflux(filter_name) for t in SN2012CU]
+
+    However, sometimes SNCOSMO will return None for the bandflux if the filter
+    transmission curve has a wider range than the given spectrum, in this case it is convenient
+    to use a filter;
+
+        filtered = filter( lambda x: x[1]!=None, izip(phases, bandfluxes) )
     
-    JD = header['JD']
-    MJD = JD - 2400000.5  # convert JD to MJD
-    PHASE = round(MJD - BMAX, 1)  # convert to phase by subtracting date of BMAX
+    '''
+    SN2012CU = []
 
-    flux = pyfits.getdata(filename)  # this is the flux data
+    # get fits files from 12cu data folder (exclude .yaml file)
+    FILES = [f for f in os.listdir( dirname + '/data/SNF-0201-INCR01a-2012cu' ) if f[-4:]!='yaml']
 
-    CRVAL1 = header['CRVAL1']  # this is the starting wavelength of the spectrum
-    CDELT1 = header['CDELT1']  # this is the wavelength incrememnet per pixel
+    # date of B-max (given in .yaml file)
+    BMAX = 56104.7862735
 
-    wave = np.array([float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])])
 
-    if not phases.has_key(PHASE):
-        phases[PHASE] = []
+    phases = {}  # dictionary of spectra to be concatenated; keys are phases
+
+    for f in FILES:
+        filename = dirname + '/data/SNF-0201-INCR01a-2012cu/' + f
+        header = pyfits.getheader(filename)
         
-    phases[PHASE].append({'wave': wave, 'flux': flux})
+        JD = header['JD']
+        MJD = JD - 2400000.5  # convert JD to MJD
+        PHASE = round(MJD - BMAX, 1)  # convert to phase by subtracting date of BMAX
+
+        flux = pyfits.getdata(filename)  # this is the flux data
+
+        CRVAL1 = header['CRVAL1']  # this is the starting wavelength of the spectrum
+        CDELT1 = header['CDELT1']  # this is the wavelength incrememnet per pixel
+
+        wave = np.array([float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])])
+
+        if not phases.has_key(PHASE):
+            phases[PHASE] = []
+            
+        phases[PHASE].append({'wave': wave, 'flux': flux})
 
 
-# concatenate spectra at same phases
-for phase, dict_list in phases.items():
-    wave_concat = np.array([])
-    flux_concat = np.array([])
+    # concatenate spectra at same phases
+    for phase, dict_list in phases.items():
+        wave_concat = np.array([])
+        flux_concat = np.array([])
 
-    for d in dict_list:
-        wave_concat = np.concatenate( (wave_concat, d['wave']) )
-        flux_concat = np.concatenate( (flux_concat, d['flux']) )
+        for d in dict_list:
+            wave_concat = np.concatenate( (wave_concat, d['wave']) )
+            flux_concat = np.concatenate( (flux_concat, d['flux']) )
 
-    # sort wavelength array and flux array ordered by wavelength
-    I = wave_concat.argsort()
-    wave_concat = wave_concat[I]
-    flux_concat = flux_concat[I]
+        # sort wavelength array and flux array ordered by wavelength
+        #   argsort() docs with helpful examples ->
+        #       http://docs.scipy.org/doc/numpy/reference/generated/numpy.argsort.html
+        I = wave_concat.argsort()
+        wave_concat = wave_concat[I]
+        flux_concat = flux_concat[I]
 
-    # make into Spectrum object and add to list with phase data
-    SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat)) )
+        # make into Spectrum object and add to list with phase data
+        SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat)) )
 
-SN2012CU = sorted(SN2012CU, key=lambda t: t[0])
+
+    return sorted(SN2012CU, key=lambda t: t[0])
 
 
 ##########################################################################################
-##### LOAD UBVRi FILTERS #################################################################
-
-# http://ned.ipac.caltech.edu/forms/byname.html
+##### LOAD SN2011FE SPECTRA ##############################################################
 
 
-ZP_CACHE_VEGA = {}  # dictionary for zero point fluxes of filters
+def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
+    '''
+    This function operates similarly to get_12cu() and returns a list of tuples of the form;
 
-for f in 'UBVRI':
-    filter_name = 'tophat_'+f
-    file_name = dirname + '/data/filters/' + filter_name + '.dat'
+        [(phase0, sncosmo.Spectrum), (phase1, sncosmo.Spectrum), ... ]
+
+    However an artificial reddening can also be applied passing in as an argument either
+    redtype='fm' to use the Fitzpatrick-Massa (1999) reddening law or redtype='pl' for
+    Goobar's Power Law (2008).  For example;
+
+        FMreddened_2011fe = loader.get_11fe(redtype='fm', ebv=-1.37, rv=1.4)
+        PLreddened_2011fe = loader.get_11fe(redtype='pl', av=1.85, p=-2.1)
+    '''
+    SN2011FE = []  # list of info dictionaries
+
+    # get fits files from 12cu data folder (exclude README file)
+    FILES = [f for f in os.listdir( dirname + '/data/sn2011fe' ) if f[-3:]!='txt']
+
+    for name in phases:
+        F = dirname+'/data/sn2011fe/11fe'+name+'.fit'
+
+        header = pyfits.getheader(F)
+
+        CRVAL1 = header['CRVAL1'] # coordinate start value
+        CDELT1 = header['CDELT1'] # coordinate increment per pixel
+        TMAX   = header['TMAX']   # phase in days relative to B-band maximum
+        
+        phase = float(TMAX)
+        flux = pyfits.getdata(F,0)
+        wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
+        
+        SN2011FE.append({
+            'phase': phase,
+            'wave' : wave,
+            'flux' : flux
+            })
+
+    # sort list of dictionaries by phase
+    SN2011FE = sorted([e for e in SN2011FE], key=lambda e: e['phase'])
+
+    # return list of reddened spectra
+    if redtype==None:
+        return [(D['phase'], snc.Spectrum(D['wave'], D['flux'])) for D in SN2011FE]
+    elif redtype=='fm':
+        if ebv!=None and rv!=None:
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)))
+                    for D in SN2011FE]
+        else:
+            msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
+            raise ValueError(msg)
+    elif redtype=='pl':
+        if av!=None and p!=None:
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)))
+                    for D in _SN2011FE]
+        else:
+            msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
+    else:
+        msg = 'Invalid reddening law name; must be either \'fm\' or \'pl\'.'
+        raise ValueError(msg)
+
+
+##########################################################################################
+##### LINEAR INTERPOLATE HELPER FUNCTION #################################################
+
     
-    try:
-        snc.get_bandpass(filter_name)
-    except:
-        data = np.genfromtxt(file_name)
-        bandpass = snc.Bandpass( data[:,0], data[:,1] )
-        snc.registry.register(bandpass, filter_name)
+def interpolate_spectra(phase_array, spectra):
+    '''
+    Function to linearly interpolate a spectrum at a specific phase or array of phases, given
+    a list of spectra and their respectrive phases; i.e. [spectra] must be in the form:
 
-    zpsys = snc.get_magsystem('vega')
-    zp_phot = zpsys.zpbandflux(filter_name)
+        [(phase0, sncosmo.Spectrum), (phase1, sncosmo.Spectrum), ... ]
 
-    ZP_CACHE_VEGA[f] = zp_phot
+    This is the same form as the output of get_12cu() or get_11fe().  Example usage:
+
+        interpolated_spectra = loader.interpolate_spectra( [0.0, 12.0, 24.0], loader.get_12cu() )
+
     
+    NOTE:   This function assumes that the wavelength array is the same for each spectrum in the
+            the given list.
+        
+    '''
+    interpolated = []
+    phases  = [t[0] for t in spectra]
+    spectra = [t[1] for t in spectra]
 
+    if type(phase_array) != type(np.array([])):
+        try:
+            phase_array = np.array([float(phase_array)])
+        except:
+            return None
 
+    
+    def interpolate(phase, start=0):
+        if phase < phases[0]:
+            return (None, 0)
 
+        LIM = len(phases)
+        i = start
+        while i < LIM:
+            if phase < phases[i+1]:
+                p1, p2 = phases[i], phases[i+1]
+                S1, S2 = spectra[i].flux, spectra[i+1].flux
+                W1, W2 = spectra[i].wave, spectra[i+1].wave
+                if not np.all((W1, W2)):
+                    return (None, i)
+                S_interp = S1 + ((S2-S1)/(p2-p1))*(phase-p1)
+                return (snc.Spectrum(W1, S_interp), i)
+            i += 1
 
+        return (None, 0)
 
+    LIM = phase_array.shape[0]
+    search_index = 0
+    for i in xrange(LIM):
+        S_interp, search_index = interpolate(phase_array[i], search_index)
+        interpolated.append((phase_array[i], S_interp))
 
-
-
-
-
-
+    if len(interpolated) == 1:
+        return interpolated[0]
+    return interpolated
+    
 
 
 
