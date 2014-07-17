@@ -4,7 +4,7 @@
 Andrew Stocker
 
 ::Description::
-Loader script for 2012cu and 2011fe spectra, Pereira (2013) tophat UBVRI filters, and
+Loader module for 2012cu and 2011fe spectra, Pereira (2013) tophat UBVRI filters, and
 the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The extinction laws are
 modified to artificially apply reddening.
 
@@ -19,18 +19,20 @@ import numpy as np
 import os
 import pyfits
 import sncosmo as snc
+
 from pprint import pprint
 dirname = os.path.dirname(__file__)
 
 
-##########################################################################################
-##### LOAD UBVRi FILTERS #################################################################
+################################################################################
+##### LOAD UBVRi FILTERS #######################################################
 
 
 def load_filters():
     '''
-    Load UBVRI tophat filters defined in Pereira (2013) into the sncosmo registry.  Also
-    returns a dictionary of zero-point values in Vega system flux for each filter.
+    Load UBVRI tophat filters defined in Pereira (2013) into the sncosmo
+    registry.  Also returns a dictionary of zero-point values in Vega system
+    flux for each filter.  Flux is given in [photons/s/cm^2].
 
     Example usage:
 
@@ -58,8 +60,8 @@ def load_filters():
     return ZP_CACHE
 
 
-##########################################################################################
-##### EXTINCTION LAWS ####################################################################
+################################################################################
+##### EXTINCTION LAWS ##########################################################
 
 
 # Goobar (2008) power law artificial reddening law
@@ -189,8 +191,8 @@ def redden_fm(wave, flux, ebv, R_V, *args, **kwargs):
     return flux
 
 
-##########################################################################################
-##### LOAD SN2012CU SPECTRA ##############################################################
+################################################################################
+##### LOAD SN2012CU SPECTRA ####################################################
 
 
 def get_12cu():
@@ -271,8 +273,8 @@ def get_12cu():
     return sorted(SN2012CU, key=lambda t: t[0])  # sort by phase
 
 
-##########################################################################################
-##### LOAD SN2011FE SPECTRA ##############################################################
+################################################################################
+##### LOAD SN2011FE SPECTRA ####################################################
 
 
 def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
@@ -285,8 +287,8 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
     redtype='fm' to use the Fitzpatrick-Massa (1999) reddening law or redtype='pl' for
     Goobar's Power Law (2008).  For example;
 
-        FMreddened_2011fe = loader.get_11fe(redtype='fm', ebv=-1.37, rv=1.4)
-        PLreddened_2011fe = loader.get_11fe(redtype='pl', av=1.85, p=-2.1)
+        FMreddened_2011fe = loader.get_11fe('fm', ebv=-1.37, rv=1.4)
+        PLreddened_2011fe = loader.get_11fe('pl', av=1.85, p=-2.1)
     '''
     SN2011FE = []  # list of info dictionaries
 
@@ -331,13 +333,14 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
                     for D in SN2011FE]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
+            raise ValueError(msg)
     else:
         msg = 'Invalid reddening law name; must be either \'fm\' or \'pl\'.'
         raise ValueError(msg)
 
 
-##########################################################################################
-##### SPECTRUM LINEAR INTERPOLATION HELPER FUNCTION ######################################
+################################################################################
+##### SPECTRUM LINEAR INTERPOLATION HELPER FUNCTION ############################
 
     
 def interpolate_spectra(phase_array, spectra):
@@ -354,7 +357,7 @@ def interpolate_spectra(phase_array, spectra):
     The output is also going to be in the for as the input for spectra, with an interpolated
     spectrum in a tuple with each phase in phase_array.  However, there will be a None value
     in place of the spectrum if either the phase is out of the phase range for the given spectra
-    or the wavelength arrays do not match, i.e.:
+    or the wavelength arrays do not match, e.g.:
 
         [(-6.5, <sncosmo.spectral.Spectrum object at 0x3480f10>),
          (-3.5, <sncosmo.spectral.Spectrum object at 0x3480890>),
@@ -362,6 +365,10 @@ def interpolate_spectra(phase_array, spectra):
          (46.5, <sncosmo.spectral.Spectrum object at 0x3414cd0>),
          (188.8, None),
          (201.8, None)]
+
+    Tuples in the list with None values can be filtered out like this;
+
+        filtered_spectra = filter(lambda t: t[1]!=None, spectra)
     
     **NOTE: This function assumes that the wavelength array is the same for each spectrum in the
             the given list.  It will return None when trying to interpolate between two spectra
@@ -394,10 +401,10 @@ def interpolate_spectra(phase_array, spectra):
                 
                 # check in wavelength arrays are the same, if not then return None for the
                 #  interpolated spectrum
-                if not np.all((W1, W2)):
+                if not np.array_equal(W1, W2):
                     return (None, i)
                 
-                S_interp = S1 + ((S2-S1)/(p2-p1))*(float(phase)-p1)  # linear interpolation
+                S_interp = S1 + ((S2-S1)/(p2-p1))*(float(phase)-p1)  # compute linear interpolation
                 return (snc.Spectrum(W1, S_interp), i)
             i += 1
 
@@ -407,23 +414,98 @@ def interpolate_spectra(phase_array, spectra):
     search_index = 0  # keep track of current place in phases array in order to speed up interpolation
     for i in xrange(LIM):
         S_interp, search_index = interpolate(phase_array[i], search_index)
-        interpolated.append((round(phase_array[i], 1), S_interp))  # round phase because of weird numpy floats
+        # rounded phase below because of weird numpy float rounding errors when converting phase_array to
+        # a numpy array
+        interpolated.append((round(phase_array[i], 1), S_interp))  
 
     if len(interpolated) == 1:
-        return interpolated[0]
+        return interpolated[0]  # return only the tuple if only interpolating for one phase
     return interpolated
     
 
+################################################################################
+##### REDDENING LAW LEAST SQUARE FITTING HELPER ################################
 
 
+def calc_lsq_fit(S1, S2, filters, zp, redtype, x0):
+    '''
+    ::NOTES FOR ME::
+    must input spectra with matching phases
 
+    fit S1 to S2
+    
+    1. calc 12cu mags
+    2. interpolate with pristine 11fe spectra at 12cu phases
+    3. run lsq_helper_func with pristine spectra
+    
+    x0 is a dict like:
+        {'ebv': -1.37, 'rv':  1.4}
+        { 'av':  1.85,  'p': -2.1}
+        
+    DOCS -> http://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.leastsq.html
 
+    xtol/ftol == something big like .01?
+    
+    '''
+    from scipy.optimize import leastsq as lsq
+    
+    # check that given spectra have matching phases
+    s1_phases, s2_phases = np.array([t[0] for t in S1]), np.array([t[0] for t in S2])
+    
+    if not np.array_equal(s1_phases, s2_phases):
+        return ValueError('Phases in given spectra do not match!')
 
+    if redtype=='fm':
+        Y = np.array([float(x0['ebv']), float(x0['rv'])])
+        REDLAW = redden_fm
+        
+    elif redtype=='pl':
+        Y = np.array([float( x0['av']), float( x0['p'])])
+        REDLAW = redden_pl
+        
+    else:
+        msg = 'Invalid reddening law name; must be either \'fm\' or \'pl\'.'
+        raise ValueError(msg)
+    
+    ############################################################################
+    ##### FUNCTIONS ############################################################
 
+    # returns a lightcurve for the given filter
+    def bandmags(f, spectra):
+        bandfluxes = [s.bandflux('tophat_'+f) for s in spectra]
+        return -2.5*np.log10( bandfluxes/zp[f] )
 
+    
+    # function to be used in least-sq optimization; must only take a numpy array (y) as input
+    def lsq_func(y):
+        
+        reddened = [snc.Spectrum(spec.wave, REDLAW(spec.wave, spec.flux, y[0], y[1])) for spec in s1_spectra]
+        reddened_mags = [bandmags(f, reddened) for f in filters]
+        s1_mins = np.array([np.min(lc) for lc in reddened_mags])
 
+        global BMAX_SHIFTS
+        BMAX_SHIFTS = S2_MINS - s1_mins
+        
+        S1_REF = np.concatenate( [mag+BMAX_SHIFTS[i] for i, mag in enumerate(reddened_mags)] )
+        print S2_REF-S1_REF
+        return np.concatenate(( S2_REF - S1_REF, BMAX_SHIFTS - 5*np.log10(61./21.) ))
+        
+    ############################################################################
+    # s1 is 11fe, s2 is 12cu
+    s1_spectra, s2_spectra = [t[1] for t in S1], [t[1] for t in S2]
+    
+    # get a concatenated array of lightcurves per filter
+    s2_bandmags = [bandmags(f, s2_spectra) for f in filters]
+                   
+    S2_MINS = np.array([np.min(lc) for lc in s2_bandmags])
+    S2_REF = np.concatenate(s2_bandmags)
 
+    lsq_out = lsq(lsq_func, Y, full_output=False)
 
+    from copy import deepcopy
+    bmax_return = deepcopy(BMAX_SHIFTS)
+    
+    return lsq_out, bmax_return
 
 
 
