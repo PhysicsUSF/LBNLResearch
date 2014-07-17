@@ -427,7 +427,7 @@ def interpolate_spectra(phase_array, spectra):
 ##### REDDENING LAW LEAST SQUARE FITTING HELPER ################################
 
 
-def calc_lsq_fit(S1, S2, filters, zp, redtype, x0):
+def calc_lsq_fit(S1, S2, filters, zp, redtype, x0, distmod):
     '''
     ::NOTES FOR ME::
     must input spectra with matching phases
@@ -456,11 +456,11 @@ def calc_lsq_fit(S1, S2, filters, zp, redtype, x0):
         return ValueError('Phases in given spectra do not match!')
 
     if redtype=='fm':
-        Y = np.array([float(x0['ebv']), float(x0['rv'])])
+        red_vars = np.array([float(x0['ebv']), float(x0['rv'])])
         REDLAW = redden_fm
         
     elif redtype=='pl':
-        Y = np.array([float( x0['av']), float( x0['p'])])
+        red_vars = np.array([float( x0['av']), float( x0['p'])])
         REDLAW = redden_pl
         
     else:
@@ -477,35 +477,47 @@ def calc_lsq_fit(S1, S2, filters, zp, redtype, x0):
 
     
     # function to be used in least-sq optimization; must only take a numpy array (y) as input
-    def lsq_func(y):
+    def lsq_func(Y):
+        print Y
         
-        reddened = [snc.Spectrum(spec.wave, REDLAW(spec.wave, spec.flux, y[0], y[1])) for spec in s1_spectra]
+        r = Y[:2]
+        bmax_shifts = Y[2:]
+        
+        reddened = [snc.Spectrum(spec.wave, REDLAW(spec.wave, spec.flux, r[0], r[1])) for spec in s1_spectra]
         reddened_mags = [bandmags(f, reddened) for f in filters]
-        s1_mins = np.array([np.min(lc) for lc in reddened_mags])
-
-        global BMAX_SHIFTS
-        BMAX_SHIFTS = S2_MINS - s1_mins
         
-        S1_REF = np.concatenate( [mag+BMAX_SHIFTS[i] for i, mag in enumerate(reddened_mags)] )
-        print S2_REF-S1_REF
-        return np.concatenate(( S2_REF - S1_REF, BMAX_SHIFTS - 5*np.log10(61./21.) ))
+        #s1_mins = np.array([np.min(lc) for lc in reddened_mags])
+        #global BMAX_SHIFTS
+        #BMAX_SHIFTS = S2_MINS - s1_mins
+        
+        S1_REF = np.concatenate( [mag+bmax_shifts[i] for i, mag in enumerate(reddened_mags)] )
+        
+        return np.concatenate(( S2_REF - S1_REF , bmax_shifts - distmod ))
         
     ############################################################################
     # s1 is 11fe, s2 is 12cu
     s1_spectra, s2_spectra = [t[1] for t in S1], [t[1] for t in S2]
+
+    #####
+    SN12CU_GE = dict( zip( 'UBVRI', [0.117, 0.098, 0.074, 0.058, 0.041] ))
+    #####
     
     # get a concatenated array of lightcurves per filter
-    s2_bandmags = [bandmags(f, s2_spectra) for f in filters]
+    s2_bandmags = [bandmags(f, s2_spectra) - SN12CU_GE[f] for f in filters]
                    
-    S2_MINS = np.array([np.min(lc) for lc in s2_bandmags])
+    #S2_MINS = np.array([np.min(lc) for lc in s2_bandmags])
     S2_REF = np.concatenate(s2_bandmags)
 
-    lsq_out = lsq(lsq_func, Y, full_output=False)
+    Y = np.concatenate(( red_vars, distmod*np.ones(len(filters)) ))
 
-    from copy import deepcopy
-    bmax_return = deepcopy(BMAX_SHIFTS)
     
-    return lsq_out, bmax_return
+    
+    lsq_out = lsq(lsq_func, Y, full_output=False)
+    
+    #from copy import deepcopy
+    #bmax_return = deepcopy(BMAX_SHIFTS)
+    
+    return lsq_out
 
 
 

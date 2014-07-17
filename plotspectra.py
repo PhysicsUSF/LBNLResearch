@@ -57,14 +57,14 @@ def main():
     x0 = {'ebv':-1.37, 'rv':1.5, 'av':1.85, 'p':-2.1}
     redlaw = 'fm'
     filters = 'UBVRI'
+    distmod = 5*np.log10(61./21.)
     
     # least square best fit
-    lsq_out, bmax_shifts = l.calc_lsq_fit(sn11fe, sn12cu, filters, zp, redlaw, x0)
-    
-    print "BMAXOUT:", bmax_shifts
+    lsq_out = l.calc_lsq_fit(sn11fe, sn12cu, filters, zp, redlaw, x0, distmod)
     print "LSQOUT:", lsq_out
     
-    RESULT = lsq_out[0]
+    RESULT = lsq_out[0][:2]
+    bmax_shifts = lsq_out[0][2:]
 
     # get reddened 11fe based on lsq result and interpolate to 12cu phases
     sn11fe = l.get_11fe(redlaw, ebv=RESULT[0], rv=RESULT[1], av=RESULT[0], p=RESULT[1])
@@ -82,13 +82,15 @@ def main():
 
 
         # compute 12cu magnitudes
+        SN12CU_GE = dict( zip( 'UBVRI', [0.117, 0.098, 0.074, 0.058, 0.041] ))
+        
         bandfluxes = zip([t[0] for t in sn12cu], [t[1].bandflux(filter_name) for t in sn12cu])
         bandfluxes = lc_filter(bandfluxes)
 
         phases = [t[0] for t in bandfluxes]
         bandmags = -2.5*np.log10( np.array([t[1] for t in bandfluxes])/zp[f] )
 
-        p1, = plt.plot(phases, bandmags, 'o-', color=fcolor)
+        p1, = plt.plot(phases, bandmags-SN12CU_GE[f], 'o-', color=fcolor)
 
 
         # compute interpolated 11fe magnitudes
