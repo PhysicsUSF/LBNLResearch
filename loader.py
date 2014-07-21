@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 '''
 ::Author::
 Andrew Stocker
@@ -9,7 +8,7 @@ the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The extinction 
 modified to artificially apply reddening.
 
 ::Last Modified::
-07/16/2014
+07/18/2014
 
 ::Notes::
 Source for A_lambda values for 2012cu -> http://ned.ipac.caltech.edu/forms/byname.html
@@ -340,6 +339,97 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
 
 
 ################################################################################
+##### LOAD SN2014J SPECTRA #####################################################
+
+
+def get_14j():
+    '''
+    Gets a dictionary object with filters as keys; for example:
+
+         'R': [{'AV': 0.19,
+                'AX': 0.15,
+                'Color': 0.06,
+                'MJD': 56685.0,
+                'Match': 'M',
+                'Vmag': 10.92,
+                'e_Vmag': 0.02,
+                'e_mag': 0.01,
+                'mag': 10.28,
+                'phase': -3.5},
+               {'AV': 0.19,
+                'AX': 0.15,
+                'Color': 0.06,
+                'MJD': 56686.1,
+                'Match': 'M',
+                'Vmag': 10.84,
+                ...
+    
+    Except for the V-band entry which is just data taken from the 'Vmag' column
+    in the other entries, and look like this:
+
+         'V': [{'AX': 0.19, 'mag': 10.84, 'phase': -4.4},
+               {'AX': 0.15, 'mag': 10.97, 'phase': -3.6},
+               {'AX': 0.19, 'mag': 10.92, 'phase': -3.5},
+               {'AX': 0.19, 'mag': 10.92, 'phase': -3.4},
+               {'AX': 0.19, 'mag': 10.84, 'phase': -2.7},
+               ...
+
+
+    ***Information on the column entries can be found in Amanullah (2008) table-1.
+    
+    '''
+    # get data for SN2014J from data file
+    SN2014J = {'V':[]}
+
+    with open(dirname+"/data/amanulla_2014J_formatted.txt", "r") as f:
+        for ROW in f:
+            DATA = [item for item in ROW.split(" ") if item not in ['', '\n']]
+            Filter = DATA[2].upper()
+
+            if not SN2014J.has_key(Filter):
+                SN2014J[Filter] = []
+            
+            SN2014J[Filter].append({'MJD':float(DATA[0]),
+                                      'phase':float(DATA[1]),
+                                      'mag':float(DATA[3]),
+                                      'e_mag':float(DATA[4]),
+                                      'AX':float(DATA[5]),
+                                      'Match':DATA[6],
+                                      'Vmag':float(DATA[7]),
+                                      'e_Vmag':float(DATA[8]),
+                                      'AV':float(DATA[9]),
+                                      'Color':float(DATA[10])
+                                      })
+            if float(DATA[1]) not in [item['phase'] for item in SN2014J['V']]:
+                SN2014J['V'].append({'phase':float(DATA[1]), 'mag':float(DATA[7]), 'AX':float(DATA[9])})
+
+    for Filter, dictlist in SN2014J.items():
+        SN2014J[Filter] = sorted([e for e in dictlist], key=lambda e: e['phase'])
+
+    return SN2014J
+
+
+##########################################################################################
+##### LOAD VEGA DATA #####################################################################
+
+
+def get_vega_ref():
+    # vega spectrum from fits file
+    F = pyfits.getdata(dirname+'/data/alpha_lyr_mod_001.fits',0)
+    WRANGE = filter(lambda x: x<30000, [item[0] for item in F])
+    FLUX_VALS = [item[1] for item in F[:len(WRANGE)]]
+
+    VEGA = snc.Spectrum( WRANGE, FLUX_VALS )
+
+    REF_FLUX = {}
+
+    for f in 'UBVRI':
+        REF_FLUX[f] = VEGA.bandflux('tophat_'+f)
+
+    return REF_FLUX
+
+
+################################################################################
 ##### SPECTRUM LINEAR INTERPOLATION HELPER FUNCTION ############################
 
     
@@ -427,8 +517,13 @@ def interpolate_spectra(phase_array, spectra):
 ##### REDDENING LAW LEAST SQUARE FITTING HELPER ################################
 
 
-def calc_lsq_fit(S1, S2, filters, zp, redtype, x0, distmod):
+def calc_ftz_lsq_fit(S1, S2, filters, zp, ebv, rv_guess,
+                     dist_mod_true, dist_mod_weight, constrain_dist_mod=True, weight_dist_mod=True):
     '''
+    Least Square Fitter for Fitzpatrick-Massa (1999) reddening law.  This function will assume
+    that S1 is an unreddened twin of S2.
+
+
     ::NOTES FOR ME::
     must input spectra with matching phases
 
@@ -455,17 +550,6 @@ def calc_lsq_fit(S1, S2, filters, zp, redtype, x0, distmod):
     if not np.array_equal(s1_phases, s2_phases):
         return ValueError('Phases in given spectra do not match!')
 
-    if redtype=='fm':
-        red_vars = np.array([float(x0['ebv']), float(x0['rv'])])
-        REDLAW = redden_fm
-        
-    elif redtype=='pl':
-        red_vars = np.array([float( x0['av']), float( x0['p'])])
-        REDLAW = redden_pl
-        
-    else:
-        msg = 'Invalid reddening law name; must be either \'fm\' or \'pl\'.'
-        raise ValueError(msg)
     
     ############################################################################
     ##### FUNCTIONS ############################################################
@@ -474,50 +558,41 @@ def calc_lsq_fit(S1, S2, filters, zp, redtype, x0, distmod):
     def bandmags(f, spectra):
         bandfluxes = [s.bandflux('tophat_'+f) for s in spectra]
         return -2.5*np.log10( bandfluxes/zp[f] )
-
     
     # function to be used in least-sq optimization; must only take a numpy array (y) as input
     def lsq_func(Y):
-        print Y
+        rv = Y[0]
+        #dist_mod_shift = Y[1]
         
-        r = Y[:2]
-        bmax_shifts = Y[2:]
-        
-        reddened = [snc.Spectrum(spec.wave, REDLAW(spec.wave, spec.flux, r[0], r[1])) for spec in s1_spectra]
+        reddened = [snc.Spectrum(spec.wave, redden_fm(spec.wave, spec.flux, ebv, rv)) for spec in s1_spectra]
         reddened_mags = [bandmags(f, reddened) for f in filters]
-        
-        #s1_mins = np.array([np.min(lc) for lc in reddened_mags])
-        #global BMAX_SHIFTS
-        #BMAX_SHIFTS = S2_MINS - s1_mins
-        
-        S1_REF = np.concatenate( [mag+bmax_shifts[i] for i, mag in enumerate(reddened_mags)] )
-        
-        return np.concatenate(( S2_REF - S1_REF , bmax_shifts - distmod ))
-        
+
+##        if constrain_dist_mod:
+##            dist_mod_shift = dist_mod_true
+##        if weight_dist_mod:
+##            S1_REF = np.concatenate( [mag+dist_mod_shift for mag in reddened_mags] )
+##            return np.concatenate(( S2_REF - S1_REF , [dist_mod_weight*(dist_mod_shift - dist_mod_true)] ))
+##        else:
+##            S1_REF = np.concatenate( [mag+dist_mod_shift for mag in reddened_mags] )
+##            return S2_REF - S1_REF
+
+        S1_REF = np.concatenate( [mag+dist_mod_true for mag in reddened_mags] )
+        return S2_REF - S1_REF
+
+    
     ############################################################################
-    # s1 is 11fe, s2 is 12cu
     s1_spectra, s2_spectra = [t[1] for t in S1], [t[1] for t in S2]
 
-    #####
-    SN12CU_GE = dict( zip( 'UBVRI', [0.117, 0.098, 0.074, 0.058, 0.041] ))
-    #####
+    SN12CU_MW = dict( zip( 'UBVRI', [0.117, 0.098, 0.074, 0.058, 0.041] ))  # 12cu Milky Way extinction
     
-    # get a concatenated array of lightcurves per filter
-    s2_bandmags = [bandmags(f, s2_spectra) - SN12CU_GE[f] for f in filters]
-                   
-    #S2_MINS = np.array([np.min(lc) for lc in s2_bandmags])
-    S2_REF = np.concatenate(s2_bandmags)
-
-    Y = np.concatenate(( red_vars, distmod*np.ones(len(filters)) ))
-
+    # get a concatenated array of lightcurves per filter, also correct for 12cu milky way extinction
+    S2_REF = np.concatenate( [bandmags(f, s2_spectra) - SN12CU_MW[f] for f in filters] )
     
+    #Y = np.concatenate(( red_vars, [dist_mod_true] ))  # best guess vector
+    #Y = np.array([rv_guess, dist_mod_true])
+    Y = np.array([rv_guess])
     
-    lsq_out = lsq(lsq_func, Y, full_output=False)
-    
-    #from copy import deepcopy
-    #bmax_return = deepcopy(BMAX_SHIFTS)
-    
-    return lsq_out
+    return lsq(lsq_func, Y)  # , full_output=False, xtol=0.01, ftol=0.01)
 
 
 
