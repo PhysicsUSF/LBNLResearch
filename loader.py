@@ -525,6 +525,8 @@ def interpolate_spectra(phase_array, spectra):
             with different wavelength arrays.
         
     '''
+    from scipy.interpolate import interp1d
+    
     interpolated = []
     phases  = [t[0] for t in spectra]
     spectra = [t[1] for t in spectra]
@@ -546,16 +548,16 @@ def interpolate_spectra(phase_array, spectra):
         while i < LIM:
             if phase < phases[i+1]:
                 p1, p2 = float(phases[i]), float(phases[i+1])
-                S1, S2 = spectra[i].flux, spectra[i+1].flux  # these are numpy arrays
-                W1, W2 = spectra[i].wave, spectra[i+1].wave  # these are numpy arrays
-                
-                # check in wavelength arrays are the same, if not then return None for the
-                #  interpolated spectrum
-                if not np.array_equal(W1, W2):
-                    return (None, i)
-                
-                S_interp = S1 + ((S2-S1)/(p2-p1))*(float(phase)-p1)  # compute linear interpolation
-                return (snc.Spectrum(W1, S_interp), i)
+                W1, W2 = spectra[i].wave, spectra[i+1].wave
+                S1 = interp1d(W1, spectra[i].flux)
+                S2 = interp1d(W2, spectra[i+1].flux)
+
+                # get range of overlap between two spectra
+                RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ) , 2)
+
+                # compute linear interpolation
+                S_interp = S1(RNG) + ((S2(RNG)-S1(RNG))/(p2-p1))*(float(phase)-p1)
+                return (snc.Spectrum(RNG, S_interp), i)
             i += 1
 
         return (None, 0)
