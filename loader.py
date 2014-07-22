@@ -8,7 +8,7 @@ the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The extinction 
 modified to artificially apply reddening.
 
 ::Last Modified::
-07/18/2014
+07/22/2014
 
 ::Notes::
 Source for A_lambda values for 2012cu -> http://ned.ipac.caltech.edu/forms/byname.html
