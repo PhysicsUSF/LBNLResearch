@@ -20,7 +20,7 @@ import pyfits
 import sncosmo as snc
 
 from pprint import pprint
-dirname = os.path.dirname(__file__)
+dirname = os.getcwd()
 
 
 ################################################################################
@@ -38,7 +38,15 @@ def load_filters():
         ZP_CACHE = loader.load_filters()
         U_band_zp = ZP_CACHE['U']
     '''
-    ZP_CACHE = {}  # dictionary for zero point fluxes of filters
+    # vega spectrum from fits file
+    F = pyfits.getdata(dirname+'/data/alpha_lyr_mod_001.fits',0)
+    WRANGE = filter(lambda x: x<30000, [item[0] for item in F])
+    FLUX_VALS = [item[1] for item in F[:len(WRANGE)]]
+
+    VEGA = snc.Spectrum( WRANGE, FLUX_VALS )
+
+    # dictionary for zero point fluxes of filters
+    ZP_CACHE = {}
 
     for f in 'UBVRI':
         filter_name = 'tophat_'+f
@@ -54,6 +62,7 @@ def load_filters():
         zpsys = snc.get_magsystem('vega')
         zp_phot = zpsys.zpbandflux(filter_name)
 
+        #ZP_CACHE[f] = VEGA.bandflux('tophat_'+f)/zp_phot
         ZP_CACHE[f] = zp_phot
 
     return ZP_CACHE
@@ -291,11 +300,14 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
     '''
     SN2011FE = []  # list of info dictionaries
 
-    # get fits files from 12cu data folder (exclude README file)
-    FILES = [f for f in os.listdir( dirname + '/data/sn2011fe' ) if f[-3:]!='txt']
 
-    for f in FILES:
-        filename = dirname + '/data/sn2011fe/' + f
+    ## LOAD SNFACTORY SN2011FE SPECTRA ##
+    
+    # get fits files from 12cu data folder (exclude README file)
+    files = [f for f in os.listdir( dirname + '/data/sn2011fe' ) if f[-3:]!='txt']
+
+    for F in files:
+        filename = dirname + '/data/sn2011fe/' + F
 
         header = pyfits.getheader(filename)
 
@@ -308,10 +320,78 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
         wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
         
         SN2011FE.append({
-            'phase': phase,
-            'wave' : wave,
-            'flux' : flux
-            })
+                        'phase': phase,
+                        'wave' : wave,
+                        'flux' : flux
+                        })
+
+
+    ## LOAD MAST SN2011FE SPECTRA ##
+
+    workingdir = dirname + '/data/sn2011fe_mast/'
+    files = sorted(os.listdir(workingdir))
+
+    PHASES = {}
+    for F in files:
+        header = pyfits.getheader(workingdir+F)
+        CENTRWV = 100*(int(header['CENTRWV'])/100)
+        ### SN2011FE BMAX: 55814.5
+        phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+        
+        if not PHASES.has_key(phase):
+            PHASES[phase] = {}
+        if not PHASES[phase].has_key(CENTRWV):
+            PHASES[phase][CENTRWV] = []
+            
+        D = pyfits.getdata(workingdir+F)
+        wave = D.field('WAVELENGTH')[0]
+        flux = D.field('FLUX')[0]
+        
+        PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux})
+        
+    for i, p in enumerate(sorted(PHASES.keys())):   
+        SPECTRUM_DICT_LIST = PHASES[p]
+        wave_concat = np.array([])
+        flux_concat = np.array([])
+        
+        for LIST in SPECTRUM_DICT_LIST.values():
+            n = len(LIST)
+            wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
+            flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
+            
+        I = wave_concat.argsort()
+        wave_concat = wave_concat[I]
+        flux_concat = flux_concat[I]
+
+        SN2011FE.append({
+                        'phase': p,
+                        'wave' : wave_concat,
+                        'flux' : flux_concat
+                        })
+
+    del PHASES
+
+
+    ## LOAD PTF11KLY SPECTRA ##
+
+    workingdir = dirname + '/data/ptf11kly/'
+    files = sorted(os.listdir(workingdir))
+
+    for F in files:
+        A = np.genfromtxt(workingdir + F, autostrip=True)
+
+        mjd = float(F[9:15])/10  # get mjd from filename
+        phase = round(mjd-55814.5, 1)
+        
+        wave, flux = A[:,0], A[:,1]
+
+        SN2011FE.append({
+                        'set'  : 'PTF11KLY',
+                        'phase': phase,
+                        'wave' : wave,
+                        'flux' : flux
+                        })
+                
 
     # sort list of dictionaries by phase
     SN2011FE = sorted([e for e in SN2011FE], key=lambda e: e['phase'])
@@ -407,26 +487,6 @@ def get_14j():
         SN2014J[Filter] = sorted([e for e in dictlist], key=lambda e: e['phase'])
 
     return SN2014J
-
-
-##########################################################################################
-##### LOAD VEGA DATA #####################################################################
-
-
-def get_vega_ref():
-    # vega spectrum from fits file
-    F = pyfits.getdata(dirname+'/data/alpha_lyr_mod_001.fits',0)
-    WRANGE = filter(lambda x: x<30000, [item[0] for item in F])
-    FLUX_VALS = [item[1] for item in F[:len(WRANGE)]]
-
-    VEGA = snc.Spectrum( WRANGE, FLUX_VALS )
-
-    REF_FLUX = {}
-
-    for f in 'UBVRI':
-        REF_FLUX[f] = VEGA.bandflux('tophat_'+f)
-
-    return REF_FLUX
 
 
 ################################################################################
