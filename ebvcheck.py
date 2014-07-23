@@ -17,7 +17,7 @@ import sncosmo as snc
 from pprint import pprint
 
 
-def calc_ebvs(sn14j_vmags, sn14j_bmags, sn11fe_spectra, zp):
+def calc_ebvs(sn14j_colors, sn11fe_spectra, zp):
     # (14j vmag - 11fe vmag) - (14j bmag - 11fe bmag)
 
     ebvs = []
@@ -25,7 +25,7 @@ def calc_ebvs(sn14j_vmags, sn14j_bmags, sn11fe_spectra, zp):
         sn11fe_bmag = -2.5*np.log10( spectrum[1].bandflux('tophat_B')/zp['B'] )
         sn11fe_vmag = -2.5*np.log10( spectrum[1].bandflux('tophat_V')/zp['V'] )
 
-        ebv = (sn14j_vmags[i] - sn11fe_vmag) - (sn14j_bmags[i] - sn11fe_bmag)
+        ebv = sn14j_colors[i] - (sn11fe_vmag - sn11fe_bmag)
 
         ebvs.append( (spectrum[0], ebv) )
 
@@ -39,16 +39,14 @@ def main():
     sn11fe = l.get_11fe()
 
     dictlist_B = sn14j['B']
-    dictlist_V = sn14j['V']
     
     phaselist_B = [d['phase'] for d in dictlist_B]
 
-    maglist_B = [d['mag']-d['AX'] for d in dictlist_B]
-    maglist_V = [d['mag']-d['AX'] for d in dictlist_V if d['phase'] in phaselist_B]
+    colorlist_B = [(d['Vmag']-d['AV'])-(d['mag']-d['AX']) for d in dictlist_B]
     
     sn11fe = l.interpolate_spectra(phaselist_B, sn11fe)
 
-    ebvs = calc_ebvs(maglist_V, maglist_B, sn11fe, zp)
+    ebvs = calc_ebvs(colorlist_B, sn11fe, zp)
 
     print "AVERAGE E(B-V):", np.average( np.array([t[1] for t in ebvs]) )
 
