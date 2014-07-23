@@ -34,10 +34,10 @@ N_DAYS = 2.0
 FILTERS = 'UBRI'
 
 # vars for reddening 11fe to match 14j, best ebv  = 1.29 ?  (from Amanullah)
-EBV_14J, RV_14J = -1.29,  1.3
+EBV_14J, RV_14J = -1.29,  1.38
 
 # vars for reddening 11fe to match 12cu, best ebv calculated from 12cu synthetic phot.
-EBV_12CU, RV_12CU = -1.067, 2.43
+EBV_12CU, RV_12CU = -1.067, 2.65
 
 
 ################################################################################

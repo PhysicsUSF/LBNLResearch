@@ -285,7 +285,8 @@ def get_12cu():
 ##### LOAD SN2011FE SPECTRA ####################################################
 
 
-def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
+def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
+             loadptf=True, loadsnf=True, loadmast=True):
     '''
     This function operates similarly to get_12cu() and returns a list of tuples of the form;
 
@@ -303,94 +304,114 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
 
     ## LOAD SNFACTORY SN2011FE SPECTRA ##
     
-    # get fits files from 12cu data folder (exclude README file)
-    files = [f for f in os.listdir( dirname + '/data/sn2011fe' ) if f[-3:]!='txt']
+    if loadsnf:
+        # get fits files from 12cu data folder (exclude README file)
+        files = [f for f in os.listdir( dirname + '/data/sn2011fe' ) if f[-3:]!='txt']
 
-    for F in files:
-        filename = dirname + '/data/sn2011fe/' + F
+        for F in files:
+            filename = dirname + '/data/sn2011fe/' + F
 
-        header = pyfits.getheader(filename)
+            header = pyfits.getheader(filename)
 
-        CRVAL1 = header['CRVAL1'] # coordinate start value
-        CDELT1 = header['CDELT1'] # coordinate increment per pixel
-        TMAX   = header['TMAX']   # phase in days relative to B-band maximum
-        
-        phase = float(TMAX)
-        flux = pyfits.getdata(filename,0)
-        wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
-        
-        SN2011FE.append({
-                        'phase': phase,
-                        'wave' : wave,
-                        'flux' : flux
-                        })
+            CRVAL1 = header['CRVAL1'] # coordinate start value
+            CDELT1 = header['CDELT1'] # coordinate increment per pixel
+            TMAX   = header['TMAX']   # phase in days relative to B-band maximum
+            
+            phase = float(TMAX)
+            flux = pyfits.getdata(filename,0)
+            wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
+            
+            SN2011FE.append({
+                            'phase': phase,
+                            'wave' : wave,
+                            'flux' : flux,
+                            'set'  : 'SNF'
+                            })
 
 
     ## LOAD MAST SN2011FE SPECTRA ##
-
-    workingdir = dirname + '/data/sn2011fe_mast/'
-    files = sorted(os.listdir(workingdir))
-
-    PHASES = {}
-    for F in files:
-        header = pyfits.getheader(workingdir+F)
-        CENTRWV = 100*(int(header['CENTRWV'])/100)
-        ### SN2011FE BMAX: 55814.5
-        phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
-        
-        if not PHASES.has_key(phase):
-            PHASES[phase] = {}
-        if not PHASES[phase].has_key(CENTRWV):
-            PHASES[phase][CENTRWV] = []
             
-        D = pyfits.getdata(workingdir+F)
-        wave = D.field('WAVELENGTH')[0]
-        flux = D.field('FLUX')[0]
-        
-        PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux})
-        
-    for i, p in enumerate(sorted(PHASES.keys())):   
-        SPECTRUM_DICT_LIST = PHASES[p]
-        wave_concat = np.array([])
-        flux_concat = np.array([])
-        
-        for LIST in SPECTRUM_DICT_LIST.values():
-            n = len(LIST)
-            wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
-            flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
+    if loadmast:
+        workingdir = dirname + '/data/sn2011fe_mast/'
+        files = sorted(os.listdir(workingdir))
+
+        # find proper phase buckets
+        phase_buckets = {}
+        for F in files:
+            header = pyfits.getheader(workingdir+F)
+            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+
+            actual_phase = ((float(header['TEXPEND' ])+float(header['TEXPSTRT']))/2)-55814.51
+
+            if phase_buckets.has_key(phase):
+                phase_buckets[phase].append(actual_phase)
+            else:
+                phase_buckets[phase] = []
+
+        phase_buckets = {key:round(np.average(values), 2) for key, values in phase_buckets.items()}
+
+        PHASES = {}
+        for F in files:
+            header = pyfits.getheader(workingdir+F)
+            CENTRWV = 100*(int(header['CENTRWV'])/100)
+            ### SN2011FE BMAX: 55814.5
+            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+            phase = phase_buckets[phase]
             
-        I = wave_concat.argsort()
-        wave_concat = wave_concat[I]
-        flux_concat = flux_concat[I]
+            if not PHASES.has_key(phase):
+                PHASES[phase] = {}
+            if not PHASES[phase].has_key(CENTRWV):
+                PHASES[phase][CENTRWV] = []
+                
+            D = pyfits.getdata(workingdir+F)
+            wave = D.field('WAVELENGTH')[0]
+            flux = D.field('FLUX')[0]
+            
+            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux})
+            
+        for i, p in enumerate(sorted(PHASES.keys())):   
+            SPECTRUM_DICT_LIST = PHASES[p]
+            wave_concat = np.array([])
+            flux_concat = np.array([])
+            
+            for LIST in SPECTRUM_DICT_LIST.values():
+                n = len(LIST)
+                wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
+                flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
+                
+            I = wave_concat.argsort()
+            wave_concat = wave_concat[I]
+            flux_concat = flux_concat[I]
 
-        SN2011FE.append({
-                        'phase': p,
-                        'wave' : wave_concat,
-                        'flux' : flux_concat
-                        })
+            SN2011FE.append({
+                            'phase': p,
+                            'wave' : wave_concat,
+                            'flux' : flux_concat,
+                            'set'  : 'MAST'
+                            })
 
-    del PHASES
-
+        del PHASES
 
     ## LOAD PTF11KLY SPECTRA ##
-
-    workingdir = dirname + '/data/ptf11kly/'
-    files = sorted(os.listdir(workingdir))
-
-    for F in files:
-        A = np.genfromtxt(workingdir + F, autostrip=True)
-
-        mjd = float(F[9:15])/10  # get mjd from filename
-        phase = round(mjd-55814.5, 1)
         
-        wave, flux = A[:,0], A[:,1]
+    if loadptf:
+        workingdir = dirname + '/data/ptf11kly/'
+        files = sorted(os.listdir(workingdir))
 
-        SN2011FE.append({
-                        'set'  : 'PTF11KLY',
-                        'phase': phase,
-                        'wave' : wave,
-                        'flux' : flux
-                        })
+        for F in files:
+            A = np.genfromtxt(workingdir + F, autostrip=True)
+
+            mjd = float(F[9:15])/10  # get mjd from filename
+            phase = round(mjd-55814.51, 2)
+            
+            wave, flux = A[:,0], A[:,1]
+
+            SN2011FE.append({
+                            'phase': phase,
+                            'wave' : wave,
+                            'flux' : flux,
+                            'set'  : 'PTF11KLY'
+                            })
                 
 
     # sort list of dictionaries by phase
@@ -398,17 +419,17 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None):
 
     # return list of reddened spectra
     if redtype==None:
-        return [(D['phase'], snc.Spectrum(D['wave'], D['flux'])) for D in SN2011FE]
+        return [(D['phase'], snc.Spectrum(D['wave'], D['flux']), D['set']) for D in SN2011FE]
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)))
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)), D['set'])
                     for D in SN2011FE]
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
     elif redtype=='pl':
         if av!=None and p!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)))
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)), D['set'])
                     for D in SN2011FE]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
