@@ -582,8 +582,8 @@ def interpolate_spectra(phase_array, spectra):
 def calc_ftz_lsq_fit(S1, S2, filters, zp, ebv, rv_guess,
                      dist_mod_true, dist_mod_weight, constrain_dist_mod=True, weight_dist_mod=True):
     '''
-    Least Square Fitter for Fitzpatrick-Massa (1999) reddening law.  This function will assume
-    that S1 is an unreddened twin of S2.
+    Least Square Fitter for Fitzpatrick-Massa (1999) reddening law.  This function assumes
+    that S1 is an unreddened twin of S2 -- in our case S1 is 
 
 
     ::NOTES FOR ME::
