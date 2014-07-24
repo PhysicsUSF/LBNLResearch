@@ -659,7 +659,7 @@ def calc_ftz_lsq_fit(S1, S2, filters, zp, ebv, rv_guess,
 ##            S1_REF = np.concatenate( [mag+dist_mod_shift for mag in reddened_mags] )
 ##            return S2_REF - S1_REF
 
-        S1_REF = np.concatenate( [mag+dist_mod_true for mag in reddened_mags] )
+        S1_REF = np.concatenate( [mags+dist_mod_true for mags in reddened_mags] )
         return S2_REF - S1_REF
 
     
