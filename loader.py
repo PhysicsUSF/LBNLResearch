@@ -292,7 +292,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
             raise ValueError(msg)
     elif redtype=='pl':
         if av!=None and p!=None:
-            return [(t[0], snc.Spectrum(D['wave'], redden_pl(t[1].wave, t[1].flux, av, p)))
+            return [(t[0], snc.Spectrum(t[1].wave, redden_pl(t[1].wave, t[1].flux, av, p)))
                     for t in SN2012CU]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
