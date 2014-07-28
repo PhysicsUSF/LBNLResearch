@@ -26,8 +26,8 @@ dirname = os.getcwd()
 ################################################################################
 ##### LOAD UBVRi FILTERS #######################################################
 
-
-def load_filters():
+# FILTER_PREFIX = 'NOT_' or 'tophat_'
+def load_filters(FILTER_PREFIX='tophat_'):
     '''
     Load UBVRI tophat filters defined in Pereira (2013) into the sncosmo
     registry.  Also returns a dictionary of zero-point values in Vega system
@@ -38,19 +38,12 @@ def load_filters():
         ZP_CACHE = loader.load_filters()
         U_band_zp = ZP_CACHE['U']
     '''
-    # vega spectrum from fits file
-    F = pyfits.getdata(dirname+'/data/alpha_lyr_mod_001.fits',0)
-    WRANGE = filter(lambda x: x<30000, [item[0] for item in F])
-    FLUX_VALS = [item[1] for item in F[:len(WRANGE)]]
-
-    VEGA = snc.Spectrum( WRANGE, FLUX_VALS )
-
     # dictionary for zero point fluxes of filters
-    ZP_CACHE = {}
+    ZP_CACHE = {'prefix': FILTER_PREFIX}
 
     for f in 'UBVRI':
-        filter_name = 'tophat_'+f
-        file_name = dirname + '/data/filters/' + filter_name + '.dat'
+        filter_name = FILTER_PREFIX+f
+        file_name = dirname+'/data/filters/'+filter_name+'.dat'
         
         try:
             snc.get_bandpass(filter_name)
@@ -62,7 +55,6 @@ def load_filters():
         zpsys = snc.get_magsystem('vega')
         zp_phot = zpsys.zpbandflux(filter_name)
 
-        #ZP_CACHE[f] = VEGA.bandflux('tophat_'+f)/zp_phot
         ZP_CACHE[f] = zp_phot
 
     return ZP_CACHE
@@ -73,7 +65,7 @@ def load_filters():
 
 
 # Goobar (2008) power law artificial reddening law
-def redden_pl(wave, flux, Av, p):
+def redden_pl(wave, flux, Av, p, return_excess=False):
     #wavelength in angstroms
     #lamv = 5500
     lamv = 5366
@@ -84,14 +76,17 @@ def redden_pl(wave, flux, Av, p):
     Alam_over_Av = 1. - a + a*(x**p)/(lamv**p)
     A_lambda = -1* Av * Alam_over_Av
 
-    Rv = 1./(a*(0.8**p - 1.))
+    #Rv = 1./(a*(0.8**p - 1.))
     #print "###Rv value:", Rv
-    VAL = flux * 10.**(0.4 * A_lambda)
-    return VAL
+    if not return_excess:
+        VAL = flux * 10.**(0.4 * A_lambda)
+        return VAL
+    else:
+        return Av + A_lambda
 
 
 # Fitzpatrick-Massa (1999) artificial reddening law
-def redden_fm(wave, flux, ebv, R_V, *args, **kwargs):
+def redden_fm(wave, flux, ebv, R_V, return_excess=False, *args, **kwargs):
     '''
     given wavelength and flux info of a spectrum, return:
     reddened spectrum fluxes (ebv < 0)
@@ -192,18 +187,24 @@ def redden_fm(wave, flux, ebv, R_V, *args, **kwargs):
         cubic = spline(n.concatenate( (xsplopir,xspluv) ), n.concatenate( (ysplopir,yspluv) ), k=3)
         curve[iuv_comp] = cubic( x[iuv_comp] )
 
-    # Now apply extinction correction to input flux vector
-    curve = ebv * curve[0]
-    flux = flux * 10.**(0.4 * curve)
-    
-    return flux
+    if not return_excess:
+        # Now apply extinction correction to input flux vector
+        curve = ebv * curve[0]
+        flux = flux * 10.**(0.4 * curve)
+        return flux
+    else:
+        Alam_over_AV = curve/float(R_V)
+        A_V = R_V * ebv
+        Alam = Alam_over_AV * A_V
+        evx = A_V - Alam
+        return -evx[0]
 
 
 ################################################################################
 ##### LOAD SN2012CU SPECTRA ####################################################
 
 
-def get_12cu():
+def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
     '''
     Function to get SN2012CU spectra.  This returns a sorted list of the form;
 
@@ -277,8 +278,29 @@ def get_12cu():
         # make into Spectrum object and add to list with phase data
         SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat)) )
 
-
-    return sorted(SN2012CU, key=lambda t: t[0])  # sort by phase
+    
+    SN2012CU = sorted(SN2012CU, key=lambda t: t[0])
+    
+    if redtype==None:
+        return SN2012CU
+    elif redtype=='fm':
+        if ebv!=None and rv!=None:
+            return [(t[0], snc.Spectrum(t[1].wave, redden_fm(t[1].wave, t[1].flux, ebv, rv)))
+                    for t in SN2012CU]
+        else:
+            msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
+            raise ValueError(msg)
+    elif redtype=='pl':
+        if av!=None and p!=None:
+            return [(t[0], snc.Spectrum(D['wave'], redden_pl(t[1].wave, t[1].flux, av, p)))
+                    for t in SN2012CU]
+        else:
+            msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
+            raise ValueError(msg)
+    else:
+        msg = 'Invalid reddening law name; must be either \'fm\' or \'pl\'.'
+        raise ValueError(msg)
+    
 
 
 ################################################################################
@@ -633,13 +655,15 @@ def calc_ftz_lsq_fit(S1, S2, filters, zp, ebv, rv_guess,
     if not np.array_equal(s1_phases, s2_phases):
         return ValueError('Phases in given spectra do not match!')
 
-    
+
+    prefix = zp['prefix']
+        
     ############################################################################
     ##### FUNCTIONS ############################################################
 
     # returns a lightcurve for the given filter
     def bandmags(f, spectra):
-        bandfluxes = [s.bandflux('tophat_'+f) for s in spectra]
+        bandfluxes = [s.bandflux(prefix+f) for s in spectra]
         return -2.5*np.log10( bandfluxes/zp[f] )
     
     # function to be used in least-sq optimization; must only take a numpy array (y) as input
