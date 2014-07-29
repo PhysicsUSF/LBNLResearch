@@ -23,6 +23,7 @@ from pprint import pprint
 dirname = os.getcwd()
 
 
+
 ################################################################################
 ##### LOAD UBVRi FILTERS #######################################################
 
@@ -60,6 +61,7 @@ def load_filters(FILTER_PREFIX='tophat_'):
     return ZP_CACHE
 
 
+
 ################################################################################
 ##### EXTINCTION LAWS ##########################################################
 
@@ -67,8 +69,7 @@ def load_filters(FILTER_PREFIX='tophat_'):
 # Goobar (2008) power law artificial reddening law
 def redden_pl(wave, flux, Av, p, return_excess=False):
     #wavelength in angstroms
-    #lamv = 5500
-    lamv = 5366
+    lamv = 5500
     a = 1.
     x = np.array(wave)
     #A_V = R_V * ebv
@@ -198,6 +199,7 @@ def redden_fm(wave, flux, ebv, R_V, return_excess=False, *args, **kwargs):
         Alam = Alam_over_AV * A_V
         evx = A_V - Alam
         return -evx[0]
+
 
 
 ################################################################################
@@ -461,6 +463,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
         raise ValueError(msg)
 
 
+
 ################################################################################
 ##### LOAD SN2014J SPECTRA #####################################################
 
@@ -532,6 +535,7 @@ def get_14j():
     return SN2014J
 
 
+
 ################################################################################
 ##### SPECTRUM LINEAR INTERPOLATION HELPER FUNCTION ############################
 
@@ -596,7 +600,7 @@ def interpolate_spectra(phase_array, spectra):
                 S2 = interp1d(W2, spectra[i+1].flux)
 
                 # get range of overlap between two spectra
-                RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ) , 2)
+                RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ), 2)
 
                 # compute linear interpolation
                 S_interp = S1(RNG) + ((S2(RNG)-S1(RNG))/(p2-p1))*(float(phase)-p1)
@@ -616,6 +620,7 @@ def interpolate_spectra(phase_array, spectra):
     if len(interpolated) == 1:
         return interpolated[0]  # return only the tuple if only interpolating for one phase
     return interpolated
+
     
 
 ################################################################################
