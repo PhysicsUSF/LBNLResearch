@@ -6,7 +6,7 @@ Andrew Stocker
 This program will plot the color excess plot for 14J and 12CU with various reddening laws.
 
 ::Last Modified::
-07/24/2014
+08/01/2014
 
 '''
 import loader as l
@@ -20,7 +20,9 @@ from itertools import izip
 
 from pprint import pprint
 
+
 ## vars ##
+N_BUCKETS = 20
 
 # 14j
 EBV_14J, RV_14J = -1.37, 1.4
@@ -28,7 +30,7 @@ AV_14J, P_14J = 1.85, -2.1
 
 # 12cu
 EBV_12CU, RV_12CU = -1.07, 2.59
-AV_12CU, P_12CU = RV_12CU*(-EBV_12CU), np.log((1/RV_12CU)+1)/np.log(0.8)
+#AV_12CU, P_12CU = RV_12CU*(-EBV_12CU), np.log((1/RV_12CU)+1)/np.log(0.8)
 
 
 ################################################################################
@@ -55,20 +57,20 @@ def load_14j_colors(phases, filters, zp):
 
 def load_12cu_colors(phases, filters, zp):
     prefix = zp['prefix']
-    sn12cu = l.get_12cu()
-    
-    # get 12cu photometry at BMAX
-    #SN12CU_MW = dict( zip( 'UBVRI', [0.117, 0.098, 0.074, 0.058, 0.041] ))
-    
+
+    # correct for Milky Way extinction
+    sn12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)
     sn12cu = l.interpolate_spectra(phases, sn12cu)
 
-    sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')/zp['V']) for t in sn12cu]  # -SN12CU_MW['V']
+    if type(sn12cu) == type(()):  # convert from tuple to list if just one phase
+        sn12cu = [sn12cu]
+    
+    sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')/zp['V']) for t in sn12cu]
 
     sn12cu_colors = {i:{} for i in xrange(len(phases))}
     for f in filters:
-        band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f)/zp[f]) for t in sn12cu]  # -SN12CU_MW[f]
+        band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f)/zp[f]) for t in sn12cu]
         band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
-
         for i, color in enumerate(band_colors):
             sn12cu_colors[i][f] = color
         
@@ -76,101 +78,47 @@ def load_12cu_colors(phases, filters, zp):
 
 
 ################################################################################
-### TOPHAT FILTER GENERATOR ####################################################
-
-def generate_buckets(low, high, n):
-    '''
-    function to generate [n] tophat filters within the
-    range of [low, high], with one 'V' filter centered at
-    the BESSEL-V filter's effective wavelength (5417.2 Angstroms).
-    '''
-    V_EFF = 5417.2
-    STEP_SIZE = 2
-    ZP_CACHE = {'prefix':'bucket_'}
-
-    hi_cut, lo_cut = high-V_EFF, V_EFF-low
-    a = (n-1)/(1+(hi_cut/lo_cut))
-    A, B = np.round(a), np.round(n-1-a)
-
-    lo_bw, hi_bw = lo_cut/(A+0.5), hi_cut/(B+0.5)
-    lo_diff = lo_cut-(A+0.5)*hi_bw
-    hi_diff = hi_cut-(B+0.5)*lo_bw
-
-    idx = np.argmax((lo_diff, hi_diff))
-    BW = (hi_bw, lo_bw)[idx]
-
-    LOW = (low+lo_diff, low)[idx]
-
-    for i in xrange(n):
-        start = LOW+i*BW
-        end = LOW+(i+1)*BW
-        
-        wave = np.arange(start, end, STEP_SIZE)
-        trans = np.ones(wave.shape[0])
-        trans[0]=trans[-1]=0
-
-        if not abs(5417.2-(start+end)/2) < 1:
-            filter_name = 'bucket_'+str(i)
-        else:
-            filter_name = 'bucket_V'
-            V_IDX = i
-            
-        try:
-            snc.get_bandpass(filter_name)
-        except:
-            bandpass = snc.Bandpass(wave, trans)
-            snc.registry.register(bandpass, filter_name)
-
-        zpsys = snc.get_magsystem('vega')
-        zp_phot = zpsys.zpbandflux(filter_name)
-        
-        if filter_name == 'bucket_V':
-            ZP_CACHE['V'] = zp_phot
-        else:
-            ZP_CACHE[str(i)] = zp_phot
-
-    FILTERS = [str(i) for i in xrange(n)]
-    FILTERS[V_IDX] = 'V'
-    
-    return FILTERS, ZP_CACHE
-
-
-################################################################################
 ### GENERAL PLOTTING FUNCTION ##################################################
 
-def plotexcess(phases, name, loader, EBV, RV, AV, P, filters, zp, ax, plotpl=True):
-    print "Plotting",name,"..."
-    ref = loader(phases, filters, zp)
+def plotexcess(phases, name, loader, EBV, RV, filters, zp, ax, AV=0.0, P=0.0, plotpl=False):
     
+    print "Plotting",name,"..."
+    
+    ref = loader(phases, filters, zp)
     prefix = zp['prefix']
     filter_eff_waves = [snc.get_bandpass(prefix+f).wave_eff for f in filters]
 
     # get 11fe synthetic photometry at BMAX, get ref sn color excesses at BMAX
     sn11fe = l.interpolate_spectra(phases, l.get_11fe())
 
+    if type(sn11fe) == type(()):  # convert from tuple to list if just one phase
+        sn11fe = [sn11fe]
     
     for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
-        print phase,"..."
-
+        
+        # calculate sn11fe band magnitudes
         sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)/zp[f])
                        for f in filters}
         
+        # calculate V-X colors for sn11fe
         sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
 
+        # make list of colors of reference supernova for given phase i
         ref_colors = [ref[i][f] for f in filters]
-        
+
+        # get colors excess of reference supernova compared for sn11fe
         phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
 
-        eff_waves_inv = (10000./np.array(filter_eff_waves)) #+ 0.12
-        mfc_color = plt.cm.gist_rainbow(abs(phase/np.max(phases)))
-        
+        # convert effective wavelengths to inverse microns then plot
+        eff_waves_inv = (10000./np.array(filter_eff_waves))
+        mfc_color = plt.cm.gist_rainbow(abs(phase/24.))        
         plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
                  ms=8, mec='none', mfc=mfc_color, alpha=0.8)
 
-    # plot FTZ curve
+
     x = np.arange(3000,10000,10)
-    ftz_curve = redden_fm(x, np.zeros(x.shape), EBV, RV, return_excess=True)
     xinv = 10000./x
+    ftz_curve = redden_fm(x, np.zeros(x.shape), EBV, RV, return_excess=True)
     plt.plot(xinv, ftz_curve, 'k--')
 
     if plotpl:
@@ -185,25 +133,86 @@ def plotexcess(phases, name, loader, EBV, RV, AV, P, filters, zp, ax, plotpl=Tru
     plt.xlim(1.0, 3.0)
 
 
+def plot_ftz_excesses(phases, name, loader, EBVS, RVS, filters, zp):
+    
+    print "Plotting excesses of",name,"..."
+    
+    ref = loader(phases, filters, zp)
+    prefix = zp['prefix']
+    filter_eff_waves = [snc.get_bandpass(prefix+f).wave_eff for f in filters]
+
+    # get 11fe synthetic photometry at BMAX, get ref sn color excesses at BMAX
+    sn11fe = l.interpolate_spectra(phases, l.get_11fe())
+
+    if type(sn11fe) == type(()):  # convert from tuple to list if just one phase
+        sn11fe = [sn11fe]
+    
+    numrows = (len(phases)-1)//5 + 1
+    
+    for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
+        ax = plt.subplot(numrows, 5, i+1)
+        
+        # calculate sn11fe band magnitudes
+        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)/zp[f])
+                       for f in filters}
+        
+        # calculate V-X colors for sn11fe
+        sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
+
+        # make list of colors of reference supernova for given phase i
+        ref_colors = [ref[i][f] for f in filters]
+
+        # get colors excess of reference supernova compared for sn11fe
+        phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
+
+        # convert effective wavelengths to inverse microns then plot
+        eff_waves_inv = (10000./np.array(filter_eff_waves))
+        mfc_color = plt.cm.gist_rainbow(abs(phase/24.))        
+        plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
+                 ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+
+        x = np.arange(3000,10000,10)
+        xinv = 10000./x
+        ftz_curve = redden_fm(x, np.zeros(x.shape), -EBVS[i], RVS[i], return_excess=True)
+        
+        ERROR = 0.3
+        ftz_curve_upper = redden_fm(x, np.zeros(x.shape), -EBVS[i], RVS[i]-ERROR, return_excess=True)
+        ftz_curve_lower = redden_fm(x, np.zeros(x.shape), -EBVS[i], RVS[i]+ERROR, return_excess=True)
+        plt.plot(xinv, ftz_curve, 'k--')
+        plt.plot(xinv, ftz_curve_upper, 'k-')
+        plt.plot(xinv, ftz_curve_lower, 'k-')
+        
+        plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'\pm'+str(ERROR)+'$'+ \
+                   '\n'+'$R_V$: $'+str(round(RVS[i],2))+'$'
+        
+        ax.text(.95, .95, plt_text, size=12,
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes)
+        
+        ax.set_title('phase: '+str(phase))
+                     
+        if i%5 == 0:
+            plt.ylabel('$E(V-X)$')
+        if i>=(numrows-1)*5:
+            plt.xlabel('Wavelength ($1 / \mu m$)')
+        plt.xlim(1.0, 3.0)
+
+
 ################################################################################
 ### MAIN #######################################################################
 
-if __name__=='__main__':
-    
-    filters_vis = 'UBVRI'
-    zp_top = l.load_filters('tophat_')
-    zp_not = l.load_filters('NOT_')
 
-    filters_bucket, zp_bucket = generate_buckets(3300, 9700, 20)
-
+def main1():
     fig = plt.figure()
-    phases = np.arange(-3., 25., 1.5)
+    phases = [-3.5, -1.4, 6.5, 8.5, 11.5, 14.5, 16.5, 18.5, 21.5, 23.5]
     
     ax1 = plt.subplot(1,2,1)
-    plotexcess(phases, 'SN2014J', load_14j_colors, EBV_14J, RV_14J, AV_14J, P_14J, filters_vis, zp_not, ax1)
+    plotexcess(phases, 'SN2014J', load_14j_colors, EBV_14J, RV_14J,
+			   filters_vis, zp_not, ax1, AV_14J, P_14J, plotpl=True)
     ax2 = plt.subplot(1,2,2)
-    plotexcess(phases, 'SN2012CU', load_12cu_colors, EBV_12CU, RV_12CU, AV_12CU, P_12CU,
-               filters_bucket, zp_bucket, ax2, plotpl=False)
+    plotexcess(phases, 'SN2012CU', load_12cu_colors, EBV_12CU, RV_12CU,
+               filters_bucket, zp_bucket, ax2)
 
     # config colorbar
     fig.subplots_adjust(right=0.85)
@@ -214,7 +223,7 @@ if __name__=='__main__':
     cbar.set_label('Days before/after date of B-Maximum')
 
     # custom legend
-    p1, = plt.plot(np.array([]), np.array([]), 's', ms=8, mec='none', mfc='r', alpha=0.8)
+    p1, = plt.plot(np.array([]), np.array([]), 's', ms=8, mec='none', mfc='k', alpha=0.3)
     p2, = plt.plot(np.array([]), np.array([]), 'k--')
     p3, = plt.plot(np.array([]), np.array([]), 'k-')
     ax1.legend([p1, p2, p3],
@@ -226,52 +235,59 @@ if __name__=='__main__':
                ['SN2012CU Synthetic Phot.',
                 'FTZ: $E(B-V)='+str(EBV_12CU)+'$, $R_V='+str(RV_12CU)+'$'
                 ])
+
+
+def main2(filters, zp):
+    from fitexcess import get_12cu_ftz_excess_fit
+    
+    EBVS, RVS, AVS, phases = get_12cu_ftz_excess_fit(filters, zp)
+    
+    fig = plt.figure()
+    plot_ftz_excesses(phases, 'SN2012CU', load_12cu_colors, EBVS, RVS, filters, zp)
+    fig.suptitle('SN2012CU: Color Excess Per Phase Using '+zp['prefix'][:-1]+' Filters',
+                 fontsize=18)
+
+    
+def plot_ftz_curves():
+    fig = plt.figure()
+    cmap = mpl.cm.gist_rainbow
+    
+    RVS = np.arange(2.0, 3.5, .2)
+    
+    x = np.arange(3000,10000,10)
+    xinv = 10000./x
+    for RV in RVS:
+        c = cmap((max(RVS)-RV)/min(RVS))
+        ftz_curve = redden_fm(x, np.zeros(x.shape), -1.07, RV, return_excess=True)
+        plt.plot(xinv, ftz_curve, '-', color=c)
+        
+    plt.ylabel('$E(V-X)$')
+    plt.xlabel('Wavelength ($1 / \mu m$)')
+    plt.title('FTZ Color Excess Curves')
+    
+    # config colorbar
+    fig.subplots_adjust(right=0.85)
+    norm = mpl.colors.Normalize(vmin=min(RVS), vmax=max(RVS))
+    cax = fig.add_axes([0.87, 0.15, 0.01, 0.7])
+    cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, orientation='vertical')
+    cbar.set_label('$R_V$')
+    
+    
+    
+if __name__=='__main__':
+    
+    filters_vis = 'UBVRI'
+    zp_top = l.load_filters('tophat_')
+    zp_not = l.load_filters('NOT_')
+    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
+    
+    #main1()
+    main2(filters_bucket, zp_bucket)
+    #plot_ftz_curves()
+    
+    '''
+    do power law fit and plot.
+    '''
+    
     plt.show()
     
-    
-'''
-RESULTS AT BMAX:
-
-from plotcolors.py...
-
-        U Plotting...
-                SN2012CU @BMAX
-                REDDENED V-X: [ 12.54478879] [(0.0, -1.4453838324745139)]
-                PRISTINE V-X: [ 10.02714581] [(0.0, 0.44521803614300914)]
-                E(V-X): -1.89060186862
-        B Plotting...
-                SN2012CU @BMAX
-                REDDENED V-X: [ 12.54478879] [(0.0, -1.0838071436716756)]
-                PRISTINE V-X: [ 10.02714581] [(0.0, -0.012092136584524127)]
-                E(V-X): -1.07171500709
-        R Plotting...
-                SN2012CU @BMAX
-                REDDENED V-X: [ 12.54478879] [(0.0, 0.56485297025714409)]
-                PRISTINE V-X: [ 10.02714581] [(0.0, -0.07808337311118585)]
-                E(V-X): 0.642936343368
-        I Plotting...
-                SN2012CU @BMAX
-                REDDENED V-X: [ 12.54478879] [(0.0, 1.0220264270188153)]
-                PRISTINE V-X: [ 10.02714581] [(0.0, -0.15394727646707906)]
-                E(V-X): 1.17597370349
-
-from this file:
-with tophat filters...
-
-	REDDENED SN11FE E(V-X)
-	U -1.89589158316
-	B -1.07468328753
-	V 0.0
-	R 0.644745541401
-	I 1.17933364238
-
-with NOT filters...
-
-	REDDENED SN11FE E(V-X)
-	U -1.75870462292
-	B -1.05423954507
-	V 0.0
-	R 0.640207528848
-	I 1.30813200355
-'''
-

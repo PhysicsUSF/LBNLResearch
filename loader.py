@@ -3,9 +3,9 @@
 Andrew Stocker
 
 ::Description::
-Loader module for 2012cu and 2011fe spectra, Pereira (2013) tophat UBVRI filters, and
-the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The extinction laws are
-modified to artificially apply reddening.
+Loader module for 2012cu and 2011fe spectra, 2014j photometry, Pereira (2013) tophat
+UBVRI filters, and the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The
+extinction laws are modified to artificially apply reddening.
 
 ::Last Modified::
 07/22/2014
@@ -621,7 +621,75 @@ def interpolate_spectra(phase_array, spectra):
         return interpolated[0]  # return only the tuple if only interpolating for one phase
     return interpolated
 
+
     
+################################################################################
+### TOPHAT FILTER GENERATOR ####################################################
+
+def generate_buckets(low, high, n, inverse_microns=False):
+    '''
+    function to generate [n] tophat filters within the
+    range of [low, high] (given in Angrstroms), with one 'V' filter centered at
+    the BESSEL-V filter's effective wavelength (5417.2 Angstroms).
+    '''
+    V_EFF = 5417.2
+
+    if inverse_microns:
+        V_EFF = 10000./V_EFF
+        temp = low
+        low = 10000./high
+        high = 10000./temp
+        STEP_SIZE = .01
+        prefix = 'bucket_invmicron_'
+    else:
+        STEP_SIZE = 2
+        prefix = 'bucket_angstrom_'
+
+    zp_cache = {'prefix':prefix}
+
+    hi_cut, lo_cut = high-V_EFF, V_EFF-low
+    a = (n-1)/(1+(hi_cut/lo_cut))
+    A, B = np.round(a), np.round(n-1-a)
+
+    lo_bw, hi_bw = lo_cut/(A+0.5), hi_cut/(B+0.5)
+    lo_diff = lo_cut-(A+0.5)*hi_bw
+    hi_diff = hi_cut-(B+0.5)*lo_bw
+
+    idx = np.argmin((lo_diff,hi_diff))
+    BW = (lo_bw,hi_bw)[idx]
+    LOW = (low,low+lo_diff)[idx]
+
+    toregister = {}
+    for i in xrange(n):
+        start = LOW+i*BW
+        end = LOW+(i+1)*BW
+
+        wave = np.arange(start, end, STEP_SIZE)
+        trans = np.ones(wave.shape[0])
+        trans[0]=trans[-1]=0
+
+        index = (str(i),'V')[ abs(V_EFF-(start+end)/2) < 1e-5 ]
+
+        if inverse_microns:
+            wave = sorted(10000./wave)
+
+        toregister[index] = {'wave':wave, 'trans':trans}
+
+    filters = []
+    zpsys = snc.get_magsystem('vega')
+    for index, info in toregister.items():
+        wave, trans = info['wave'], info['trans']
+        bandpass = snc.Bandpass(wave, trans)
+        
+        snc.registry.register(bandpass, prefix+index, force=True)
+        zp_phot = zpsys.zpbandflux(prefix+index)
+        zp_cache[index] = zp_phot
+
+        filters.append(index)
+    
+    return filters, zp_cache
+
+
 
 ################################################################################
 ##### REDDENING LAW LEAST SQUARE FITTING HELPER ################################
