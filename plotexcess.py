@@ -32,11 +32,9 @@ PLOT_PHASES = False
 ## vars for phase plot ##
 FONT_SIZE = 14
 N_BUCKETS = 20
-RED_TYPE = 'fm'
 PLOT_OTHER = False
-PLOT_ERROR_1 = False
-PLOT_ERROR_2 = False
-ERROR = 0.3
+PLOT_ERROR = False
+ERROR = 0.0
 
 if ARGSLEN > 1:
     PLOT_PHASES = True
@@ -44,13 +42,12 @@ if ARGSLEN > 1:
 if ARGSLEN > 2:
     try:
         ERROR = float(argv[2])
-        PLOT_ERROR_1 = True
+        PLOT_ERROR = True
     except ValueError:
         PLOT_OTHER = True
 if ARGSLEN > 3:
     ERROR = float(argv[3])
-    PLOT_ERROR_1 = True
-    PLOT_ERROR_2 = True
+    PLOT_ERROR = True
 
 # 14j
 EBV_14J, RV_14J = -1.37, 1.4
@@ -160,19 +157,20 @@ def plotexcess(phases, name, loader, EBV, RV, filters, zp, ax, AV=0.0, P=0.0, pl
     plt.xlim(1.0, 3.0)
 
 
-def plot_phase_excesses(phases, name, loader, red_type, EBVS, RVS, filters, zp,
-                        plotphot=True, ploterr=True, rederr=0.3):
+def plot_phase_excesses(name, loader, red_type, filters, zp,
+                        ploterr=True, rederr=0.3, plotother=False):
+                            
+    from fitexcess import get_12cu_excess_fit
+    EBVS, RVS, AVS, phases = get_12cu_excess_fit(red_type, filters, zp)
     
-    if red_type == 'fm':
-        red_law = redden_fm
-        linestyle = '--'
-        llabel = 'FTZ'
-    elif red_type == 'pl':
-        red_law = redden_pl2
-        linestyle = '-'
-        llabel = 'Power-Law'
+    red_types = [red_type]
+    if plotother:
+        other = ('fm','pl')[red_type == 'fm']
+        EBVS_2, RVS_2, AVS_2, phases_2 = get_12cu_excess_fit(other, filters, zp)
+        red_types = [red_type, other]
         
-    print "Plotting excesses of",name,"with",red_type,"RV fit..."
+        
+    print "Plotting excesses of",name,"..."
     
     ref = loader(phases, filters, zp)
     prefix = zp['prefix']
@@ -204,40 +202,58 @@ def plot_phase_excesses(phases, name, loader, red_type, EBVS, RVS, filters, zp,
 
         # convert effective wavelengths to inverse microns then plot
         eff_waves_inv = (10000./np.array(filter_eff_waves))
-        mfc_color = plt.cm.gist_rainbow(abs(phase/24.))   
-        if plotphot:     
-            plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
-                     ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+        mfc_color = plt.cm.gist_rainbow(abs(phase/24.))    
+        plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
+                 ms=8, mec='none', mfc=mfc_color, alpha=0.8)
         
-        if red_type == 'fm':
-            EBV = -EBVS[i]
-        elif red_type == 'pl':
-            EBV = EBVS[i]
+        for _red_type in red_types:
+            
+            if _red_type == 'fm':
+                red_law = redden_fm
+                linestyle = '--'
+                llabel = 'Fitzpatrick-Massa'
+                EBV = -EBVS[i]
+            elif _red_type == 'pl':
+                red_law = redden_pl2
+                linestyle = '-'
+                llabel = 'Power-Law'
+                EBV = EBVS[i]
+            if _red_type == red_type:
+                _RVS = RVS
+            else:
+                _RVS = RVS_2
+
+                
+            x = np.arange(3000,10000,10)
+            xinv = 10000./x
+            red_curve = red_law(x, np.zeros(x.shape), EBV, _RVS[i], return_excess=True)
+            redln, = plt.plot(xinv, red_curve, 'k'+linestyle, label=llabel)
+            
+            ERROR = rederr
+            if ploterr:
+                red_curve_upper = red_law(x, np.zeros(x.shape), EBV, _RVS[i]-ERROR, return_excess=True)
+                red_curve_lower = red_law(x, np.zeros(x.shape), EBV, _RVS[i]+ERROR, return_excess=True)
+                plt.plot(xinv, red_curve_upper, 'k:')
+                plt.plot(xinv, red_curve_lower, 'k:')
+                ax.fill_between(xinv, red_curve_lower, red_curve_upper, facecolor='black', alpha=0.1)
         
-        x = np.arange(3000,10000,10)
-        xinv = 10000./x
-        red_curve = red_law(x, np.zeros(x.shape), EBV, RVS[i], return_excess=True)
-        redln, = plt.plot(xinv, red_curve, 'k'+linestyle, label=llabel)
-        
-        ERROR = rederr
         if ploterr:
-            red_curve_upper = red_law(x, np.zeros(x.shape), EBV, RVS[i]-ERROR, return_excess=True)
-            red_curve_lower = red_law(x, np.zeros(x.shape), EBV, RVS[i]+ERROR, return_excess=True)
-            plt.plot(xinv, red_curve_upper, 'k:')
-            plt.plot(xinv, red_curve_lower, 'k:')
-            ax.fill_between(xinv, red_curve_lower, red_curve_upper, facecolor='black', alpha=0.1)
-        
-            plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'\pm'+str(ERROR)+'$'+ \
-                       '\n'+'$R_V$: $'+str(round(RVS[i],2))+'$'
+            plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'$'+ \
+                       '\n'+'('+red_type+') $R_V$: $'+str(round(RVS[i],2))+'\pm'+str(ERROR)+'$'
         else:
-            plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'$' \
-                       '\n'+'$R_V$: $'+str(round(RVS[i],2))+'$'
+            plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'$' + \
+                       '\n'+'('+red_type+') $R_V$: $'+str(round(RVS[i],2))+'$'
         
-        if plotphot:
-            ax.text(.95, .95, plt_text, size=FONT_SIZE,
-                    horizontalalignment='right',
-                    verticalalignment='top',
-                    transform=ax.transAxes)
+        if plotother:
+            if ploterr:
+                plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'\pm'+str(ERROR)+'$'
+            else:
+                plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'$'
+                
+        ax.text(.95, .95, plt_text, size=FONT_SIZE,
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes)
         
         ax.set_title('phase: '+str(phase))
         ax.legend(loc=3, prop={'size':FONT_SIZE})
@@ -288,30 +304,12 @@ def main1():
 
 
 def main2(filters, zp):
-    from fitexcess import get_12cu_excess_fit
-    
-    EBVS, RVS, AVS, phases = get_12cu_excess_fit(RED_TYPE, filters, zp)
     
     fig = plt.figure()
-    plot_phase_excesses(phases, 'SN2012CU', load_12cu_colors,
-                        RED_TYPE, EBVS, RVS, filters, zp,
-                        ploterr=PLOT_ERROR_1, rederr=ERROR)
-    
-    
-    other = ('fm','pl')[RED_TYPE == 'fm']
-    if PLOT_OTHER:
-        EBVS, RVS, AVS, phases = get_12cu_excess_fit(other, filters, zp)
+    plot_phase_excesses('SN2012CU', load_12cu_colors, RED_TYPE, filters, zp,
+                        ploterr=PLOT_ERROR, rederr=ERROR, plotother=PLOT_OTHER)
         
-        plot_phase_excesses(phases, 'SN2012CU', load_12cu_colors,
-                            other, EBVS, RVS, filters, zp,
-                            plotphot=False, ploterr=PLOT_ERROR_2, rederr=ERROR)
-    
-    if RED_TYPE == 'fm':
-        appendtxt = ' ($R_V$ fit using FTZ reddening law)'
-    elif RED_TYPE == 'pl':
-        appendtxt = ' ($R_V$ fit using Power-Law reddening)'
-        
-    fig.suptitle('SN2012CU: Color Excess Per Phase'+appendtxt,
+    fig.suptitle('SN2012CU: Color Excess Per Phase (with best fit for $R_V$)',
                  fontsize=18)
 
     
