@@ -84,6 +84,27 @@ def redden_pl(wave, flux, Av, p, return_excess=False):
         return VAL
     else:
         return Av + A_lambda
+        
+        
+# Goobar (2008) power law artificial reddening law (with EBV and RV as params)
+def redden_pl2(wave, flux, ebv, R_V, return_excess=False):
+    #wavelength in angstroms
+    lamv = 5500
+    x = np.array(wave)
+    
+    Av = R_V * ebv
+    p = np.log((1/R_V)+1)/np.log(0.8)
+    
+    Alam_over_Av = (x**p)/(lamv**p)
+    A_lambda = -1* Av * Alam_over_Av
+
+    #Rv = 1./(a*(0.8**p - 1.))
+    #print "###Rv value:", Rv
+    if not return_excess:
+        VAL = flux * 10.**(0.4 * A_lambda)
+        return VAL
+    else:
+        return Av + A_lambda
 
 
 # Fitzpatrick-Massa (1999) artificial reddening law

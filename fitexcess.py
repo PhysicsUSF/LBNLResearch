@@ -15,7 +15,7 @@ import numpy as np
 import sncosmo as snc
 
 from itertools import izip
-from loader import redden_fm, redden_pl
+from loader import redden_fm, redden_pl2
 from pprint import pprint
 from scipy.interpolate import interp1d
 from scipy.optimize import leastsq as lsq
@@ -36,14 +36,14 @@ AV_12CU, P_12CU = RV_12CU*(-EBV_12CU), np.log((1/RV_12CU)+1)/np.log(0.8)
 ################################################################################
 ### LEAST-SQ FITTER ############################################################
 
-def lsq_excess_fit(ref_excess_dict, EBV, rv_guess, filters, zp):
+def lsq_excess_fit(ref_excess_dict, red_law, EBV, rv_guess, filters, zp):
     prefix = zp['prefix']
     filter_eff_waves = np.array([snc.get_bandpass(prefix+f).wave_eff for f in filters])
     ref_excess = np.array([ref_excess_dict[f] for f in filters])
     
     def lsq_func(Y):
         RV = Y[0]
-        ftz_curve = redden_fm(filter_eff_waves,
+        ftz_curve = red_law(filter_eff_waves,
                               np.zeros(filter_eff_waves.shape),
                               -EBV, RV,
                               return_excess=True)
@@ -104,7 +104,7 @@ def load_12cu_excess(sn12cu, sn11fe, filters, zp):
 ################################################################################
 ### MAIN #######################################################################
 
-def get_12cu_ftz_excess_fit(filters, zp):
+def get_12cu_excess_fit(red_type, filters, zp):
     
     #sn11fe = l.get_11fe(loadptf=False, loadmast=False)
     sn11fe = l.get_11fe()
@@ -118,10 +118,17 @@ def get_12cu_ftz_excess_fit(filters, zp):
     RVS = []
     AVS = []
     
+    if red_type == 'fm':
+        red_law = redden_fm
+    elif red_type == 'pl':
+        red_law = redden_pl2
+    else:
+        raise ValueError
+    
     print "Doing Least-Sq Fit on SN2012CU with "+zp['prefix'][:-1]+" Filter Set..."
     for i, phase in enumerate(phases):
         ebv = sn12cu_ebvs[i]
-        lsq_out = lsq_excess_fit(sn12cu_excess[i], ebv, 2.6, filters, zp)
+        lsq_out = lsq_excess_fit(sn12cu_excess[i], red_law, ebv, 2.6, filters, zp)
         rv = lsq_out[0][0]
         av = ebv*rv
         
@@ -144,7 +151,7 @@ def get_12cu_ftz_excess_fit(filters, zp):
 if __name__=='__main__':
     filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
     
-    EBVS, RVS, AVS, phases = get_12cu_ftz_excess_fit(filters_bucket, zp_bucket)
+    EBVS, RVS, AVS, phases = get_12cu_excess_fit('fm', filters_bucket, zp_bucket)
     
     plt.figure()
     plt.plot(phases, RVS, 'rs-', mfc='none', ms=7, mew=2, mec='r', label='$R_V$')
