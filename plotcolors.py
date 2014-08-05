@@ -13,12 +13,14 @@ and 12CU respectively.
 '''
 import loader as l
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import sncosmo as snc
-
-from pprint import pprint
-from itertools import izip
 from copy import deepcopy
+from itertools import izip
+from pprint import pprint
+from sys import argv
+
 
 
 # matplotlib vars
@@ -207,7 +209,7 @@ def load_12cu(filters, zp):
 
 
 
-def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS):
+def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS, grey=False):
     print
     print name+": LEAST SQUARED FIT FOR R_V, WITH E(B-V) =", EBV
 
@@ -227,14 +229,14 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS):
                    'B' : [-2.5,1.5],
                    'R' : [-2.5,1.5],
                    'I' : [0.2, 2.0]
-                }
-
-    sn11fe_plot_proxy, = plt.plot(np.array([]), np.array([]),
-                                  'ro--', mfc='r', mec='r', ms=7, alpha=0.8)
-
-
-    bmax_11fe_red = l.interpolate_spectra(0.0, sn2011fe_red)
-    bmax_11fe     = l.interpolate_spectra(0.0, l.get_11fe())
+                 }
+    
+    if not grey:
+        sn11fe_plot_proxy, = plt.plot(np.array([]), np.array([]),
+                                      'ro--', mfc='r', mec='r', ms=7, alpha=0.8)
+    else:
+        sn11fe_plot_proxy, = plt.plot(np.array([]), np.array([]),
+                                      'ko--', mfc='none', mec='k', ms=7, mew=2, alpha=0.8)
 
     index = 1
     for FILTER in FILTERS:
@@ -242,50 +244,46 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS):
         
         print FILTER + " Plotting..."
 
-        #### CHECK EVX AT BMAX
-
-        temp, v1 = calc_v_band_mags([bmax_11fe_red], zp)
-        bmax_red_color = calc_colors(FILTER, [bmax_11fe_red], v1, zp)
-        temp, v2 = calc_v_band_mags([bmax_11fe], zp)
-        bmax_color     = calc_colors(FILTER, [bmax_11fe], v2, zp)
-        
-        print "\t",name,"@BMAX"
-        print "\tREDDENED V-X:", v1, bmax_red_color
-        print "\tPRISTINE V-X:", v2, bmax_color
-        print "\tE(V-X):", bmax_red_color[0][1]-bmax_color[0][1]
-                
-        ####
-
         # reference SN photometry
         band_data = filter_lc( sn_ref_dict[FILTER] )
         sn_ref_phases = np.array([t[0] for t in band_data])
         sn_ref_colors = np.array([t[1] for t in band_data])
-        p2, = plt.plot(sn_ref_phases, sn_ref_colors, 'bo', ms=MARKER_SIZE)
-
+        if not grey:
+            p2, = plt.plot(sn_ref_phases, sn_ref_colors, 'bo', ms=MARKER_SIZE)
+        else:
+            p2, = plt.plot(sn_ref_phases, sn_ref_colors, 'k^', mfc='none', mec='k', mew=2, ms=MARKER_SIZE+1)
+            
         # reddened 2011FE data
         sn2011fe_int = l.interpolate_spectra(sn_ref_phases, sn2011fe_red)
         temp, sn2011fe_vmags = calc_v_band_mags(sn2011fe_int, zp)
         filtered_fmr = filter_lc( calc_colors(FILTER, sn2011fe_int, sn2011fe_vmags, zp) )
         sn11fe_phases = np.array([t[0] for t in filtered_fmr])
         sn11fe_colors = np.array([t[1] for t in filtered_fmr])
-        plt.plot(sn11fe_phases, sn11fe_colors, 'ro--', mfc='none', mec='r', ms=MARKER_SIZE)
+        if not grey:
+            plt.plot(sn11fe_phases, sn11fe_colors, 'ro--', mfc='none', mec='r', ms=MARKER_SIZE)
+        else:
+            plt.plot(sn11fe_phases, sn11fe_colors, 'ko--', mfc='none', mec='k', mew=2, ms=MARKER_SIZE+1)
 
         # 11fe points that were used in interpolation
         valid = valid_phases[FILTER]
         sn11fe_valid = filter_lc( filter(lambda t: t[0] in valid, filtered_fmr) )
         sn11fe_valid_phases = [t[0] for t in sn11fe_valid]
         sn11fe_valid_colors = [t[1] for t in sn11fe_valid]
-        plt.plot(sn11fe_valid_phases,
-                 sn11fe_valid_colors,
-                 'ro', mfc='r', mec='r',
-                 ms=MARKER_SIZE, alpha=SN11FE_PLOT_ALPHA)
+        if not grey:
+            plt.plot(sn11fe_valid_phases,
+                     sn11fe_valid_colors,
+                     'ro', mfc='r', mec='r',
+                     ms=MARKER_SIZE, alpha=SN11FE_PLOT_ALPHA)
 
         # original data points for 11fe
         temp, sn2011fe_orig_vmags = calc_v_band_mags(sn2011fe_red, zp)
         sn2011fe_orig = filter_lc( calc_colors(FILTER, sn2011fe_red, sn2011fe_orig_vmags, zp) )
         sn2011fe_orig_phases = [t[0] for t in sn2011fe_orig]
         sn2011fe_orig_colors = [t[1] for t in sn2011fe_orig]
-        p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'g+', mew=CROSS_SIZE)
+        if not grey:
+            p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'g+', mew=CROSS_SIZE)
+        else:
+            p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'k+', mew=CROSS_SIZE)
 
         # format subplot
         if index%2 == 1:
@@ -299,15 +297,87 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS):
 
     # format figure
     fig.suptitle(name+": Broadband Colors vs. Phase", fontsize=18)
+    fig.subplots_adjust(bottom=0.15)
     fig.legend( [sn11fe_plot_proxy, p1, p2],
                 ["interpolated 11fe (used in fit)",
                  "FTZ reddened 11fe: $E(B-V) = "+str(round(EBV,2))+"$, $R_V = "+str(round(BEST_RV,2))+"$",
                  name],
+                bbox_to_anchor=(.1, .02, .8, .8),
                 loc=3,
                 ncol=3,
                 mode="expand"
                 )
 
+
+
+def plot_12cu_with_excess_variants(fig, filters, zp):
+    plotcolors(fig, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, 'UBRI', zp, N_DAYS) #, grey=True)
+    
+    from fitexcess import get_12cu_excess_fit
+    EBVS, RVS, AVS, phases = get_12cu_excess_fit('fm', filters, zp)
+    
+    
+    #avmin, avmax = np.min(AVS), np.max(AVS)
+    rvmin, rvmax = np.min(RVS), np.max(RVS)
+    
+    sn11fe = {f:[] for f in filters if f!='V'}
+    for phase, ebv, rv, av in izip(phases, EBVS, RVS, AVS):
+        sn11fe_red = l.get_11fe('fm', -ebv, rv)
+        
+        temp, sn11fe_red_vmags = calc_v_band_mags(sn11fe_red, zp)
+        for f in filters:
+            if f != 'V':
+                filtered = filter_lc( calc_colors(f, sn11fe_red, sn11fe_red_vmags, zp) )
+                sn11fe[f].append({'ebv':ebv, 'rv':rv, 'av':av,
+                                  'phase':phase, 'colors':filtered})
+
+    sn11fe_band_edges = {}
+    for f in filters:
+        if f != 'V':
+            info = sn11fe[f]
+            Z = []
+            for d in info:
+                Z.append([t[1] for t in d['colors']])
+                phases = [t[0] for t in d['colors']]
+            Z = np.array(Z)
+            sn11fe_band_edges[f]={'min':zip(phases, np.amin(Z, axis=0)),
+                                  'max':zip(phases, np.amax(Z, axis=0))
+                                  }
+    
+    cmap = mpl.cm.gist_rainbow
+    index = 1
+    for f in filters:
+        if f != 'V':
+            print f,"Plotting..."
+            ax = plt.subplot(2,2,index)
+            
+            amin = sn11fe_band_edges[f]['min']
+            amax = sn11fe_band_edges[f]['max']
+            phases = [t[0] for t in amin]
+            ax.fill_between(phases, [t[1] for t in amin], [t[1] for t in amax],
+                            facecolor='black', alpha=0.3)
+            
+            #variants = sn11fe[f]
+            #for _dict in variants:
+                #colors = _dict['colors']
+                ##av = _dict['av']
+                #rv = _dict['rv']
+                ##mfc_color = cmap((av-avmin)/(avmax-avmin)) 
+                #mfc_color = cmap((rv-rvmin)/(rvmax-rvmin)) 
+                #plt.plot([t[0] for t in colors], [t[1] for t in colors], 's', color=mfc_color,
+                         #ms=4, mfc=mfc_color, mec='none', alpha=0.8)
+            index += 1
+            
+    ## config colorbar
+    #fig.subplots_adjust(right=0.85)
+    ##norm = mpl.colors.Normalize(vmin=avmin, vmax=avmax)
+    #norm = mpl.colors.Normalize(vmin=rvmin, vmax=rvmax)
+    #cax = fig.add_axes([0.87, 0.17, 0.01, 0.7])
+    #cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, orientation='vertical')
+    ##cbar.set_label('$A_V$')
+    #cbar.set_label('$R_V$')
+    
+    
     
 ################################################################################
 
@@ -319,12 +389,20 @@ if __name__ == "__main__":
     zp_not = l.load_filters('NOT_')
 
     ### SN2014J COMPARISON
-    fig1 = plt.figure(1)
-    plotcolors(fig1, 'SN2014J', load_14j, EBV_14J, RV_14J, FILTERS, zp_top, N_DAYS)
+    if '1' in argv[1:]:
+        fig1 = plt.figure(1)
+        plotcolors(fig1, 'SN2014J', load_14j, EBV_14J, RV_14J, FILTERS, zp_top, N_DAYS)
         
     ### SN2012CU COMPARISON
-    fig2 = plt.figure(2)
-    plotcolors(fig2, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, FILTERS, zp_top, N_DAYS)
+    if '2' in argv[1:]:
+        fig2 = plt.figure(2)
+        plotcolors(fig2, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, FILTERS, zp_not, N_DAYS, grey=True)
+    
+    ### SN2012CU COMPARISON WITH EBV/RV VARIANTS FROM EXCESS FITS
+    if '3' in argv[1:]:
+        fig3 = plt.figure(3)
+        plot_12cu_with_excess_variants(fig3, 'UBVRI', zp_not)
+
 
     plt.show()
 

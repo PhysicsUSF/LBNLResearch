@@ -98,8 +98,6 @@ def redden_pl2(wave, flux, ebv, R_V, return_excess=False):
     Alam_over_Av = (x**p)/(lamv**p)
     A_lambda = -1* Av * Alam_over_Av
 
-    #Rv = 1./(a*(0.8**p - 1.))
-    #print "###Rv value:", Rv
     if not return_excess:
         VAL = flux * 10.**(0.4 * A_lambda)
         return VAL
@@ -548,7 +546,11 @@ def get_14j():
                                       'Color':float(DATA[10])
                                       })
             if float(DATA[1]) not in [item['phase'] for item in SN2014J['V']]:
-                SN2014J['V'].append({'phase':float(DATA[1]), 'mag':float(DATA[7]), 'AX':float(DATA[9])})
+                SN2014J['V'].append({'phase':float(DATA[1]),
+                                     'mag':float(DATA[7]),
+                                     'e_mag':float(DATA[8]),
+                                     'AX':float(DATA[9])
+                                     })
 
     for Filter, dictlist in SN2014J.items():
         SN2014J[Filter] = sorted([e for e in dictlist], key=lambda e: e['phase'])

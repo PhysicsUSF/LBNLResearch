@@ -17,38 +17,38 @@ import sncosmo as snc
 from pprint import pprint
 
 
-def calc_ebvs(sn14j_colors, sn11fe_spectra, zp):
-    # (14j vmag - 11fe vmag) - (14j bmag - 11fe bmag)
-
+def get_ebvs(sn11fe, sn12cu):
+    if not np.array_equal([t[0] for t in sn11fe], [t[0] for t in sn12cu]):
+        raise ValueError
+    # requires not filters to be imported
+    zp = l.load_filters('NOT_')
+    prefix = zp['prefix']
     ebvs = []
-    for i, spectrum in enumerate(sn11fe_spectra):
-        sn11fe_bmag = -2.5*np.log10( spectrum[1].bandflux('tophat_B')/zp['B'] )
-        sn11fe_vmag = -2.5*np.log10( spectrum[1].bandflux('tophat_V')/zp['V'] )
-
-        ebv = sn14j_colors[i] - (sn11fe_vmag - sn11fe_bmag)
-
-        ebvs.append( (spectrum[0], ebv) )
-
+    for i, p in enumerate([t[0] for t in sn11fe]):
+        s1, s2 = sn11fe[i][1], sn12cu[i][1]  
+        s1b, s1v = s1.bandflux(prefix+'B'), s1.bandflux(prefix+'V')
+        s2b, s2v = s2.bandflux(prefix+'B'), s2.bandflux(prefix+'V')
+        s1bmag = -2.5*np.log10( s1b/zp['B'] )
+        s1vmag = -2.5*np.log10( s1v/zp['V'] )
+        s2bmag = -2.5*np.log10( s2b/zp['B'] )
+        s2vmag = -2.5*np.log10( s2v/zp['V'] )
+        ebvs.append( (p, (s2bmag-s1bmag) - (s2vmag-s1vmag)) )
     return ebvs
 
         
 def main():
-    zp     = l.load_filters()
     
-    sn14j  = l.get_14j()
+    sn12cu  = l.get_12cu()
     sn11fe = l.get_11fe()
-
-    dictlist_B = sn14j['B']
     
-    phaselist_B = [d['phase'] for d in dictlist_B]
-
-    colorlist_B = [(d['Vmag']-d['AV'])-(d['mag']-d['AX']) for d in dictlist_B]
+    phases = np.arange(-5,26,5)
+    sn11fe = l.interpolate_spectra(phases, sn11fe)
+    sn12cu = l.interpolate_spectra(phases, sn12cu)
     
-    sn11fe = l.interpolate_spectra(phaselist_B, sn11fe)
+    ebvs = get_ebvs(sn11fe, sn12cu)
 
-    ebvs = calc_ebvs(colorlist_B, sn11fe, zp)
-
-    print "AVERAGE E(B-V):", np.average( np.array([t[1] for t in ebvs]) )
+    pprint( ebvs )
+    print "avg:", np.average([t[1] for t in ebvs])
 
     plt.figure()
     plt.plot([t[0] for t in ebvs], [t[1] for t in ebvs])

@@ -31,7 +31,7 @@ PLOT_PHASES = False
 
 ## vars for phase plot ##
 FONT_SIZE = 14
-N_BUCKETS = 20
+N_BUCKETS = 30
 PLOT_OTHER = False
 PLOT_ERROR = False
 ERROR = 0.0
@@ -248,7 +248,8 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
             if ploterr:
                 plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'\pm'+str(ERROR)+'$'
             else:
-                plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'$'
+                plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'$'+\
+                            '\n'+'$p$: $'+str(round(np.log((1/RVS_2[i])+1)/np.log(0.8),2))+'$'
                 
         ax.text(.95, .95, plt_text, size=FONT_SIZE,
                 horizontalalignment='right',
@@ -350,11 +351,8 @@ if __name__=='__main__':
         main1()
     else:
         main2(filters_bucket, zp_bucket)
+        
     #plot_ftz_curves()
-    
-    '''
-    do power law fit and plot.
-    '''
     
     plt.show()
     
