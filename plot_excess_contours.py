@@ -22,9 +22,13 @@ from scipy.stats import chisquare
 
 
 ### VARS ###
-STEPS = 20
+STEPS = 80
 N_BUCKETS = 20
 
+EBV_GUESS = 1.1
+EBV_PAD = .3
+RV_GUESS = 2.75
+RV_PAD = .75
 
 
 def load_12cu_excess(filters, zp):
@@ -57,7 +61,9 @@ def load_12cu_excess(filters, zp):
         return EXCESS, phases
 
 
-def plot_contour(red_law, ref_excess, filter_eff_waves, ebv, ebv_pad, rv, rv_pad, steps):
+def plot_contour(red_law, ref_excess, filter_eff_waves,
+                 ebv, ebv_pad, rv, rv_pad, steps, ax=None):
+                         
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, steps)
         y = np.linspace(rv-rv_pad, rv+rv_pad, steps)
         
@@ -77,18 +83,57 @@ def plot_contour(red_law, ref_excess, filter_eff_waves, ebv, ebv_pad, rv, rv_pad
         mindex = np.where(Z==ssr_min)
         mx, my = mindex[1][0], mindex[0][0]
         
-        CDF = 1 - np.exp((-(Z-ssr_min)**2)/2)
+        dof = float(N_BUCKETS-2)  # degrees of freedom
+        CHISQ = (dof/ssr_min)*Z   # rescale ssr to be chi-sq; min is now == dof
         
-        contour_levels = [0.68, 0.95]
-        plt.contourf(X, Y, CDF, levels=contour_levels)
-        C = plt.contour(X, Y, CDF, levels=contour_levels)
-        plt.clabel(C, colors='k', fmt='%.2f')
+        CDF = 1 - np.exp((-(CHISQ-dof))/2)
         
-        # mark minimum
-        plt.scatter(x[mx], y[my], marker='s')
-        plt.text(x[mx]-0.08, y[my]-0.08, "({:.2f}, {:.2f})".format(x[mx], y[my]))
+        # find 1-sigma and 2-sigma errors based on confidence
+        maxebv_1sig, maxebv_2sig, minebv_1sig, minebv_2sig = x[mx], x[mx], x[mx], x[mx]
+        maxrv_1sig, maxrv_2sig, minrv_1sig, minrv_2sig = y[my], y[my], y[my], y[my]
+        for i, EBV in enumerate(x):
+                for j, RV in enumerate(y):
+                        conf = CDF[j,i]
+                        if conf<0.683:
+                                maxebv_1sig = np.maximum(maxebv_1sig, EBV)
+                                minebv_1sig = np.minimum(minebv_1sig, EBV)
+                                maxrv_1sig = np.maximum(maxrv_1sig, RV)
+                                minrv_1sig = np.minimum(minrv_1sig, RV)
+                        elif conf<0.955:
+                                maxebv_2sig = np.maximum(maxebv_2sig, EBV)
+                                minebv_2sig = np.minimum(minebv_2sig, EBV)
+                                maxrv_2sig = np.maximum(maxrv_2sig, RV)
+                                minrv_2sig = np.minimum(minrv_2sig, RV)
         
-        return (x[mx], y[my])
+        if ax != None:
+                # plot contours
+                contour_levels = [0.683, 0.955]
+                plt.contourf(X, Y, CDF, levels=contour_levels)
+                C = plt.contour(X, Y, CDF, levels=contour_levels)
+                plt.clabel(C, colors='k', fmt='%.2f')
+                
+                # mark minimum
+                plt.scatter(x[mx], y[my], marker='s')
+                
+                plttext = "BEST:" + \
+                          "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                          "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                          
+                plttext = plttext.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
+                                         y[my], maxrv_1sig-y[my], y[my]-minrv_1sig)
+                
+                ax.text(.05, .95, plttext, size=16,
+                        horizontalalignment='left',
+                        verticalalignment='top',
+                        transform=ax.transAxes)
+                        
+                plt.ylim(rv-rv_pad, rv+rv_pad)
+                plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
+                
+        return x, y, CDF, (x[mx], y[my]), (minebv_1sig, maxebv_1sig), \
+                                          (minebv_2sig, maxebv_2sig), \
+                                          (minrv_1sig,  maxrv_1sig), \
+                                          (minrv_2sig,  maxrv_2sig)
         
 
 def main():
@@ -107,8 +152,8 @@ def main():
                 print "Plotting Phase: {}".format(phase)
                 
                 ax = plt.subplot(2,6,i+1)
-                info = plot_contour(redden_fm, sn12cu_excess[i], filter_eff_waves,
-                                    1.1, 0.3, 2.75, 0.75, STEPS)
+                plot_contour(redden_fm, sn12cu_excess[i], filter_eff_waves,
+                             EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, STEPS, ax)
                 
                 if i%6 == 0:
                         plt.ylabel('$R_V$')
@@ -130,31 +175,51 @@ def get_12cu_best_ebv_rv():
         sn12cu_excess, phases = load_12cu_excess(filters_bucket, zp_bucket)
         
         
-        EBVS, RVS = [], []
+        SN12CU_CHISQ_DATA = []
         for i, phase in enumerate(phases):
                 print "Getting Phase: {}".format(phase)
                 
-                info = plot_contour(redden_fm, sn12cu_excess[i], filter_eff_waves,
-                                    1.1, 0.3, 2.75, 0.75, STEPS)
+                X, Y, CDF, SSRMIN, ebv_1sig, \
+                ebv_2sig, rv_1sig, rv_2sig = plot_contour(redden_fm, sn12cu_excess[i],
+                                                          filter_eff_waves, EBV_GUESS,
+                                                          EBV_PAD, RV_GUESS, RV_PAD, STEPS
+                                                          )
                 
-                EBVS.append(info[0])
-                RVS.append(info[1])
+                # get best AV and calculate error in quadrature
+                BEST_AV = SSRMIN[0]*SSRMIN[1]
+                AV_1SIG = (BEST_AV-np.sqrt((ebv_1sig[0]-SSRMIN[0])**2 + (rv_1sig[0]-SSRMIN[1])**2),
+                           BEST_AV+np.sqrt((ebv_1sig[1]-SSRMIN[0])**2 + (rv_1sig[1]-SSRMIN[1])**2)
+                           )
+                AV_2SIG = (BEST_AV-np.sqrt((ebv_2sig[0]-SSRMIN[0])**2 + (rv_2sig[0]-SSRMIN[1])**2),
+                           BEST_AV+np.sqrt((ebv_2sig[1]-SSRMIN[0])**2 + (rv_2sig[1]-SSRMIN[1])**2)
+                           )
+                
+                
+                SN12CU_CHISQ_DATA.append({'phase'   : phase,
+                                          'x'       : X,
+                                          'y'       : Y,
+                                          'CDF'     : CDF,
+                                          'BEST_EBV': SSRMIN[0],
+                                          'BEST_RV' : SSRMIN[1],
+                                          'BEST_AV' : BEST_AV,
+                                          'EBV_1SIG': ebv_1sig,
+                                          'EBV_2SIG': ebv_2sig,
+                                          'RV_1SIG' : rv_1sig,
+                                          'RV_2SIG' : rv_2sig,
+                                          'AV_1SIG' : AV_1SIG,
+                                          'AV_2SIG' : AV_2SIG
+                                          })
         
-        return phases, EBVS, RVS
+        return SN12CU_CHISQ_DATA
         
         
 '''
 To Do:
 ======
--email this list to Xiaosheng
 -plot 12cu and 11fe light curves on top of eachother in vein of Periera's plot (possibly with BMAX matching)
--show color curves (with same phases as phase plots)
--proper error computation for contour plots using degrees of freedom
--plot proper confidence ellipses
--show best chi-sq on excess by phase fit
--do "color snake" based on 1-sigma ebvs/rvs on contour plots
-        -also include best-fit for power-law plot
-        
+-do these plots for power-law
+DONE-project errors onto axis for contour plot, export these errors when imported for excess plot
+DONE-check ftz curves that on edge of error snake
 '''
 
 if __name__ == "__main__":

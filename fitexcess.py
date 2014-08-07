@@ -82,7 +82,7 @@ def load_12cu_excess(sn12cu, sn11fe, filters, zp):
 
     ebvs = []
 
-    sn12cu = filter(lambda t: -3.6<t[0]<25, sn12cu)
+    sn12cu = filter(lambda t: t[0]<28, sn12cu)
     phases = [t[0] for t in sn12cu]
     sn11fe = l.interpolate_spectra(phases, sn11fe)
 
@@ -162,10 +162,3 @@ if __name__=='__main__':
 
     ############
     plt.show()
-
-    
-
-
-
-        
-

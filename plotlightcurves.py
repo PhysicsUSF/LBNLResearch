@@ -3,10 +3,11 @@
 Andrew Stocker
 
 ::Description::
-Test file for loader
+Program to plot the lightcurves of a reddened 11fe and 12cu for UBVRI
+tophat filters.
 
 ::Last Modified::
-07/22/2014
+07/23/2014
 
 '''
 import argparse
@@ -26,14 +27,7 @@ FILTERS = 'UBVRI'
 ##### FUNCTIONS ################################################################
 
 
-def find_valid(array,value_array,n):
-    array = np.array(array)
-    return_array = np.zeros(len(value_array), dtype=np.bool)
-    for i, x in enumerate(value_array):
-        idx = (np.abs(array-x)).argmin()
-        return_array[i] = abs(array[idx]-x) <= n
-        
-    return return_array
+
 
 
 # Function below is to filter out None values in the lightcurve and also filter by phase such that it is
@@ -74,7 +68,7 @@ def main():
     ## each list of spectra has matching phases.
     
     sn12cu = l.get_12cu()
-    sn11fe = l.get_11fe()
+    sn11fe = l.get_11fe(loadptf=False, loadmast=False)
 
     # filter out 12cu spectra with a phase outside of the phase range of 11fe spectra
     sn12cu = filter(lambda p: LOWCUT<=p[0]<=HICUT, sn12cu)

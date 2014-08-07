@@ -24,7 +24,7 @@ from sys import argv
 
 
 # matplotlib vars
-LO, HI = -5, 30  # cutoffs for phases to show
+LO, HI = -7, 28  # cutoffs for phases to show
 SN11FE_PLOT_ALPHA = 0.8
 MARKER_SIZE = 7
 CROSS_SIZE = 2
@@ -302,10 +302,9 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS, grey=False):
                 ["interpolated 11fe (used in fit)",
                  "FTZ reddened 11fe: $E(B-V) = "+str(round(EBV,2))+"$, $R_V = "+str(round(BEST_RV,2))+"$",
                  name],
-                bbox_to_anchor=(.1, .02, .8, .8),
-                loc=3,
+                loc=8,
                 ncol=3,
-                mode="expand"
+                borderaxespad=1.0
                 )
 
 
@@ -396,7 +395,7 @@ if __name__ == "__main__":
     ### SN2012CU COMPARISON
     if '2' in argv[1:]:
         fig2 = plt.figure(2)
-        plotcolors(fig2, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, FILTERS, zp_not, N_DAYS, grey=True)
+        plotcolors(fig2, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, FILTERS, zp_not, N_DAYS)
     
     ### SN2012CU COMPARISON WITH EBV/RV VARIANTS FROM EXCESS FITS
     if '3' in argv[1:]:

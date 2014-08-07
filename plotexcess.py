@@ -30,8 +30,9 @@ ARGSLEN = len(argv)
 PLOT_PHASES = False
 
 ## vars for phase plot ##
+PLOTS_PER_ROW = 6
 FONT_SIZE = 14
-N_BUCKETS = 30
+N_BUCKETS = 20
 PLOT_OTHER = False
 PLOT_ERROR = False
 ERROR = 0.0
@@ -182,10 +183,12 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
     if type(sn11fe) == type(()):  # convert from tuple to list if just one phase
         sn11fe = [sn11fe]
     
-    numrows = (len(phases)-1)//5 + 1
+    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+    
+    pmin, pmax = np.min(phases), np.max(phases)
     
     for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
-        ax = plt.subplot(numrows, 5, i+1)
+        ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
         # calculate sn11fe band magnitudes
         sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)/zp[f])
@@ -202,7 +205,7 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
 
         # convert effective wavelengths to inverse microns then plot
         eff_waves_inv = (10000./np.array(filter_eff_waves))
-        mfc_color = plt.cm.gist_rainbow(abs(phase/24.))    
+        mfc_color = plt.cm.gist_rainbow((phase-pmin)/(pmax-pmin))    
         plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
                  ms=8, mec='none', mfc=mfc_color, alpha=0.8)
         
@@ -239,17 +242,14 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
         
         if ploterr:
             plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'$'+ \
-                       '\n'+'('+red_type+') $R_V$: $'+str(round(RVS[i],2))+'\pm'+str(ERROR)+'$'
+                       '\n'+'$R_V$: $'+str(round(RVS[i],2))+'\pm'+str(ERROR)+'$'
         else:
             plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'$' + \
-                       '\n'+'('+red_type+') $R_V$: $'+str(round(RVS[i],2))+'$'
+                       '\n'+'$R_V$: $'+str(round(RVS[i],2))+'$'
         
         if plotother:
-            if ploterr:
-                plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'\pm'+str(ERROR)+'$'
-            else:
-                plt_text += '\n'+'('+other+') $R_V$: $'+str(round(RVS_2[i],2))+'$'+\
-                            '\n'+'$p$: $'+str(round(np.log((1/RVS_2[i])+1)/np.log(0.8),2))+'$'
+            plt_text += '\n'+'$A_V$: $'+str(round(RVS_2[i]*EBVS_2[i],2))+'$'+\
+                        '\n'+'$p$: $'+str(round(np.log((1/RVS_2[i])+1)/np.log(0.8),2))+'$'
                 
         ax.text(.95, .95, plt_text, size=FONT_SIZE,
                 horizontalalignment='right',
@@ -259,9 +259,9 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
         ax.set_title('phase: '+str(phase))
         ax.legend(loc=3, prop={'size':FONT_SIZE})
                      
-        if i%5 == 0:
+        if i%PLOTS_PER_ROW == 0:
             plt.ylabel('$E(V-X)$')
-        if i>=(numrows-1)*5:
+        if i>=(numrows-1)*PLOTS_PER_ROW:
             plt.xlabel('Wavelength ($1 / \mu m$)')
         plt.xlim(1.0, 3.0)
 

@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sncosmo as snc
 
+from copy import deepcopy
 from itertools import izip
 from loader import redden_fm, redden_pl, redden_pl2
 from pprint import pprint
@@ -28,7 +29,6 @@ from sys import argv
 
 ## vars for phase plot ##
 PLOTS_PER_ROW = 6
-FONT_SIZE = 14
 N_BUCKETS = 20
 
 
@@ -80,14 +80,38 @@ def load_12cu_colors(phases, filters, zp):
 ### GENERAL PLOTTING FUNCTION ##################################################
 
 
+def plot_snake(ax, rng, init, fixed_ebv, fixed_rv, red_law, x, y, CDF, plot2sig=False):
+    snake_hi_1sig = deepcopy(init)
+    snake_lo_1sig = deepcopy(init)
+    snake_hi_2sig = deepcopy(init)
+    snake_lo_2sig = deepcopy(init)
+    
+    for i, EBV in enumerate(x):
+        for j, RV in enumerate(y):
+            if CDF[j,i]<0.683:
+                red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
+                snake_hi_1sig = np.maximum(snake_hi_1sig, red_curve)
+                snake_lo_1sig = np.minimum(snake_lo_1sig, red_curve)
+            elif CDF[j,i]<0.955:
+                if plot2sig:
+                    red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
+                    snake_hi_2sig = np.maximum(snake_hi_2sig, red_curve)
+                    snake_lo_2sig = np.minimum(snake_lo_2sig, red_curve)
+                
+    ax.fill_between(10000./rng, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.2)
+    if plot2sig:
+        ax.fill_between(10000./rng, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.1)
+
+
 def plot_phase_excesses(name, loader, filters, zp):
                             
     from plot_excess_contours import get_12cu_best_ebv_rv
-    phases, EBVS, RVS = get_12cu_best_ebv_rv()
+    SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
     
-    print phases
-    print EBVS
-    print RVS
+    phases = [d['phase'] for d in SN12CU_CHISQ_DATA]
+    EBVS = [d['BEST_EBV'] for d in SN12CU_CHISQ_DATA]
+    RVS = [d['BEST_RV'] for d in SN12CU_CHISQ_DATA]
+    
     
     print "Plotting excesses of",name," with best fit from contour..."
     
@@ -105,7 +129,8 @@ def plot_phase_excesses(name, loader, filters, zp):
     
     pmin, pmax = np.min(phases), np.max(phases)
     
-    for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
+    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
+        phase = d['phase']
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
         # calculate sn11fe band magnitudes
@@ -115,7 +140,7 @@ def plot_phase_excesses(name, loader, filters, zp):
         # calculate V-X colors for sn11fe
         sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
 
-        # make list of colors of reference supernova for given phase i
+        # make list of colors of reference supernova for given phase index i
         ref_colors = [ref[i][f] for f in filters]
 
         # get colors excess of reference supernova compared for sn11fe
@@ -123,33 +148,38 @@ def plot_phase_excesses(name, loader, filters, zp):
 
         # convert effective wavelengths to inverse microns then plot
         eff_waves_inv = (10000./np.array(filter_eff_waves))
-        mfc_color = plt.cm.gist_rainbow((phase-pmin)/(pmax-pmin))    
+        mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))    
         plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
                  ms=8, mec='none', mfc=mfc_color, alpha=0.8)
         
-            
+        # reddening law vars
         red_law = redden_fm
         linestyle = '--'
-        llabel = 'Fitzpatrick-Massa'
-        EBV = -EBVS[i]
 
-                
         x = np.arange(3000,10000,10)
         xinv = 10000./x
-        red_curve = red_law(x, np.zeros(x.shape), EBV, RVS[i], return_excess=True)
-        redln, = plt.plot(xinv, red_curve, 'k'+linestyle, label=llabel)
+        red_curve = red_law(x, np.zeros(x.shape), -EBVS[i], RVS[i], return_excess=True)
+        redln, = plt.plot(xinv, red_curve, 'k'+linestyle)
         
-        plt_text = '$E(B-V)$: $'+str(round(EBVS[i],2))+'$' + \
-                   '\n'+'$R_V$: $'+str(round(RVS[i],2))+'$'
-                
-        ax.text(.95, .95, plt_text, size=FONT_SIZE,
+        plot_snake(ax, x, red_curve, -EBVS[i], RVS[i],
+                   red_law, d['x'], d['y'], d['CDF'])
+        
+        plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                  "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                  "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                          
+        plttext = plttext.format(EBVS[i], d['EBV_1SIG'][0]-EBVS[i], EBVS[i]-d['EBV_1SIG'][1],
+                                 RVS[i], d['RV_1SIG'][0]-RVS[i], RVS[i]-d['RV_1SIG'][1],
+                                 d['BEST_AV'], d['AV_1SIG'][0]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][1]
+                                 )
+        
+        ax.text(.95, .95, plttext, size=16,
                 horizontalalignment='right',
                 verticalalignment='top',
                 transform=ax.transAxes)
         
         ax.set_title('phase: '+str(phase))
-        ax.legend(loc=3, prop={'size':FONT_SIZE})
-                     
+        
         if i%PLOTS_PER_ROW == 0:
             plt.ylabel('$E(V-X)$')
         if i>=(numrows-1)*PLOTS_PER_ROW:
@@ -168,6 +198,9 @@ def main(filters, zp):
         
     fig.suptitle('SN2012CU: Color Excess Per Phase (with best fit for $R_V$)',
                  fontsize=18)
+                 
+    p1, = plt.plot(np.array([]), np.array([]), 'k--')
+    fig.legend([p1], ['Fitzpatrick-Massa (1999)'], loc=1, bbox_to_anchor=(0, 0, .905, .975))
     
     
     
