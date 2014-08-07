@@ -61,7 +61,7 @@ def load_12cu_excess(filters, zp):
         return EXCESS, phases
 
 
-def plot_contour(red_law, ref_excess, filter_eff_waves,
+def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                  ebv, ebv_pad, rv, rv_pad, steps, ax=None):
                          
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, steps)
@@ -116,31 +116,59 @@ def plot_contour(red_law, ref_excess, filter_eff_waves,
         
         if ax != None:
                 # plot contours
-                contour_levels = [0.683, 0.955]
-                plt.contourf(X, Y, CDF, levels=contour_levels)
-                C = plt.contour(X, Y, CDF, levels=contour_levels)
+                contour_levels = [0.0, 0.683, 0.955, 1.0]
+                plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
+                C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+                #C2 = plt.contour(X, Y, CDF, levels=[contour_levels[2]], linewidths=1, colors=['k'], alpha=0.7)
+                #for c in C2.collections:
+                        #c.set_dashes([(0, (2.0, 2.0))])
                 #plt.clabel(C, colors='k', fmt='%.2f')
                 
                 # mark minimum
-                plt.scatter(x[mx], y[my], marker='s')
+                plt.scatter(x[mx], y[my], marker='s', facecolors='r')
                 
-                plttext = "BEST:" + \
+                plttext = "Phase: {}" + \
                           "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                           "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                           "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
                           
-                plttext = plttext.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
+                plttext = plttext.format(phase,
+                                         x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
                                          y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
-                                         best_av, av_1sig[0]-best_av, best_av-av_1sig[1]
+                                         best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
                                          )
                 
                 ax.text(.05, .95, plttext, size=16,
                         horizontalalignment='left',
                         verticalalignment='top',
                         transform=ax.transAxes)
-                        
+                
+                # format subplot...
                 plt.ylim(rv-rv_pad, rv+rv_pad)
                 plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
+                
+                ax.set_yticklabels([])
+                ax2 = ax.twinx()
+                ax2.set_xlim(ebv-ebv_pad, ebv+ebv_pad)
+                ax2.set_ylim(rv-rv_pad, rv+rv_pad)
+                
+                if subplot_index%6 == 5:
+                        ax2.set_ylabel('\n$R_V$')
+                if subplot_index>=6:
+                        ax.set_xlabel('\n$E(B-V)$')
+                
+                # format x labels
+                labels = ax.get_xticks().tolist()
+                labels[0] = labels[-1] = ''
+                ax.set_xticklabels(labels)
+                ax.get_xaxis().set_tick_params(direction='in', pad=-17)
+                
+                # format y labels
+                labels = ax2.get_yticks().tolist()
+                labels[0] = labels[-1] = ''
+                ax2.set_yticklabels(labels)
+                ax2.get_yaxis().set_tick_params(direction='in', pad=-25)
+        
                 
         return x, y, CDF, x[mx], y[my], best_av, (minebv_1sig, maxebv_1sig), \
                                                  (minebv_2sig, maxebv_2sig), \
@@ -166,15 +194,12 @@ def main():
                 print "Plotting Phase: {}".format(phase)
                 
                 ax = plt.subplot(2,6,i+1)
-                plot_contour(redden_fm, sn12cu_excess[i], filter_eff_waves,
-                             EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, STEPS, ax)
                 
-                if i%6 == 0:
-                        plt.ylabel('$R_V$')
-                if i>=6:
-                        plt.xlabel('$E(B-V)$')
-                ax.set_title("phase: {}".format(phase))
-        
+                plot_contour(i, phase, redden_fm, sn12cu_excess[i], filter_eff_waves,
+                             EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, STEPS, ax)
+                             
+                
+        fig.subplots_adjust(hspace=.06,wspace=.1)
         fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=18)
         plt.show()
     
@@ -197,7 +222,7 @@ def get_12cu_best_ebv_rv():
                 best_ebv, best_rv, best_av, \
                 ebv_1sig, ebv_2sig, \
                 rv_1sig, rv_2sig, \
-                av_1sig, av_2sig = plot_contour(redden_fm, sn12cu_excess[i],
+                av_1sig, av_2sig = plot_contour(i, phase, redden_fm, sn12cu_excess[i],
                                                 filter_eff_waves, EBV_GUESS,
                                                 EBV_PAD, RV_GUESS, RV_PAD, STEPS
                                                 )

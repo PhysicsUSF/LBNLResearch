@@ -89,22 +89,16 @@ def plot_phase_excesses(name, loader, filters, zp):
     from plot_excess_contours import get_12cu_best_ebv_rv
     SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
     
-    phases = [d['phase'] for d in SN12CU_CHISQ_DATA]
-    EBVS = [d['BEST_EBV'] for d in SN12CU_CHISQ_DATA]
-    RVS = [d['BEST_RV'] for d in SN12CU_CHISQ_DATA]
-    
     
     print "Plotting excesses of",name," with best fit from contour..."
     
-    ref = loader(phases, filters, zp)
     prefix = zp['prefix']
+    phases = [d['phase'] for d in SN12CU_CHISQ_DATA]
+    ref = loader(phases, filters, zp)
     filter_eff_waves = [snc.get_bandpass(prefix+f).wave_eff for f in filters]
 
     # get 11fe synthetic photometry at BMAX, get ref sn color excesses at BMAX
     sn11fe = l.interpolate_spectra(phases, l.get_11fe())
-
-    if type(sn11fe) == type(()):  # convert from tuple to list if just one phase
-        sn11fe = [sn11fe]
     
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     
@@ -139,7 +133,7 @@ def plot_phase_excesses(name, loader, filters, zp):
 
         x = np.arange(3000,10000,10)
         xinv = 10000./x
-        red_curve = red_law(x, np.zeros(x.shape), -EBVS[i], RVS[i], return_excess=True)
+        red_curve = red_law(x, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
         redln, = plt.plot(xinv, red_curve, 'k'+linestyle)
         
         plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
@@ -148,9 +142,9 @@ def plot_phase_excesses(name, loader, filters, zp):
                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
                           
-        plttext = plttext.format(EBVS[i], d['EBV_1SIG'][0]-EBVS[i], EBVS[i]-d['EBV_1SIG'][1],
-                                 RVS[i], d['RV_1SIG'][0]-RVS[i], RVS[i]-d['RV_1SIG'][1],
-                                 d['BEST_AV'], d['AV_1SIG'][0]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][1]
+        plttext = plttext.format(d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
+                                 d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
+                                 d['BEST_AV'], d['AV_1SIG'][1]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][0]
                                  )
         
         ax.text(.95, .95, plttext, size=16,
@@ -171,23 +165,19 @@ def plot_phase_excesses(name, loader, filters, zp):
 ### MAIN #######################################################################
 
 
-def main(filters, zp):
+def main():
+    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
     
     fig = plt.figure()
-    plot_phase_excesses('SN2012CU', load_12cu_colors, filters, zp)
-        
-    fig.suptitle('SN2012CU: Color Excess Per Phase',
-                 fontsize=18)
+    
+    plot_phase_excesses('SN2012CU', load_12cu_colors, filters_bucket, zp_bucket)
+    
+    fig.suptitle('SN2012CU: Color Excess Per Phase', fontsize=18)
                  
     p1, = plt.plot(np.array([]), np.array([]), 'k--')
     fig.legend([p1], ['Fitzpatrick-Massa (1999)'], loc=1, bbox_to_anchor=(0, 0, .905, .975))
     
-    
-    
-if __name__=='__main__':
-    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
-
-    main(filters_bucket, zp_bucket)
-    
     plt.show()
     
+if __name__=='__main__':
+    main()
