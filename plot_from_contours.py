@@ -33,26 +33,7 @@ N_BUCKETS = 20
 
 
 ################################################################################
-### LOADERS ####################################################################
-
-def load_14j_colors(phases, filters, zp):
-    sn14j  = l.get_14j()
-    
-    # get 14j photometry at BMAX
-    sn14j_colors = {i:{} for i in xrange(len(phases))}
-    for f in filters:
-        band_phases = np.array([d['phase'] for d in sn14j[f]])
-        try:
-            band_colors = np.array([(d['Vmag']-d['AV'])-(d['mag']-d['AX']) for d in sn14j[f]])
-        except:
-            band_colors = np.array([0.0 for d in sn14j[f]])
-
-        sn14j_int = interp1d(band_phases, band_colors)
-        for i, phase in enumerate(phases):
-            sn14j_colors[i][f] = float(sn14j_int(phase))
-        
-    return sn14j_colors
-
+### 12CU LOADER ################################################################
 
 def load_12cu_colors(phases, filters, zp):
     prefix = zp['prefix']
@@ -77,10 +58,10 @@ def load_12cu_colors(phases, filters, zp):
 
 
 ################################################################################
-### GENERAL PLOTTING FUNCTION ##################################################
+### GENERAL PLOTTING FUNCTIONS #################################################
 
 
-def plot_snake(ax, rng, init, fixed_ebv, fixed_rv, red_law, x, y, CDF, plot2sig=False):
+def plot_snake(ax, rng, init, red_law, x, y, CDF, plot2sig=False):
     snake_hi_1sig = deepcopy(init)
     snake_lo_1sig = deepcopy(init)
     snake_hi_2sig = deepcopy(init)
@@ -161,8 +142,7 @@ def plot_phase_excesses(name, loader, filters, zp):
         red_curve = red_law(x, np.zeros(x.shape), -EBVS[i], RVS[i], return_excess=True)
         redln, = plt.plot(xinv, red_curve, 'k'+linestyle)
         
-        plot_snake(ax, x, red_curve, -EBVS[i], RVS[i],
-                   red_law, d['x'], d['y'], d['CDF'])
+        plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
         
         plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
@@ -196,7 +176,7 @@ def main(filters, zp):
     fig = plt.figure()
     plot_phase_excesses('SN2012CU', load_12cu_colors, filters, zp)
         
-    fig.suptitle('SN2012CU: Color Excess Per Phase (with best fit for $R_V$)',
+    fig.suptitle('SN2012CU: Color Excess Per Phase',
                  fontsize=18)
                  
     p1, = plt.plot(np.array([]), np.array([]), 'k--')

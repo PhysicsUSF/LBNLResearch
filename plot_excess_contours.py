@@ -105,22 +105,34 @@ def plot_contour(red_law, ref_excess, filter_eff_waves,
                                 maxrv_2sig = np.maximum(maxrv_2sig, RV)
                                 minrv_2sig = np.minimum(minrv_2sig, RV)
         
+        # get best AV and calculate error in quadrature
+        best_av = x[mx]*y[my]
+        av_1sig = (best_av-np.sqrt((minebv_1sig-x[mx])**2 + (minrv_1sig-y[my])**2),
+                   best_av+np.sqrt((maxebv_1sig-x[mx])**2 + (maxrv_1sig-y[my])**2)
+                   )
+        av_2sig = (best_av-np.sqrt((minebv_2sig-x[mx])**2 + (minrv_2sig-y[my])**2),
+                   best_av+np.sqrt((maxebv_2sig-x[mx])**2 + (maxrv_2sig-y[my])**2)
+                   )
+        
         if ax != None:
                 # plot contours
                 contour_levels = [0.683, 0.955]
                 plt.contourf(X, Y, CDF, levels=contour_levels)
                 C = plt.contour(X, Y, CDF, levels=contour_levels)
-                plt.clabel(C, colors='k', fmt='%.2f')
+                #plt.clabel(C, colors='k', fmt='%.2f')
                 
                 # mark minimum
                 plt.scatter(x[mx], y[my], marker='s')
                 
                 plttext = "BEST:" + \
                           "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                          "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                          "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                          "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
                           
                 plttext = plttext.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
-                                         y[my], maxrv_1sig-y[my], y[my]-minrv_1sig)
+                                         y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
+                                         best_av, av_1sig[0]-best_av, best_av-av_1sig[1]
+                                         )
                 
                 ax.text(.05, .95, plttext, size=16,
                         horizontalalignment='left',
@@ -130,10 +142,12 @@ def plot_contour(red_law, ref_excess, filter_eff_waves,
                 plt.ylim(rv-rv_pad, rv+rv_pad)
                 plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
                 
-        return x, y, CDF, (x[mx], y[my]), (minebv_1sig, maxebv_1sig), \
-                                          (minebv_2sig, maxebv_2sig), \
-                                          (minrv_1sig,  maxrv_1sig), \
-                                          (minrv_2sig,  maxrv_2sig)
+        return x, y, CDF, x[mx], y[my], best_av, (minebv_1sig, maxebv_1sig), \
+                                                 (minebv_2sig, maxebv_2sig), \
+                                                 (minrv_1sig,  maxrv_1sig), \
+                                                 (minrv_2sig,  maxrv_2sig), \
+                                                 av_1sig, \
+                                                 av_2sig
         
 
 def main():
@@ -179,35 +193,28 @@ def get_12cu_best_ebv_rv():
         for i, phase in enumerate(phases):
                 print "Getting Phase: {}".format(phase)
                 
-                X, Y, CDF, SSRMIN, ebv_1sig, \
-                ebv_2sig, rv_1sig, rv_2sig = plot_contour(redden_fm, sn12cu_excess[i],
-                                                          filter_eff_waves, EBV_GUESS,
-                                                          EBV_PAD, RV_GUESS, RV_PAD, STEPS
-                                                          )
-                
-                # get best AV and calculate error in quadrature
-                BEST_AV = SSRMIN[0]*SSRMIN[1]
-                AV_1SIG = (BEST_AV-np.sqrt((ebv_1sig[0]-SSRMIN[0])**2 + (rv_1sig[0]-SSRMIN[1])**2),
-                           BEST_AV+np.sqrt((ebv_1sig[1]-SSRMIN[0])**2 + (rv_1sig[1]-SSRMIN[1])**2)
-                           )
-                AV_2SIG = (BEST_AV-np.sqrt((ebv_2sig[0]-SSRMIN[0])**2 + (rv_2sig[0]-SSRMIN[1])**2),
-                           BEST_AV+np.sqrt((ebv_2sig[1]-SSRMIN[0])**2 + (rv_2sig[1]-SSRMIN[1])**2)
-                           )
-                
+                x, y, CDF, \
+                best_ebv, best_rv, best_av, \
+                ebv_1sig, ebv_2sig, \
+                rv_1sig, rv_2sig, \
+                av_1sig, av_2sig = plot_contour(redden_fm, sn12cu_excess[i],
+                                                filter_eff_waves, EBV_GUESS,
+                                                EBV_PAD, RV_GUESS, RV_PAD, STEPS
+                                                )
                 
                 SN12CU_CHISQ_DATA.append({'phase'   : phase,
-                                          'x'       : X,
-                                          'y'       : Y,
+                                          'x'       : x,
+                                          'y'       : y,
                                           'CDF'     : CDF,
-                                          'BEST_EBV': SSRMIN[0],
-                                          'BEST_RV' : SSRMIN[1],
-                                          'BEST_AV' : BEST_AV,
+                                          'BEST_EBV': best_ebv,
+                                          'BEST_RV' : best_rv,
+                                          'BEST_AV' : best_av,
                                           'EBV_1SIG': ebv_1sig,
                                           'EBV_2SIG': ebv_2sig,
                                           'RV_1SIG' : rv_1sig,
                                           'RV_2SIG' : rv_2sig,
-                                          'AV_1SIG' : AV_1SIG,
-                                          'AV_2SIG' : AV_2SIG
+                                          'AV_1SIG' : av_1sig,
+                                          'AV_2SIG' : av_2sig
                                           })
         
         return SN12CU_CHISQ_DATA
