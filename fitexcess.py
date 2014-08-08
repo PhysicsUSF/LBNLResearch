@@ -47,7 +47,6 @@ def lsq_excess_fit(ref_excess_dict, red_law, EBV, rv_guess, filters, zp):
                               np.zeros(filter_eff_waves.shape),
                               -EBV, RV,
                               return_excess=True)
-        
         return ftz_curve-ref_excess
     
     Y = np.array([rv_guess])

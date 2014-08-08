@@ -13,6 +13,7 @@ import loader as l
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 import sncosmo as snc
 
 from copy import deepcopy
@@ -64,8 +65,9 @@ def load_12cu_colors(phases, filters, zp):
 def plot_snake(ax, rng, init, red_law, x, y, CDF, plot2sig=False):
     snake_hi_1sig = deepcopy(init)
     snake_lo_1sig = deepcopy(init)
-    snake_hi_2sig = deepcopy(init)
-    snake_lo_2sig = deepcopy(init)
+    if plot2sig:
+        snake_hi_2sig = deepcopy(init)
+        snake_lo_2sig = deepcopy(init)
     
     for i, EBV in enumerate(x):
         for j, RV in enumerate(y):
@@ -73,21 +75,27 @@ def plot_snake(ax, rng, init, red_law, x, y, CDF, plot2sig=False):
                 red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
                 snake_hi_1sig = np.maximum(snake_hi_1sig, red_curve)
                 snake_lo_1sig = np.minimum(snake_lo_1sig, red_curve)
-            elif CDF[j,i]<0.955:
-                if plot2sig:
-                    red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
-                    snake_hi_2sig = np.maximum(snake_hi_2sig, red_curve)
-                    snake_lo_2sig = np.minimum(snake_lo_2sig, red_curve)
+            elif plot2sig and CDF[j,i]<0.955:
+                red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
+                snake_hi_2sig = np.maximum(snake_hi_2sig, red_curve)
+                snake_lo_2sig = np.minimum(snake_lo_2sig, red_curve)
                 
-    ax.fill_between(10000./rng, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.2)
+    ax.fill_between(10000./rng, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.3)
     if plot2sig:
         ax.fill_between(10000./rng, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.1)
 
 
+################################################################################
+
 def plot_phase_excesses(name, loader, filters, zp):
-                            
-    from plot_excess_contours import get_12cu_best_ebv_rv
-    SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
+    
+    try:
+        print "Loading sn2012cu data from 'sn12cu_chisq_data.pkl' ..."
+        SN12CU_CHISQ_DATA = pickle.load(open('sn12cu_chisq_data.pkl', 'rb'))
+    except:
+        print "Failed.  Fetching data ..."
+        from plot_excess_contours import get_12cu_best_ebv_rv
+        SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
     
     
     print "Plotting excesses of",name," with best fit from contour..."
@@ -101,11 +109,11 @@ def plot_phase_excesses(name, loader, filters, zp):
     sn11fe = l.interpolate_spectra(phases, l.get_11fe())
     
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
-    
     pmin, pmax = np.min(phases), np.max(phases)
     
     for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
         phase = d['phase']
+        print "Plotting phase {} ...".format(phase)
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
         # calculate sn11fe band magnitudes
@@ -136,6 +144,9 @@ def plot_phase_excesses(name, loader, filters, zp):
         red_curve = red_law(x, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
         redln, = plt.plot(xinv, red_curve, 'k'+linestyle)
         
+        test_red_curve = red_law(np.array(filter_eff_waves), np.zeros(np.array(filter_eff_waves).shape),
+                                 -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
+        
         plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
         
         plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
@@ -159,6 +170,7 @@ def plot_phase_excesses(name, loader, filters, zp):
         if i>=(numrows-1)*PLOTS_PER_ROW:
             plt.xlabel('Wavelength ($1 / \mu m$)')
         plt.xlim(1.0, 3.0)
+        plt.ylim(-3.0, 2.0)
 
 
 ################################################################################

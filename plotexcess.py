@@ -188,6 +188,7 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
     pmin, pmax = np.min(phases), np.max(phases)
     
     for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
+        print "Plotting phase {}...".format(phase)
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
         # calculate sn11fe band magnitudes
@@ -231,6 +232,9 @@ def plot_phase_excesses(name, loader, red_type, filters, zp,
             xinv = 10000./x
             red_curve = red_law(x, np.zeros(x.shape), EBV, _RVS[i], return_excess=True)
             redln, = plt.plot(xinv, red_curve, 'k'+linestyle, label=llabel)
+            
+            test_red_curve = red_law(np.array(filter_eff_waves), np.zeros(np.array(filter_eff_waves).shape),
+                                     EBV, _RVS[i], return_excess=True)
             
             ERROR = rederr
             if ploterr:

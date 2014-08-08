@@ -38,11 +38,11 @@ cumulative distribution function calculated by (dof=18):
 import pickle
 from pprint import pprint
 
-#from plot_excess_contours import get_12cu_best_ebv_rv
+from plot_excess_contours import get_12cu_best_ebv_rv
 
-#SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
+SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
 
-#pickle.dump(SN12CU_CHISQ_DATA, open('sn12cu_chisq_data.pkl', 'wb'))
+pickle.dump(SN12CU_CHISQ_DATA, open('sn12cu_chisq_data.pkl', 'wb'))
 
 f = pickle.load(open('sn12cu_chisq_data.pkl', 'rb'))
 pprint( f )
