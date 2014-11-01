@@ -85,9 +85,9 @@ def main():
         rv_guess = 2.7
         rv_pad = .5
         
-        steps = 10
+        steps = 100
         
-        pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
+        pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[9:11]
         phases = [t[0] for t in pristine_12cu]
         
         pristine_11fe = l.interpolate_spectra(phases, l.get_11fe())
@@ -171,7 +171,7 @@ def main():
                                         
                                         interpolated_red = interp1d(red[1].wave, red[1].flux)(ref[1].wave)
                                         if k==9 and j==9:
-                                                print "INTERPOLATED:", interpolated_red
+                                                print "REDDENED INTERPOLATED:", interpolated_red
                                         
                                         unred_flux = redden_fm(ref[1].wave, interpolated_red, EBV, RV)
                                         
