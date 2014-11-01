@@ -22,12 +22,19 @@ LOWCUT = -15.0
 HICUT = 25.0
 N_DAYS = 1.0
 FILTERS = 'UBVRI'
+MARKER_SIZE = 8
 
 ################################################################################
 ##### FUNCTIONS ################################################################
 
-
-
+def find_valid(array,value_array,n):
+    array = np.array(array)
+    return_array = np.zeros(len(value_array), dtype=np.bool)
+    for i, x in enumerate(value_array):
+        idx = (np.abs(array-x)).argmin()
+        return_array[i] = abs(array[idx]-x) <= n
+        
+    return return_array
 
 
 # Function below is to filter out None values in the lightcurve and also filter by phase such that it is
@@ -145,7 +152,7 @@ def main():
         phases = [t[0] for t in bandfluxes]
         bandmags = -2.5*np.log10( np.array([t[1] for t in bandfluxes])/zp[f] )
 
-        p1, = plt.plot(phases, bandmags-SN12CU_MW[f], 'o-', color=fcolor)
+        p1, = plt.plot(phases, bandmags-SN12CU_MW[f], 'o-', color=fcolor, ms=MARKER_SIZE)
 
         plt.text(26,bandmags[-1],f)  # write filter name next to respective line on plot
 
@@ -158,9 +165,9 @@ def main():
         bandmags = -2.5*np.log10( np.array([t[1] for t in bandfluxes])/zp[f] )
 
         # plot invalid interpolated phases as white diamonds
-        p2, = plt.plot(phases, bandmags+dist_mod_shift, ':', color=fcolor)
-        plt.plot(phases[valid], bandmags[valid]+dist_mod_shift, 'D', color=fcolor)
-        p3, = plt.plot(phases[nvalid], bandmags[nvalid]+dist_mod_shift, 'D', color='w')
+        p2, = plt.plot(phases, bandmags+dist_mod_shift, ':', color=fcolor, ms=MARKER_SIZE)
+        plt.plot(phases[valid], bandmags[valid]+dist_mod_shift, 'D', color=fcolor, ms=MARKER_SIZE)
+        p3, = plt.plot(phases[nvalid], bandmags[nvalid]+dist_mod_shift, 'D', color='w', ms=MARKER_SIZE)
 
 
     plt.gca().invert_yaxis()
@@ -172,7 +179,7 @@ def main():
     plt.ylabel("Magnitude (Vega)")
     
     plt.legend([p1, p2, p3],
-               ['12CU','11FE','not interpolated within\n'+str(N_DAYS)+' days (not used in fit)'],
+               ['12CU','Reddened 11FE','not interpolated within\n'+str(N_DAYS)+' days (not used in fit)'],
                loc='lower left')
     plt.show()
 

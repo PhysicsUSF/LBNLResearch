@@ -35,12 +35,16 @@ cumulative distribution function calculated by (dof=18):
         CDF = 1-exp(-CHISQ/2)
         
 '''
+import loader as l
+from loader import redden_fm
 import pickle
 from pprint import pprint
 
 from plot_excess_contours import get_12cu_best_ebv_rv
 
-SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv()
+filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, 20, inverse_microns=True)
+
+SN12CU_CHISQ_DATA = get_12cu_best_ebv_rv(redden_fm, filters_bucket, zp_bucket)
 
 pickle.dump(SN12CU_CHISQ_DATA, open('sn12cu_chisq_data.pkl', 'wb'))
 

@@ -26,7 +26,7 @@ from sys import argv
 # matplotlib vars
 LO, HI = -7, 28  # cutoffs for phases to show
 SN11FE_PLOT_ALPHA = 0.8
-MARKER_SIZE = 7
+MARKER_SIZE = 9
 CROSS_SIZE = 2
 
 # valid day range for interpolation, for use in 11fe reddening fits
@@ -217,7 +217,7 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS, grey=False):
 
 
     ## Least-Square Fitting
-    lsq_out, valid_phases = lsq_11fe_color_fit(sn_ref_dict, EBV, RV, FILTERS, zp, N_DAYS)
+    lsq_out, valid_phases = lsq_11fe_color_fit(sn_ref_dict, EBV, RV, 'UBRI', zp, N_DAYS)
     BEST_RV = lsq_out[0][0]
     sn2011fe_red = l.get_11fe('fm', EBV, rv=BEST_RV)
 
@@ -233,10 +233,10 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS, grey=False):
     
     if not grey:
         sn11fe_plot_proxy, = plt.plot(np.array([]), np.array([]),
-                                      'ro--', mfc='r', mec='r', ms=7, alpha=0.8)
+                                      'ro--', mfc='r', mec='r', ms=8, alpha=0.8)
     else:
         sn11fe_plot_proxy, = plt.plot(np.array([]), np.array([]),
-                                      'ko--', mfc='none', mec='k', ms=7, mew=2, alpha=0.8)
+                                      'ko--', mfc='none', mec='k', ms=8, mew=2, alpha=0.8)
 
     index = 1
     for FILTER in FILTERS:
@@ -281,30 +281,35 @@ def plotcolors(fig, name, loader, EBV, RV, FILTERS, zp, N_DAYS, grey=False):
         sn2011fe_orig_phases = [t[0] for t in sn2011fe_orig]
         sn2011fe_orig_colors = [t[1] for t in sn2011fe_orig]
         if not grey:
-            p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'g+', mew=CROSS_SIZE)
+            p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'g+', ms=MARKER_SIZE, mew=CROSS_SIZE)
         else:
-            p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'k+', mew=CROSS_SIZE)
+            p1, = plt.plot(sn2011fe_orig_phases, sn2011fe_orig_colors, 'k+', ms=MARKER_SIZE, mew=CROSS_SIZE)
 
         # format subplot
         if index%2 == 1:
-            plt.ylabel("$V-X$")
+            plt.ylabel("$V-X$", fontsize=16)
         if index>2:
-            plt.xlabel("Phase (relative B-max)")
+            plt.xlabel("Phase (relative B-max)", fontsize=16)
         plt.ylim(row_ylims[FILTER])
         plt.xlim(LO,HI)
-        ax.set_title(FILTER)
+        plt.text(0.5, .95, FILTER,
+                 horizontalalignment='center',
+                 verticalalignment='top',
+                 fontsize=18,
+                 transform = ax.transAxes)
         index += 1
 
     # format figure
-    fig.suptitle(name+": Broadband Colors vs. Phase", fontsize=18)
+    fig.suptitle(name+": Broadband Colors vs. Phase", fontsize=24)
     fig.subplots_adjust(bottom=0.15)
     fig.legend( [sn11fe_plot_proxy, p1, p2],
-                ["interpolated 11fe (used in fit)",
-                 "FTZ reddened 11fe: $E(B-V) = "+str(round(EBV,2))+"$, $R_V = "+str(round(BEST_RV,2))+"$",
+                ["Interpolated 11FE",
+                 "FTZ Reddened 11FE: $E(B-V) = "+str(round(EBV,2))+"$, $R_V = "+str(round(BEST_RV,2))+"$",
                  name],
                 loc=8,
-                ncol=3,
-                borderaxespad=1.0
+                ncol=2,
+                borderaxespad=1.0,
+                prop={'size':16}
                 )
 
 
@@ -395,7 +400,7 @@ if __name__ == "__main__":
     ### SN2012CU COMPARISON
     if '2' in argv[1:]:
         fig2 = plt.figure(2)
-        plotcolors(fig2, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, FILTERS, zp_not, N_DAYS)
+        plotcolors(fig2, 'SN2012CU', load_12cu, EBV_12CU, RV_12CU, FILTERS, zp_top, N_DAYS)
     
     ### SN2012CU COMPARISON WITH EBV/RV VARIANTS FROM EXCESS FITS
     if '3' in argv[1:]:

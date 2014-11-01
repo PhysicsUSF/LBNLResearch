@@ -69,7 +69,8 @@ def load_filters(FILTER_PREFIX='tophat_'):
 # Goobar (2008) power law artificial reddening law
 def redden_pl(wave, flux, Av, p, return_excess=False):
     #wavelength in angstroms
-    lamv = 5500
+    #lamv = 5500
+    lamv = 5417.2
     a = 1.
     x = np.array(wave)
     #A_V = R_V * ebv
@@ -89,10 +90,11 @@ def redden_pl(wave, flux, Av, p, return_excess=False):
 # Goobar (2008) power law artificial reddening law (with EBV and RV as params)
 def redden_pl2(wave, flux, ebv, R_V, return_excess=False):
     #wavelength in angstroms
-    lamv = 5500
+    #lamv = 5500
+    lamv = 5417.2
     x = np.array(wave)
     
-    Av = R_V * ebv
+    Av = R_V * -ebv
     p = np.log((1/R_V)+1)/np.log(0.8)
     
     Alam_over_Av = (x**p)/(lamv**p)
@@ -295,6 +297,12 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         I = wave_concat.argsort()
         wave_concat = wave_concat[I]
         flux_concat = flux_concat[I]
+        
+        # remove duplicate wavelengths
+        mask = np.unique(wave_concat, return_index=True)[1]
+        
+        wave_concat = wave_concat[mask]
+        flux_concat = flux_concat[mask]
 
         # make into Spectrum object and add to list with phase data
         SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat)) )
@@ -709,6 +717,8 @@ def generate_buckets(low, high, n, inverse_microns=False):
         zp_cache[index] = zp_phot
 
         filters.append(index)
+    
+    
     
     return filters, zp_cache
 

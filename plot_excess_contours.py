@@ -22,13 +22,21 @@ from scipy.stats import chisquare
 
 
 ### VARS ###
-STEPS = 80
+STEPS = 200
 N_BUCKETS = 20
 
 EBV_GUESS = 1.1
 EBV_PAD = .3
 RV_GUESS = 2.75
 RV_PAD = .75
+
+
+TITLE_FONTSIZE = 28
+AXIS_LABEL_FONTSIZE = 24
+TICK_LABEL_FONTSIZE = 16
+INPLOT_LEGEND_FONTSIZE = 20
+LEGEND_FONTSIZE = 15
+
 
 ################################################################################
 
@@ -41,7 +49,7 @@ def load_12cu_excess(filters, zp):
         sn12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)
         sn12cu = filter(lambda t: t[0]<28, sn12cu)
         phases = [t[0] for t in sn12cu]
-
+        
         sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')/zp['V']) for t in sn12cu]
         sn12cu_colors = {i:{} for i in xrange(len(phases))}
         for f in filters:
@@ -86,8 +94,9 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
         mindex = np.where(Z==ssr_min)
         mx, my = mindex[1][0], mindex[0][0]
         
-        dof = float(N_BUCKETS-2)  # degrees of freedom
+        dof = float(N_BUCKETS-1-2)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts)
         CHISQ = (dof/ssr_min)*Z   # rescale ssr to be chi-sq; min is now == dof
+        chisq_min = np.min(CHISQ)
         
         CDF = 1 - np.exp((-(CHISQ-dof))/2)  # calculation cumulative distribution func
         
@@ -96,13 +105,16 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
         maxrv_1sig, maxrv_2sig, minrv_1sig, minrv_2sig = y[my], y[my], y[my], y[my]
         for i, EBV in enumerate(x):
                 for j, RV in enumerate(y):
-                        conf = CDF[j,i]
-                        if conf<0.683:
+                        #conf = CDF[j,i]
+                        _chisq = CHISQ[j,i]-chisq_min
+                        #if conf<0.683:
+                        if _chisq<1.00:
                                 maxebv_1sig = np.maximum(maxebv_1sig, EBV)
                                 minebv_1sig = np.minimum(minebv_1sig, EBV)
                                 maxrv_1sig = np.maximum(maxrv_1sig, RV)
                                 minrv_1sig = np.minimum(minrv_1sig, RV)
-                        elif conf<0.955:
+                        #elif conf<0.955:
+                        elif _chisq<4.00:
                                 maxebv_2sig = np.maximum(maxebv_2sig, EBV)
                                 minebv_2sig = np.minimum(minebv_2sig, EBV)
                                 maxrv_2sig = np.maximum(maxrv_2sig, RV)
@@ -117,30 +129,68 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                    best_av+np.sqrt((maxebv_2sig-x[mx])**2 + (maxrv_2sig-y[my])**2)
                    )
         
+        #print "EBV", minebv_1sig, maxebv_1sig
+        #print "RV", minrv_1sig, maxrv_1sig
+        
+        #ax.axvline(minebv_1sig, color='r')
+        #ax.axvline(maxebv_1sig, color='r')
+        #ax.axhline(minrv_1sig, color='r')
+        #ax.axhline(maxrv_1sig, color='r')
+        
+        #ax.axvline(minebv_2sig, color='g')
+        #ax.axvline(maxebv_2sig, color='g')
+        #ax.axhline(minrv_2sig, color='g')
+        #ax.axhline(maxrv_2sig, color='g')
+        
         if ax != None:
                 # plot contours
                 contour_levels = [0.0, 0.683, 0.955, 1.0]
                 plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
                 C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
                 
+                #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
+                
                 # mark minimum
                 plt.scatter(x[mx], y[my], marker='s', facecolors='r')
                 
                 # show results on plot
-                plttext = "Phase: {}" + \
-                          "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                          "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                          "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-                plttext = plttext.format(phase,
-                                         x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
-                                         y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
-                                         best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
-                                         )
-                ax.text(.05, .95, plttext, size=16,
-                        horizontalalignment='left',
-                        verticalalignment='top',
-                        transform=ax.transAxes)
+                if subplot_index%6==0:
+                        plttext1 = "Phase: {}".format(phase)
+                else:
+                        plttext1 = "{}".format(phase)
+                        
+                plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                           "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                           "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
+                                           y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
+                                           best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
+                                           )
+                                                   
+                if phase not in [11.5, 16.5, 18.5, 21.5]:
+                        ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                                horizontalalignment='left',
+                                verticalalignment='top',
+                                transform=ax.transAxes)
+                        ax.text(.04, .85, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                                horizontalalignment='left',
+                                verticalalignment='top',
+                                transform=ax.transAxes)
+                        ax.axhspan(2.9, (rv+rv_pad), facecolor='k', alpha=0.1)
                 
+                else:
+                        ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                                horizontalalignment='left',
+                                verticalalignment='top',
+                                transform=ax.transAxes)
+                        ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                                horizontalalignment='left',
+                                verticalalignment='top',
+                                transform=ax.transAxes)
+                        ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
+                        ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
+                        
+                        
                 # format subplot...
                 plt.ylim(rv-rv_pad, rv+rv_pad)
                 plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
@@ -151,21 +201,26 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                 ax2.set_ylim(rv-rv_pad, rv+rv_pad)
                 
                 if subplot_index%6 == 5:
-                        ax2.set_ylabel('\n$R_V$')
+                        ax2.set_ylabel('\n$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=5)
+                if subplot_index%6 == 0:
+                        ax.set_ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=-2)
                 if subplot_index>=6:
-                        ax.set_xlabel('\n$E(B-V)$')
+                        ax.set_xlabel('\n$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
                 
                 # format x labels
                 labels = ax.get_xticks().tolist()
                 labels[0] = labels[-1] = ''
                 ax.set_xticklabels(labels)
-                ax.get_xaxis().set_tick_params(direction='in', pad=-17)
+                ax.get_xaxis().set_tick_params(direction='in', pad=-20)
                 
                 # format y labels
                 labels = ax2.get_yticks().tolist()
                 labels[0] = labels[-1] = ''
                 ax2.set_yticklabels(labels)
-                ax2.get_yaxis().set_tick_params(direction='in', pad=-25)
+                ax2.get_yaxis().set_tick_params(direction='in', pad=-30)
+                
+                plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+                plt.setp(ax2.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
         
                 
         return x, y, CDF, x[mx], y[my], best_av, (minebv_1sig, maxebv_1sig), \
@@ -198,21 +253,100 @@ def main():
                 plot_contour(i, phase, redden_fm, sn12cu_excess[i], filter_eff_waves,
                              EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, STEPS, ax)
                              
-                
-        fig.subplots_adjust(hspace=.06,wspace=.1)
-        fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=18)
+        
+        fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
+        fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
         plt.show()
-    
+
 
 ################################################################################
+
+def get_all_phases_best_fit():
+        red_law = redden_fm
         
-def get_12cu_best_ebv_rv():
         filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
         
         filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff
-                                     for f in filters_bucket])
+                                     for f in filters_bucket]
+                                    )
         
         sn12cu_excess, phases = load_12cu_excess(filters_bucket, zp_bucket)
+        
+        
+        x = np.linspace(EBV_GUESS-EBV_PAD, EBV_GUESS+EBV_PAD, STEPS)
+        y = np.linspace(RV_GUESS-RV_PAD, RV_GUESS+RV_PAD, STEPS)
+        
+        X, Y = np.meshgrid(x, y)
+        Z = np.zeros( X.shape )
+        
+        for i, EBV in enumerate(x):
+                for j, RV in enumerate(y):
+                        ftz_curve = red_law(filter_eff_waves,
+                                            np.zeros(filter_eff_waves.shape),
+                                            -EBV, RV,
+                                            return_excess=True)
+                        
+                        ftz_curve_stack = np.hstack(len(phases)*(ftz_curve,))
+                        
+                        ref_excess_stack = np.hstack(tuple([sn12cu_excess[k] for k in xrange(len(phases))]))
+                        
+                        Z[j,i] = np.sum((ftz_curve_stack-ref_excess_stack)**2)
+        
+        
+        # find minimum ssr
+        ssr_min = np.min(Z)
+        mindex = np.where(Z==ssr_min)
+        mx, my = mindex[1][0], mindex[0][0]
+        
+        n_dataPts = 12*(N_BUCKETS-1)
+        dof = float(n_dataPts-2)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts -2 fitting parameters)
+        CHISQ = (dof/ssr_min)*Z   # rescale ssr to be chi-sq; min is now == dof
+        
+        CDF = 1 - np.exp((-(CHISQ-dof))/2)  # calculation cumulative distribution func
+        
+        # find 1-sigma and 2-sigma errors based on confidence
+        maxebv_1sig, maxebv_2sig, minebv_1sig, minebv_2sig = x[mx], x[mx], x[mx], x[mx]
+        maxrv_1sig, maxrv_2sig, minrv_1sig, minrv_2sig = y[my], y[my], y[my], y[my]
+        for i, EBV in enumerate(x):
+                for j, RV in enumerate(y):
+                        conf = CDF[j,i]
+                        if conf<0.683:
+                                maxebv_1sig = np.maximum(maxebv_1sig, EBV)
+                                minebv_1sig = np.minimum(minebv_1sig, EBV)
+                                maxrv_1sig = np.maximum(maxrv_1sig, RV)
+                                minrv_1sig = np.minimum(minrv_1sig, RV)
+                        elif conf<0.955:
+                                maxebv_2sig = np.maximum(maxebv_2sig, EBV)
+                                minebv_2sig = np.minimum(minebv_2sig, EBV)
+                                maxrv_2sig = np.maximum(maxrv_2sig, RV)
+                                minrv_2sig = np.minimum(minrv_2sig, RV)
+        
+        # get best AV and calculate error in quadrature
+        best_av = x[mx]*y[my]
+        av_1sig = (best_av-np.sqrt((minebv_1sig-x[mx])**2 + (minrv_1sig-y[my])**2),
+                   best_av+np.sqrt((maxebv_1sig-x[mx])**2 + (maxrv_1sig-y[my])**2)
+                   )
+        av_2sig = (best_av-np.sqrt((minebv_2sig-x[mx])**2 + (minrv_2sig-y[my])**2),
+                   best_av+np.sqrt((maxebv_2sig-x[mx])**2 + (maxrv_2sig-y[my])**2)
+                   )
+        
+        
+        template = "{} = {:.4f}; 1SIGMA: (+{:.4f}/-{:.4f}); 2SIGMA: (+{:.4f}/-{:.4f})"
+        print template.format("E(B-V)", x[mx], x[mx]-minebv_1sig, maxebv_1sig-x[mx],
+                                        x[mx]-minebv_2sig, maxebv_2sig-x[mx])
+        print template.format("RV", y[my], y[my]-minrv_1sig,  maxrv_1sig-y[my],
+                                        y[my]-minrv_2sig,  maxrv_2sig-y[my])
+        print template.format("AV", best_av, best_av-av_1sig[0], av_1sig[1]-best_av,
+                                        best_av-av_2sig[0], av_2sig[1]-best_av)
+        
+
+################################################################################
+        
+def get_12cu_best_ebv_rv(red_law, filters, zp):
+        filter_eff_waves = np.array([snc.get_bandpass(zp['prefix']+f).wave_eff
+                                     for f in filters])
+        
+        sn12cu_excess, phases = load_12cu_excess(filters, zp)
         
         
         SN12CU_CHISQ_DATA = []
@@ -223,7 +357,7 @@ def get_12cu_best_ebv_rv():
                 best_ebv, best_rv, best_av, \
                 ebv_1sig, ebv_2sig, \
                 rv_1sig, rv_2sig, \
-                av_1sig, av_2sig = plot_contour(i, phase, redden_fm, sn12cu_excess[i],
+                av_1sig, av_2sig = plot_contour(i, phase, red_law, sn12cu_excess[i],
                                                 filter_eff_waves, EBV_GUESS,
                                                 EBV_PAD, RV_GUESS, RV_PAD, STEPS
                                                 )
@@ -244,30 +378,10 @@ def get_12cu_best_ebv_rv():
                                           })
         
         return SN12CU_CHISQ_DATA
-        
+
+
 
 ################################################################################
-
-'''
-To Do:
-======
--plot 12cu and 11fe light curves on top of eachother in vein of Periera's plot (possibly with BMAX matching)
--do these plots for power-law
--redo summary plot of ebv/rv/av changing over time
-
-four plots:
--color plot (recalc ebv w/ weighted avg)
--contour plots
--color excess plot
--summary plot
-
-also:
--chi-sq calculation slide
--have 14j slides ready
--future work slide
- -phase by phase delta-u vs Rv calculations, and combine all these to determine
-  the distance of 12cu.
-'''
 
 if __name__ == "__main__":
         main()
