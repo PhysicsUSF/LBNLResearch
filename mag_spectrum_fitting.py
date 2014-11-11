@@ -17,12 +17,6 @@ from scipy.interpolate import interp1d
 
 
 def main():
-        TITLE_FONTSIZE = 28
-        AXIS_LABEL_FONTSIZE = 20
-        TICK_LABEL_FONTSIZE = 16
-        INPLOT_LEGEND_FONTSIZE = 20
-        LEGEND_FONTSIZE = 18
-        
         
         ebv_guess = 1.05
         ebv_pad = 0.3
@@ -40,9 +34,19 @@ def main():
         
         pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
         
-        reddened = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.05, rv=2.7, loadmast=False, loadptf=False))
-        #reddened = pristine_12cu
         
+        ########################
+        # Choose 'reddened' to be either 11fe interpolated to the phases of 12cu,
+        # or 12cu itself.
+        #
+        #reddened = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.05, rv=2.7, loadmast=False, loadptf=False))
+        reddened = pristine_12cu
+        #
+        ########################
+        
+        
+        ########################
+        ### helper functions ###
         
         def filter_features(features, wave):
                 intersection = np.array([False]*wave.shape[0])
@@ -52,58 +56,21 @@ def main():
                 return ~intersection
         
         
-        def allphase_fit():
+        def flux2mag(flux, err=None, calibration_err=None):
+                mag_err = None
+                calibration_err_mag = None
                 
-                ref_fluxs_allphases = np.concatenate( tuple([t[1].flux for t in pristine_11fe]) )
-                MASK = np.concatenate( tuple([filter_features(FEATURES, t[1].wave) for t in pristine_11fe]) )
-                
-                x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, steps)
-                y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, steps)
-                
-                X, Y = np.meshgrid(x, y)
-                SSR = np.zeros( X.shape )
-                
-                for j, EBV in enumerate(x):
-                        print j
-                        for k, RV in enumerate(y):
-                                
-                                reddened_allphases = []
-                                for p, t in enumerate(reddened):
-                                        interpolated_red = interp1d(t[1].wave, t[1].flux)(pristine_11fe[p][1].wave)
-                                        unred_flux = redden_fm(pristine_11fe[p][1].wave, interpolated_red, EBV, RV)
-                                        ref_flux = pristine_11fe[p][1].flux
-                                        
-                                        unred_norm_factor = np.average(unred_flux)
-                                        ref_norm_factor = np.average(ref_flux)
-                                        unred_flux /= (unred_norm_factor/ref_norm_factor)
-                                        
-                                        reddened_allphases.append(unred_flux)
-                                
-                                reddened_allphases = np.concatenate( tuple(reddened_allphases) )
-                                
-                                SSR[k,j] = np.sum((reddened_allphases[MASK]-ref_fluxs_allphases[MASK])**2)
-                
-                
-                ssr_min = np.min(SSR)
-                
-                print SSR
-                
-                mindex = np.where(SSR==ssr_min)
-                mx, my = mindex[1][0], mindex[0][0]
-                
-                print mindex
-                print x[mx], y[my]
-        
-        
-        def flux2mag(flux, err, calibration_err):
+                if type(err)!=type(None):
+                        fr_err = np.sqrt(err)/flux
+                        mag_err = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
+                if type(calibration_err)!=type(None):
+                        calibration_err_mag = 1.0857362*calibration_err
                 mag = -2.5*np.log10(flux)
                 
-                fr_err = np.sqrt(err)/flux
-                mag_err = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
-                
-                calibration_err_mag = 1.0857362*calibration_err
-                
-                return mag, mag_err, calibration_err_mag
+                return tuple([r for r in (mag, mag_err, calibration_err_mag) if type(r)!=type(None)])
+        
+        ########################
+        
         
         
         def perphase_fit():
@@ -113,9 +80,9 @@ def main():
                 
                 print "SIZE OF GRID:"
                 print steps
-                print "EBV SEARCH:"
+                print "EBV SEARCH GRID:"
                 print tmpx
-                print "RV SEARCH:"
+                print "RV SEARCH GRID:"
                 print tmpy
                 
                 best_rvs = []
@@ -149,14 +116,13 @@ def main():
                         S_ref = (ref_calibration_error_mag**2)*np.outer(ref_mag[mask], ref_mag[mask])
                         C_ref = V_ref + S_ref
                         
-                        # interpolate reddened spectrum/error to match wavelengths of ref spectrum 
-                        red_interp_flux = interp1d(ref_wave, red[1].flux)(ref_wave)
                         
-                        ##### ARTIFICIALLY SCALE FLUX TO SIMULATE DISTANCE DIFFERENCE ###
-                        red_interp_flux = interp1d(ref_wave, 1.0*red[1].flux)(ref_wave)
-                        #################################################################
+                        red_wave = red[1].wave
+                         ##### ARTIFICIALLY SCALE FLUX TO SIMULATE DISTANCE DIFFERENCE
+                        red_interp_flux = interp1d(red_wave, 1.2*red[1].flux)(ref_wave)
+                         #############################################################
                         
-                        red_interp_error  = interp1d(ref_wave, red[1].error)(ref_wave)
+                        red_interp_error  = interp1d(red_wave, red[1].error)(ref_wave)
                         red_calibration_error = red[2]
                         
                         red_interp_mag, red_interp_mag_error, red_calibration_error_mag \
@@ -228,7 +194,6 @@ def main():
                 
                 
         perphase_fit()
-        #allphase_fit()
         
 
 if __name__=="__main__":
