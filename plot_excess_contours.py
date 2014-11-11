@@ -22,8 +22,8 @@ from scipy.stats import chisquare
 
 
 ### VARS ###
-STEPS = 200
-N_BUCKETS = 20
+STEPS = 40
+N_BUCKETS = 40
 
 EBV_GUESS = 1.1
 EBV_PAD = .3
@@ -64,6 +64,16 @@ def load_12cu_excess(filters, zp):
                                for f in filters}
                 sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
                 ref_colors = [sn12cu_colors[i][f] for f in filters]
+                
+                if phase>20:
+                        print "phase: ",phase
+                        
+                        print "sn12cu colors:"
+                        pprint( zip(filters, ref_colors) )
+                        
+                        print "sn11fe colors:"
+                        pprint( zip(filters, sn11fe_colors) )
+                
                 phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
                 EXCESS[i] = phase_excesses
         
@@ -87,12 +97,20 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                                             np.zeros(filter_eff_waves.shape),
                                             -EBV, RV,
                                             return_excess=True)
+                        if i==0 and j==0:
+                                print "reddening excess:", ftz_curve
+                                print "12cu color excess:", ref_excess
                         Z[j,i] = np.sum((ftz_curve-ref_excess)**2)
+        
+        #print Z
         
         # find minimum ssr
         ssr_min = np.min(Z)
         mindex = np.where(Z==ssr_min)
         mx, my = mindex[1][0], mindex[0][0]
+        
+        print "BEST E(B-V): {}".format(x[mx])
+        print "BEST RV: {}".format(y[my])
         
         dof = float(N_BUCKETS-1-2)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts)
         CHISQ = (dof/ssr_min)*Z   # rescale ssr to be chi-sq; min is now == dof
@@ -235,6 +253,27 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
 
 def main():
         filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
+        
+        for f in filters_bucket:
+                if f=="38":
+                        filter_wave = snc.get_bandpass(zp_bucket['prefix']+f).wave
+                        print "wave:", filter_wave
+                        print "transmission:", snc.get_bandpass(zp_bucket['prefix']+f).trans
+                        
+                        tmp = l.get_12cu()[9]
+                        
+                        print tmp[0]
+                        
+                        wave = tmp[1].wave
+                        print "sn12cu wave:", wave
+                        mask = (wave>np.min(filter_wave))&(wave<np.max(filter_wave))
+                        
+                        print wave[mask]
+                        print tmp[1].flux[mask]
+                        
+                        print np.sum(tmp[1].flux[mask])
+                        
+                        exit(1)
         
         filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff
                                      for f in filters_bucket]

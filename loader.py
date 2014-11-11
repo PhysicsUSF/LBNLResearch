@@ -251,6 +251,9 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
     
     '''
     SN2012CU = []
+    
+    # this is an estimation of the calibration error, since its not in the fits file
+    FLXERROR = 0.02
 
     # get fits files from 12cu data folder (exclude .yaml file)
     FILES = [f for f in os.listdir( dirname + '/data/SNF-0201-INCR01a-2012cu' ) if f[-4:]!='yaml']
@@ -263,14 +266,17 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
 
     for f in FILES:
         filename = dirname + '/data/SNF-0201-INCR01a-2012cu/' + f
-        header = pyfits.getheader(filename)
+        pf = pyfits.open(filename)
+        
+        header = pf[0].header
         
         JD = header['JD']
         MJD = JD - 2400000.5  # convert JD to MJD
         phase = round(MJD - BMAX, 1)  # convert to phase by subtracting date of BMAX
 
-        flux = pyfits.getdata(filename)  # this is the flux data
-
+        flux = pf[0].data  # this is the flux data
+        err  = pf[1].data
+        
         CRVAL1 = header['CRVAL1']  # this is the starting wavelength of the spectrum
         CDELT1 = header['CDELT1']  # this is the wavelength incrememnet per pixel
 
@@ -279,17 +285,19 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         if not _12CU.has_key(phase):
             _12CU[phase] = []
             
-        _12CU[phase].append({'wave': wave, 'flux': flux})
+        _12CU[phase].append({'wave': wave, 'flux': flux, 'err': err})
 
 
     # concatenate spectra at same phases
     for phase, dict_list in _12CU.items():
         wave_concat = np.array([])
         flux_concat = np.array([])
+        err_concat  = np.array([])
 
         for d in dict_list:
             wave_concat = np.concatenate( (wave_concat, d['wave']) )
             flux_concat = np.concatenate( (flux_concat, d['flux']) )
+            err_concat  = np.concatenate( (err_concat,  d['err'])  )
 
         # sort wavelength array and flux array ordered by wavelength
         #   argsort() docs with helpful examples ->
@@ -297,35 +305,40 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         I = wave_concat.argsort()
         wave_concat = wave_concat[I]
         flux_concat = flux_concat[I]
+        err_concat  = err_concat[I]
         
         # remove duplicate wavelengths
         mask = np.unique(wave_concat, return_index=True)[1]
         
         wave_concat = wave_concat[mask]
         flux_concat = flux_concat[mask]
-
+        err_concat  = err_concat[mask]
+        
         # make into Spectrum object and add to list with phase data
-        SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat)) )
+        SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat, err_concat), FLXERROR) )
 
     
     SN2012CU = sorted(SN2012CU, key=lambda t: t[0])
     
     if redtype==None:
         return SN2012CU
+        
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(t[0], snc.Spectrum(t[1].wave, redden_fm(t[1].wave, t[1].flux, ebv, rv)))
+            return [(t[0], snc.Spectrum(t[1].wave, redden_fm(t[1].wave, t[1].flux, ebv, rv), t[1].error), FLXERROR)
                     for t in SN2012CU]
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
+            
     elif redtype=='pl':
         if av!=None and p!=None:
-            return [(t[0], snc.Spectrum(t[1].wave, redden_pl(t[1].wave, t[1].flux, av, p)))
+            return [(t[0], snc.Spectrum(t[1].wave, redden_pl(t[1].wave, t[1].flux, av, p), t[1].error), FLXERROR)
                     for t in SN2012CU]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
             raise ValueError(msg)
+            
     else:
         msg = 'Invalid reddening law name; must be either \'fm\' or \'pl\'.'
         raise ValueError(msg)
@@ -361,21 +374,25 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
 
         for F in files:
             filename = dirname + '/data/sn2011fe/' + F
-
-            header = pyfits.getheader(filename)
-
+            pf = pyfits.open(filename)
+            header = pf[0].header
+            
+            FLXERROR = header['FLXERROR']/(2.5/np.log(10))  # convert from mag to flux uncertainty
             CRVAL1 = header['CRVAL1'] # coordinate start value
             CDELT1 = header['CDELT1'] # coordinate increment per pixel
             TMAX   = header['TMAX']   # phase in days relative to B-band maximum
             
             phase = float(TMAX)
-            flux = pyfits.getdata(filename,0)
+            flux = pf[0].data
+            err  = pf[1].data
             wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
             
             SN2011FE.append({
                             'phase': phase,
                             'wave' : wave,
                             'flux' : flux,
+                            'err'  : err,
+                            'cerr' : FLXERROR,
                             'set'  : 'SNF'
                             })
 
@@ -417,27 +434,33 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
             D = pyfits.getdata(workingdir+F)
             wave = D.field('WAVELENGTH')[0]
             flux = D.field('FLUX')[0]
+            err  = D.field('ERROR')[0]
             
-            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux})
+            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux, 'err': err})
             
         for i, p in enumerate(sorted(PHASES.keys())):   
             SPECTRUM_DICT_LIST = PHASES[p]
             wave_concat = np.array([])
             flux_concat = np.array([])
+            err_concat  = np.array([])
             
             for LIST in SPECTRUM_DICT_LIST.values():
                 n = len(LIST)
                 wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
                 flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
+                err_concat  = np.concatenate( (err_concat,  (1.0/n)*sum([D['err' ] for D in LIST])) )
                 
             I = wave_concat.argsort()
             wave_concat = wave_concat[I]
             flux_concat = flux_concat[I]
+            err_concat  = err_concat[I]
 
             SN2011FE.append({
                             'phase': p,
                             'wave' : wave_concat,
                             'flux' : flux_concat,
+                            'err'  : err_concat,
+                            'cerr' : 0.02,  # CANNOT FIND FLXERROR IN FITS HEADER!!!
                             'set'  : 'MAST'
                             })
 
@@ -455,12 +478,14 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
             mjd = float(F[9:15])/10  # get mjd from filename
             phase = round(mjd-55814.51, 2)
             
-            wave, flux = A[:,0], A[:,1]
+            wave, flux, err = A[:,0], A[:,1], A[:,2]
 
             SN2011FE.append({
                             'phase': phase,
                             'wave' : wave,
                             'flux' : flux,
+                            'err'  : err,
+                            'cerr' : 0.02, # CANNOT FIND FLXERROR IN FITS HEADER!!!
                             'set'  : 'PTF11KLY'
                             })
                 
@@ -470,17 +495,19 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
 
     # return list of reddened spectra
     if redtype==None:
-        return [(D['phase'], snc.Spectrum(D['wave'], D['flux']), D['set']) for D in SN2011FE]
+        return [(D['phase'], snc.Spectrum(D['wave'], D['flux'], D['err']), D['cerr'], D['set']) for D in SN2011FE]
+        
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)), D['set'])
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv), D['err']), D['cerr'], D['set'])
                     for D in SN2011FE]
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
+            
     elif redtype=='pl':
         if av!=None and p!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)), D['set'])
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p), D['err']), D['cerr'], D['set'])
                     for D in SN2011FE]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
@@ -607,6 +634,7 @@ def interpolate_spectra(phase_array, spectra):
     
     interpolated = []
     phases  = [t[0] for t in spectra]
+    cal_err = [t[2] for t in spectra]
     spectra = [t[1] for t in spectra]
 
     if type(phase_array) == type([]):
@@ -627,15 +655,24 @@ def interpolate_spectra(phase_array, spectra):
             if phase < phases[i+1]:
                 p1, p2 = float(phases[i]), float(phases[i+1])
                 W1, W2 = spectra[i].wave, spectra[i+1].wave
-                S1 = interp1d(W1, spectra[i].flux)
-                S2 = interp1d(W2, spectra[i+1].flux)
-
+                
+                S1flux = interp1d(W1, spectra[i].flux)
+                S2flux = interp1d(W2, spectra[i+1].flux)
+                
+                S1err  = interp1d(W1, spectra[i].error)
+                S2err  = interp1d(W2, spectra[i+1].error)
+                
+                # add calibration errors in quadrature
+                cal_err_interp = np.sqrt(cal_err[i]**2 + cal_err[i+1]**2)
+                
                 # get range of overlap between two spectra
                 RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ), 2)
 
                 # compute linear interpolation
-                S_interp = S1(RNG) + ((S2(RNG)-S1(RNG))/(p2-p1))*(float(phase)-p1)
-                return (snc.Spectrum(RNG, S_interp), i)
+                S_interp_flux = S1flux(RNG) + ((S2flux(RNG)-S1flux(RNG))/(p2-p1))*(float(phase)-p1)
+                S_interp_err  = S1err(RNG)  + ((S2err(RNG) -S2err(RNG) )/(p2-p1))*(float(phase)-p1)
+                
+                return (snc.Spectrum(RNG, S_interp_flux, S_interp_err), cal_err_interp, i)
             i += 1
 
         return (None, 0)
@@ -643,10 +680,10 @@ def interpolate_spectra(phase_array, spectra):
     LIM = phase_array.shape[0]
     search_index = 0  # keep track of current place in phases array in order to speed up interpolation
     for i in xrange(LIM):
-        S_interp, search_index = interpolate(phase_array[i], search_index)
+        S_interp, cal_err_interp, search_index = interpolate(phase_array[i], search_index)
         # rounded phase below because of weird numpy float rounding errors when converting phase_array to
         # a numpy array
-        interpolated.append((round(phase_array[i], 1), S_interp))  
+        interpolated.append((round(phase_array[i], 1), S_interp, cal_err_interp))  
 
     if len(interpolated) == 1:
         return interpolated[0]  # return only the tuple if only interpolating for one phase
