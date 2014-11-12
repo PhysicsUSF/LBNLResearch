@@ -11,6 +11,7 @@ from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
 import cPickle
+from time import gmtime, strftime
 
 from scipy.interpolate import interp1d
 
@@ -19,10 +20,10 @@ from scipy.interpolate import interp1d
 def main():
         
         ebv_guess = 1.05
-        ebv_pad = 0.3
+        ebv_pad = 0.5
         
         rv_guess = 2.7
-        rv_pad = 0.5
+        rv_pad = 0.8
         
         steps = 25
         
@@ -39,7 +40,7 @@ def main():
         # Choose 'reddened' to be either 11fe interpolated to the phases of 12cu,
         # or 12cu itself.
         #
-        #reddened = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.05, rv=2.7, loadmast=False, loadptf=False))
+        #reddened = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-0.4, rv=2.45, loadmast=False, loadptf=False))
         reddened = pristine_12cu
         #
         ########################
@@ -56,18 +57,24 @@ def main():
                 return ~intersection
         
         
-        def flux2mag(flux, err=None, calibration_err=None):
-                mag_err = None
+        def flux2mag(flux, var=None, calibration_err=None):
+                mag_var = None
                 calibration_err_mag = None
                 
-                if type(err)!=type(None):
-                        fr_err = np.sqrt(err)/flux
-                        mag_err = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
-                if type(calibration_err)!=type(None):
-                        calibration_err_mag = 1.0857362*calibration_err
                 mag = -2.5*np.log10(flux)
                 
-                return tuple([r for r in (mag, mag_err, calibration_err_mag) if type(r)!=type(None)])
+                # calculate magnitude error
+                if type(var)!=type(None):
+                        fr_err = np.sqrt(var)/flux
+                        mag_var = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
+                
+                # calculate calibration error in mag space
+                if type(calibration_err)!=type(None):
+                        calibration_err_mag = 1.0857362*calibration_err
+                
+                results = tuple([r for r in (mag, mag_var, calibration_err_mag) if type(r)!=type(None)])
+                
+                return (results, results[0])[len(results)==1]
         
         ########################
         
@@ -104,38 +111,80 @@ def main():
                         
                         
                         ### COVARIANCE MATRIX ###
+                        
+                        # pristine_11fe
                         ref_wave = ref[1].wave
                         ref_flux = ref[1].flux
-                        ref_error = ref[1].error
+                        ref_flux_avg = np.average(ref_flux)
+                        ref_flux_avg_mag = -2.5*np.log10(ref_flux_avg)
+                        ref_var = ref[1].error
                         ref_calibration_error = ref[2]
                         
-                        ref_mag, ref_mag_error, ref_calibration_error_mag \
-                        = flux2mag(ref_flux, ref_error, ref_calibration_error)
+                        ref_mag, ref_mag_var, ref_calibration_error_mag \
+                        = flux2mag(ref_flux, ref_var, ref_calibration_error)
                         
-                        V_ref = np.diag(ref_mag_error[mask])
-                        S_ref = (ref_calibration_error_mag**2)*np.outer(ref_mag[mask], ref_mag[mask])
-                        C_ref = V_ref + S_ref
+                        ref_mag_norm = ref_mag - ref_flux_avg_mag
                         
-                        
+                        # 12cu/reddened 11fe
                         red_wave = red[1].wave
-                         ##### ARTIFICIALLY SCALE FLUX TO SIMULATE DISTANCE DIFFERENCE
-                        red_interp_flux = interp1d(red_wave, 1.2*red[1].flux)(ref_wave)
-                         #############################################################
+                        red_interp_flux = interp1d(red_wave, red[1].flux)(ref_wave)
                         
-                        red_interp_error  = interp1d(red_wave, red[1].error)(ref_wave)
+                        ## test ######################################################################
+                        #red_noisy_flux = (1 + 0.05*np.random.randn(red[1].flux.shape[0]) )*red[1].flux
+                        #red_interp_flux = interp1d(red_wave, red_noisy_flux)(ref_wave)
+                        ##############################################################################
+                        
+                        red_interp_var  = interp1d(red_wave, red[1].error)(ref_wave)
                         red_calibration_error = red[2]
                         
-                        red_interp_mag, red_interp_mag_error, red_calibration_error_mag \
-                        = flux2mag(red_interp_flux, red_interp_error, red_calibration_error)
+                        red_interp_mag, red_interp_mag_var, red_calibration_error_mag \
+                        = flux2mag(red_interp_flux, red_interp_var, red_calibration_error)
                         
-                        V_red = np.diag(red_interp_mag_error[mask])
-                        S_red = (red_calibration_error_mag**2)*np.outer(red_interp_mag[mask], red_interp_mag[mask])
+                        # calculate matrices
+                        V_ref = np.diag(ref_mag_var[mask])
+                        S_ref = (ref_calibration_error_mag**2)*np.ones(V_ref.shape)
+                        C_ref = V_ref + S_ref
+                        
+                        V_red = np.diag(red_interp_mag_var[mask])
+                        S_red = (red_calibration_error_mag**2)*np.ones(V_red.shape)
                         C_red = V_red + S_red
+                        
+                        #########################
+                        
+                        def print_diagnostics():
+                                print "ref_flux:"
+                                print ref_flux
+                                print "ref_mag_var:"
+                                print ref_mag_var
+                                print "ref_calibration_error_mag:"
+                                print ref_calibration_error_mag
+                                print "V_ref:"
+                                print V_ref
+                                print "S_ref:"
+                                print S_ref
+                                print "C_ref:"
+                                print C_ref
+                                print "red_interp_mag_var:"
+                                print red_interp_mag_var
+                                print "red_calibration_error_mag:"
+                                print red_calibration_error_mag
+                                print "V_red:"
+                                print V_red
+                                print "S_red:"
+                                print S_red
+                                print "C_red:"
+                                print C_red
+                        
+                        #print_diagnostics()
+                        
+                        #########################
+                        # INVERT TOTAL COVARIANCE MATRIX
                         
                         C_total = C_ref + C_red
                         
                         print "Computing inverse..."
                         C_total_inv = np.matrix(np.linalg.inv(C_total))
+                        
                         #########################
                         
                         
@@ -145,26 +194,35 @@ def main():
                         X, Y = np.meshgrid(x, y)
                         CHI2 = np.zeros( X.shape )
                         
-                        CHI2_reduction = np.sum(mask) - 2  # (num. data points)-(num. parameters)
+                        print "# Points with negative flux:"
+                        print np.sum(np.isnan(np.log10(red_interp_flux)))
                         
                         print "Scanning CHI2 grid..."
                         for j, EBV in enumerate(x):
                                 for k, RV in enumerate(y):
                                         
                                         unred_flux = redden_fm(ref_wave, red_interp_flux, EBV, RV)
-                                        unred_mag = flux2mag(unred_flux, red_interp_error, red_calibration_error)[0]
+                                        unred_mag = flux2mag(unred_flux)
                                         
-                                        ### normalization ###
-                                        unred_avg = np.average(unred_mag[mask])
-                                        ref_avg = np.average(ref_mag[mask])
-                                        unred_mag += (ref_avg - unred_avg)
-                                        #####################
+                                        # normalization
+                                        unred_flux_avg_mag = -2.5*np.log10(np.average(unred_flux))
+                                        unred_mag_norm = unred_mag - unred_flux_avg_mag
                                         
-                                        delta = np.matrix(unred_mag[mask]-ref_mag[mask])
-                                        CHI2[k,j] = (delta * C_total_inv * delta.T)[0,0] / CHI2_reduction
-                        
-                        #print "CHI2 RESULT:"
-                        #print CHI2
+                                        delta = unred_mag_norm[mask]-ref_mag_norm[mask]
+                                        
+                                        
+                                        # hack thrown together to filter nan-values
+                                        nanmask = ~np.isnan(delta)
+                                        delta = np.matrix(delta[nanmask])
+                                        nanmatrix = np.outer(nanmask, nanmask)
+                                        TMP_C_total_inv = np.matrix(C_total_inv[nanmatrix].reshape(np.sum(nanmask), np.sum(nanmask)))
+                                        
+                                        # find chi2 per degree of freedom
+                                        CHI2_reduction = delta.shape[1] - 2  # (num. data points)-(num. parameters)
+                                        CHI2[k,j] = (delta * TMP_C_total_inv * delta.T)[0,0] / CHI2_reduction
+                                        
+                                        
+                        ### report/save results
                         
                         chi2s.append(CHI2)
                         
@@ -176,19 +234,20 @@ def main():
                         mx, my = mindex[1][0], mindex[0][0]
                         
                         print "\t", mindex
-                        print "\t RV={} EBV={}".format(y[my], x[mx])
+                        print "\t RV={} EBV={} AV={}".format(y[my], x[mx], x[mx]*y[my])
                         
                         best_rvs.append(y[my])
                         best_ebvs.append(x[mx])
                         best_avs.append(x[mx]*y[my])
 
                 
-                pprint( zip(phases, best_rvs, best_ebvs, min_chi2s) )
+                pprint( zip(phases, best_rvs, best_ebvs, best_avs, min_chi2s) )
                 
                 # save results
+                ftime = strftime("%H-%M-%S-%m-%d-%Y", gmtime())
                 cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
                                 'chi2': chi2s, 'x': x, 'y': y, 'X': X, 'Y': Y},
-                                open("spectra_fit_results_{}iter.pkl".format(steps), 'wb'))
+                                open("spectra_mag_fit_results_{}.pkl".format(ftime), 'wb'))
                 
 
                 

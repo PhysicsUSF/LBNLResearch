@@ -350,8 +350,13 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
 
 
 def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
-             loadptf=True, loadsnf=True, loadmast=True):
+             loadptf=False, loadsnf=True, loadmast=False):
     '''
+    ::IMPORTANT NOTE::
+    Not fixed yet: ptf and possibly mast give error and not variance, need to determine
+    which give which and make sure they return variance.
+    ::::::::::::::::::
+    
     This function operates similarly to get_12cu() and returns a list of tuples of the form;
 
         [(phase0, sncosmo.Spectrum), (phase1, sncosmo.Spectrum), ... ]
@@ -662,8 +667,8 @@ def interpolate_spectra(phase_array, spectra):
                 S1err  = interp1d(W1, spectra[i].error)
                 S2err  = interp1d(W2, spectra[i+1].error)
                 
-                # add calibration errors in quadrature
-                cal_err_interp = np.sqrt(cal_err[i]**2 + cal_err[i+1]**2)
+                # average calibration errors
+                cal_err_interp = 0.5*(cal_err[i] + cal_err[i+1])
                 
                 # get range of overlap between two spectra
                 RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ), 2)
