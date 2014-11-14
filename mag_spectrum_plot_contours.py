@@ -148,18 +148,7 @@ def plot_contour(subplot_index, phase, info_dict,
         
 ################################################################################
 
-def main():
-        ebv_guess = 1.05
-        ebv_pad = 0.25
-        
-        rv_guess = 3.0
-        rv_pad = 0.6
-        
-        
-        info_dict = cPickle.load(open("spectra_mag_fit_results_03-44-32-11-14-2014.pkl", 'rb'))
-        phases = info_dict['phases']
-        
-        
+def allphase_fit(info_dict):
         #### find best fit for all phases
         CHI2_total = np.sum(info_dict['chi2'], axis=0)
         CHI2_total_reduction = np.sum(info_dict['chi2_reductions'])
@@ -196,7 +185,22 @@ def main():
         print "BEST TOTAL RV: {:.4} (+{:.4}/-{:.4})".format(y[my], maxrv_1sig-y[my], y[my]-minrv_1sig)
         print "###################################"
         
-        ###########################
+
+################################################################################
+
+
+def main():
+        ebv_guess = 1.05
+        ebv_pad = 0.25
+        
+        rv_guess = 3.0
+        rv_pad = 0.6
+        
+        
+        info_dict = cPickle.load(open("spectra_mag_fit_results_03-44-32-11-14-2014.pkl", 'rb'))
+        phases = info_dict['phases']
+        
+        allphase_fit(info_dict)
         
         fig = plt.figure()
         
@@ -211,6 +215,7 @@ def main():
         fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
         fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ per Phase', fontsize=TITLE_FONTSIZE)
         plt.show()
+
 
 
 
