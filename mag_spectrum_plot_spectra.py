@@ -122,11 +122,6 @@ def main():
                         
                         
                         
-                        #mag_wave = (ref[1].wave)[mask]
-                        #plt.plot(mag_wave, unred_mag_norm[mask]-adjust, 'r.', ms=3)
-                        #plt.plot(mag_wave, ref_mag_norm[mask]-adjust, 'g.', ms=3)
-                        
-                        
                         # plot unfiltered spectrum used in fit
                         mag_wave = (ref[1].wave)[mask]
                         
@@ -172,7 +167,7 @@ def main():
                 # gray bands at blocked out features
                 for feature in FEATURES_ACTUAL:
                         plt.axvspan(feature[0], feature[1], facecolor='k', alpha=0.1)
-                        plt.text((feature[0]+feature[1])/2, -27.5, '${}$'.format(feature[2]),
+                        plt.text((feature[0]+feature[1])/2, 1.9, '${}$'.format(feature[2]),
                                 horizontalalignment='center',
                                 #transform=ax.transAxes,
                                 fontsize=AXIS_LABEL_FONTSIZE)
@@ -197,9 +192,9 @@ def main():
                 ### format plot ###
                 
                 # y-axis
-                #plt.yticks([])
+                plt.yticks([])
                 plt.ylabel('$-mag_{\lambda}$ (adjusted)', fontsize=AXIS_LABEL_FONTSIZE, labelpad=10)
-                #plt.ylim(-45,-27)
+                plt.ylim(-17.5, 2.5)
                 
                 # x-axis
                 plt.xlim(2800,10000)

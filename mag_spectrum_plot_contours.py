@@ -37,9 +37,6 @@ def plot_contour(subplot_index, phase, info_dict,
         print "BEST RV: {}".format(y[my])
         
         
-        
-        CDF = 1 - np.exp((-(CHI2-chi2_min))/2)  # calculation cumulative distribution func
-        
         # find 1-sigma and 2-sigma errors based on confidence
         maxebv_1sig, maxebv_2sig, minebv_1sig, minebv_2sig = x[mx], x[mx], x[mx], x[mx]
         maxrv_1sig, maxrv_2sig, minrv_1sig, minrv_2sig = y[my], y[my], y[my], y[my]
@@ -68,6 +65,8 @@ def plot_contour(subplot_index, phase, info_dict,
         #ax.axhline(maxrv_2sig, color='g')
         
         if ax != None:
+                CDF = 1 - np.exp((-(CHI2-chi2_min))/2)
+                
                 # plot contours
                 contour_levels = [0.0, 0.683, 0.955, 1.0]
                 plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
@@ -213,7 +212,7 @@ def main():
         
         
         fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
-        fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ per Phase', fontsize=TITLE_FONTSIZE)
+        fig.suptitle('SN2012cu: $E(B-V)$ vs. $R_V$', fontsize=TITLE_FONTSIZE)
         plt.show()
 
 
