@@ -19,17 +19,24 @@ from scipy.interpolate import interp1d
 
 def main():
         
+        # config
         ebv_guess = 1.05
-        ebv_pad = 0.5
+        ebv_pad = 0.25
         
-        rv_guess = 2.7
-        rv_pad = 0.8
+        rv_guess = 3.0
+        rv_pad = 0.6
         
-        steps = 25
+        steps = 120
+        
         
         FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
                                 (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
         
+        # Uncomment below to use the entire spectrum:
+        #FEATURES_ACTUAL = []
+        
+        
+        # load spectra, interpolate 11fe to 12cu phases (only first 12)
         pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
         phases = [t[0] for t in pristine_12cu]
         
@@ -37,8 +44,8 @@ def main():
         
         
         ########################
-        # Choose 'reddened' to be either 11fe interpolated to the phases of 12cu,
-        # or 12cu itself.
+        # Choose 'reddened' to be either an artificially reddened 11fe interpolated
+        # to the phases of 12cu, or just choose 12cu itself.
         #
         #reddened = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-0.4, rv=2.45, loadmast=False, loadptf=False))
         reddened = pristine_12cu
@@ -49,7 +56,21 @@ def main():
         ########################
         ### helper functions ###
         
+        def log(msg=""):
+                # attach time stamp to print statements
+                print "[{}] {}".format(strftime("%Y-%m-%d %H:%M:%S", gmtime()), msg)
+        
+        
         def filter_features(features, wave):
+                '''Returns a mask of boolean values the same size as
+                the wave array.  True=wavelength not in features, False=wavelength
+                is in featured.
+                
+                Can be used like:
+                        
+                        mask = filter_features(FEAURES, wave)
+                        flux_no_features = flux[mask]
+                '''
                 intersection = np.array([False]*wave.shape[0])
                 for feature in features:
                         intersection |= ((wave>feature[0])&(wave<feature[1]))
@@ -85,18 +106,18 @@ def main():
                 tmpx = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, steps)
                 tmpy = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, steps)
                 
-                print "SIZE OF GRID:"
-                print steps
-                print "EBV SEARCH GRID:"
-                print tmpx
-                print "RV SEARCH GRID:"
-                print tmpy
+                log( "SIZE OF GRID: {}".format(steps) )
+                log( "EBV SEARCH GRID:" )
+                log( tmpx )
+                log( "RV SEARCH GRID:" )
+                log( tmpy )
                 
                 best_rvs = []
                 best_ebvs = []
                 best_avs = []
                 chi2s = []
                 min_chi2s = []
+                chi2_reductions = []
                 
                 for phase_index in xrange(len(phases)):
                         
@@ -106,8 +127,8 @@ def main():
                         # mask for spectral features not included in fit
                         mask = filter_features(FEATURES_ACTUAL, ref[1].wave)
                         
-                        print
-                        print ref[0], red[0]
+                        log()
+                        log( "Phase: {}".format(ref[0]) )
                         
                         
                         ### COVARIANCE MATRIX ###
@@ -120,10 +141,15 @@ def main():
                         ref_var = ref[1].error
                         ref_calibration_error = ref[2]
                         
+                        # convert flux, variance, and calibration error to magnitude space
                         ref_mag, ref_mag_var, ref_calibration_error_mag \
                         = flux2mag(ref_flux, ref_var, ref_calibration_error)
                         
+                        # normalize for later use
                         ref_mag_norm = ref_mag - ref_flux_avg_mag
+                        
+                        # get mask for nan-values
+                        nanmask_ref = ~np.isnan(ref_mag_norm[mask])
                         
                         # 12cu/reddened 11fe
                         red_wave = red[1].wave
@@ -137,43 +163,52 @@ def main():
                         red_interp_var  = interp1d(red_wave, red[1].error)(ref_wave)
                         red_calibration_error = red[2]
                         
+                        # convert flux, variance, and calibration error to magnitude space
                         red_interp_mag, red_interp_mag_var, red_calibration_error_mag \
                         = flux2mag(red_interp_flux, red_interp_var, red_calibration_error)
                         
-                        # calculate matrices
+                        # get mask for nanvalues
+                        nanmask_red_interp = ~np.isnan(red_interp_mag[mask])
+                        
+                        
+                        # calculate cov matrices
                         V_ref = np.diag(ref_mag_var[mask])
                         S_ref = (ref_calibration_error_mag**2)*np.ones(V_ref.shape)
-                        C_ref = V_ref + S_ref
+                        C_ref = V_ref # + S_ref
                         
                         V_red = np.diag(red_interp_mag_var[mask])
                         S_red = (red_calibration_error_mag**2)*np.ones(V_red.shape)
-                        C_red = V_red + S_red
+                        C_red = V_red # + S_red
                         
                         #########################
                         
                         def print_diagnostics():
-                                print "ref_flux:"
-                                print ref_flux
-                                print "ref_mag_var:"
-                                print ref_mag_var
-                                print "ref_calibration_error_mag:"
-                                print ref_calibration_error_mag
-                                print "V_ref:"
-                                print V_ref
-                                print "S_ref:"
-                                print S_ref
-                                print "C_ref:"
-                                print C_ref
-                                print "red_interp_mag_var:"
-                                print red_interp_mag_var
-                                print "red_calibration_error_mag:"
-                                print red_calibration_error_mag
-                                print "V_red:"
-                                print V_red
-                                print "S_red:"
-                                print S_red
-                                print "C_red:"
-                                print C_red
+                                log( "ref_flux:" )
+                                log( ref_flux )
+                                log( "ref_mag:" )
+                                log( ref_mag )
+                                log( "ref_mag_var:" )
+                                log( ref_mag_var )
+                                log( "ref_calibration_error_mag:" )
+                                log( ref_calibration_error_mag )
+                                log( "V_ref:" )
+                                log( V_ref )
+                                log( "S_ref:" )
+                                log( S_ref )
+                                log( "C_ref:" )
+                                log( C_ref )
+                                log( "red_interp_mag:" )
+                                log( red_interp_mag )
+                                log( "red_interp_mag_var:" )
+                                log( red_interp_mag_var )
+                                log( "red_calibration_error_mag:" )
+                                log( red_calibration_error_mag )
+                                log( "V_red:" )
+                                log( V_red )
+                                log( "S_red:" )
+                                log( S_red )
+                                log( "C_red:" )
+                                log( C_red )
                         
                         #print_diagnostics()
                         
@@ -182,11 +217,36 @@ def main():
                         
                         C_total = C_ref + C_red
                         
-                        print "Computing inverse..."
+                        log( "Computing inverse..." )
                         C_total_inv = np.matrix(np.linalg.inv(C_total))
                         
                         #########################
                         
+                        
+                        
+                        #################################################
+                        # hack thrown together to filter nan-values (which arrise from negative fluxes)
+                        
+                        # find any rows with nan-values in C_inv matrix (there shouldn't be any)
+                        nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
+                        
+                        # merge mask with nan-masks from red_interp_mag, and ref_mag (calc'd above)
+                        nanmask = nanmask & nanmask_red_interp & nanmask_ref
+                        
+                        log( "num. points with negative flux discarded: {}".format(np.sum(~nanmask)) )
+                        
+                        # create temp version of C_total_inv without rows/columns corresponding to nan-values
+                        nanmatrix = np.outer(nanmask, nanmask)
+                        TMP_C_total_inv = np.matrix(C_total_inv[nanmatrix].reshape(np.sum(nanmask), np.sum(nanmask)))
+                        #################################################
+                        
+                        
+                        
+                        # for calculation of CHI2 per dof
+                        CHI2_reduction = np.sum(nanmask) - 2  # (num. data points)-(num. parameters)
+                        log( "CHI2 reduction: {}".format(CHI2_reduction) )
+                        
+                        #################################################
                         
                         x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, steps)
                         y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, steps)
@@ -194,13 +254,11 @@ def main():
                         X, Y = np.meshgrid(x, y)
                         CHI2 = np.zeros( X.shape )
                         
-                        print "# Points with negative flux:"
-                        print np.sum(np.isnan(np.log10(red_interp_flux)))
-                        
-                        print "Scanning CHI2 grid..."
+                        log( "Scanning CHI2 grid..." )
                         for j, EBV in enumerate(x):
                                 for k, RV in enumerate(y):
                                         
+                                        # unredden the reddened spectrum, convert to mag
                                         unred_flux = redden_fm(ref_wave, red_interp_flux, EBV, RV)
                                         unred_mag = flux2mag(unred_flux)
                                         
@@ -208,34 +266,32 @@ def main():
                                         unred_flux_avg_mag = -2.5*np.log10(np.average(unred_flux))
                                         unred_mag_norm = unred_mag - unred_flux_avg_mag
                                         
+                                        # this is unreddened 12cu mag - pristine 11fe mag
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
                                         
-                                        
-                                        # hack thrown together to filter nan-values
-                                        nanmask = ~np.isnan(delta)
+                                        # convert to vector from array and filter nan-values
                                         delta = np.matrix(delta[nanmask])
-                                        nanmatrix = np.outer(nanmask, nanmask)
-                                        TMP_C_total_inv = np.matrix(C_total_inv[nanmatrix].reshape(np.sum(nanmask), np.sum(nanmask)))
                                         
-                                        # find chi2 per degree of freedom
-                                        CHI2_reduction = delta.shape[1] - 2  # (num. data points)-(num. parameters)
-                                        CHI2[k,j] = (delta * TMP_C_total_inv * delta.T)[0,0] / CHI2_reduction
+                                        # The original equation is delta.T * C_inv * delta, but delta
+                                        #  is already a row vector in numpy so it is the other way around.
+                                        CHI2[k,j] = (delta * TMP_C_total_inv * delta.T)[0,0]
                                         
-                                        
+                        #################################################
+                        
                         ### report/save results
                         
-                        chi2s.append(CHI2)
-                        
                         chi2_min = np.min(CHI2)
-                        print "min chi2:", chi2_min
-                        min_chi2s.append(chi2_min)
+                        log( "min chi2: {}".format(chi2_min) )
                         
                         mindex = np.where(CHI2==chi2_min)
                         mx, my = mindex[1][0], mindex[0][0]
                         
-                        print "\t", mindex
-                        print "\t RV={} EBV={} AV={}".format(y[my], x[mx], x[mx]*y[my])
+                        log( "\t {}".format(mindex) )
+                        log( "\t RV={} EBV={} AV={}".format(y[my], x[mx], x[mx]*y[my]) )
                         
+                        chi2s.append(CHI2)
+                        chi2_reductions.append(CHI2_reduction)
+                        min_chi2s.append(chi2_min)
                         best_rvs.append(y[my])
                         best_ebvs.append(x[mx])
                         best_avs.append(x[mx]*y[my])
@@ -244,11 +300,13 @@ def main():
                 pprint( zip(phases, best_rvs, best_ebvs, best_avs, min_chi2s) )
                 
                 # save results
-                ftime = strftime("%H-%M-%S-%m-%d-%Y", gmtime())
+                filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
                 cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
-                                'chi2': chi2s, 'x': x, 'y': y, 'X': X, 'Y': Y},
-                                open("spectra_mag_fit_results_{}.pkl".format(ftime), 'wb'))
+                                'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'steps': steps,
+                                'x': x, 'y': y, 'X': X, 'Y': Y},
+                                open(filename, 'wb'))
                 
+                log( "Results successfully saved in: {}".format(filename) )
 
                 
                 
