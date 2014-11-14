@@ -253,27 +253,7 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
 
 def main():
         filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
-        
-        for f in filters_bucket:
-                if f=="38":
-                        filter_wave = snc.get_bandpass(zp_bucket['prefix']+f).wave
-                        print "wave:", filter_wave
-                        print "transmission:", snc.get_bandpass(zp_bucket['prefix']+f).trans
-                        
-                        tmp = l.get_12cu()[9]
-                        
-                        print tmp[0]
-                        
-                        wave = tmp[1].wave
-                        print "sn12cu wave:", wave
-                        mask = (wave>np.min(filter_wave))&(wave<np.max(filter_wave))
-                        
-                        print wave[mask]
-                        print tmp[1].flux[mask]
-                        
-                        print np.sum(tmp[1].flux[mask])
-                        
-                        exit(1)
+
         
         filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff
                                      for f in filters_bucket]

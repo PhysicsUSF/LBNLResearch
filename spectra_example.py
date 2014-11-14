@@ -88,7 +88,7 @@ for i, fe in enumerate(fe_all):
         else:
                 plt.text(3250, ty-0.02e-11, str(cu[0]), horizontalalignment='right',
                          color='k', fontsize=INPLOT_LEGEND_FONTSIZE)
-        
+
 
 
 plt.plot([], [], 'k', lw=1.5, label='SN2012cu')

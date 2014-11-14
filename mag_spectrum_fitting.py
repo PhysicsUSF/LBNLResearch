@@ -302,6 +302,7 @@ def main():
                 
                 # save results
                 filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
+                
                 cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
                                 'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'steps': steps,
                                 'x': x, 'y': y, 'X': X, 'Y': Y},
