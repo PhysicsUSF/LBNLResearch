@@ -13,6 +13,7 @@ TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 16
 LEGEND_FONTSIZE = 20
 
+
 def format_subplot(name, ax, size):
         for p in np.arange(-5,30,5):
                 ax.axvline(p, color='k', linewidth=2, linestyle=':', alpha=0.6)
@@ -25,10 +26,12 @@ def format_subplot(name, ax, size):
         ax.set_yticklabels(labels)
         plt.ylabel(name, fontsize=20, rotation='horizontal', labelpad=14)
 
+
 def wavg(data, los, his):
         quads = np.sqrt(los**2 + his**2)
         notnormalized = np.sum([x*quad for x, quad in izip(data, quads)])
         return notnormalized/np.sum(quads)
+
 
 def plot_err(ax, name, phases, data, err_lo, err_hi, color, size):
         WAVG = wavg(data, err_lo, err_hi)

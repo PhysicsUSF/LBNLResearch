@@ -15,14 +15,12 @@ import cPickle
 from scipy.interpolate import interp1d
 
 
-def main():
-        TITLE_FONTSIZE = 28
+def main(title, info_dict, FEATURES_ACTUAL):
+        TITLE_FONTSIZE = 18
         AXIS_LABEL_FONTSIZE = 20
         TICK_LABEL_FONTSIZE = 16
         INPLOT_LEGEND_FONTSIZE = 20
         LEGEND_FONTSIZE = 18
-        
-        info_dict = cPickle.load(open("spectra_mag_fit_results_03-44-32-11-14-2014.pkl", 'rb'))
         
         
         # config
@@ -35,8 +33,7 @@ def main():
         steps = 120
         
         
-        FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
-                                (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+        
         
         
         pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
@@ -216,7 +213,7 @@ def main():
                 
                 plt.subplots_adjust(left=0.07, bottom=0.13, right=0.95, top=0.92)
                 
-                plt.title('Spectrum Comparison: SN2012cu vs. SN2011fe', fontsize=TITLE_FONTSIZE)
+                plt.title('Spectrum Comparison: {} vs. SN2011fe'.format(title), fontsize=TITLE_FONTSIZE)
                 plt.show()
                 
                 
@@ -225,4 +222,12 @@ def main():
 
 
 if __name__=="__main__":
-        main()
+        features1 = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
+                                (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+        features2 = []
+                                
+        info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
+        info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
+        
+        for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], [features1, features2]):
+                main(t[0], t[1], t[2])

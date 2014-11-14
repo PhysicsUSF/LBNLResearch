@@ -32,7 +32,7 @@ PLOTS_PER_ROW = 6
 N_BUCKETS = 20
 RED_LAW = redden_fm
 
-TITLE_FONTSIZE = 28
+TITLE_FONTSIZE = 18
 AXIS_LABEL_FONTSIZE = 24
 TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 20
@@ -69,11 +69,9 @@ def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
     
 
 
-def main():
+def main(title, info_dict):
     
     fig = plt.figure()
-    
-    info_dict = cPickle.load(open("spectra_mag_fit_results_03-44-32-11-14-2014.pkl", 'rb'))
     
     pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in pristine_12cu]
@@ -186,7 +184,7 @@ def main():
     
     
     # format figure
-    fig.suptitle('SN2012cu: Color Excess', fontsize=TITLE_FONTSIZE)
+    fig.suptitle('{}: Color Excess'.format(title), fontsize=TITLE_FONTSIZE)
     
     fig.text(0.5, .05, 'Inverse Wavelength ($1 / \mu m$)',
                 fontsize=AXIS_LABEL_FONTSIZE, horizontalalignment='center')
@@ -202,4 +200,9 @@ def main():
 
 
 if __name__=='__main__':
-    main()
+    
+    info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
+    info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
+    
+    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2]):
+        main(t[0], t[1])

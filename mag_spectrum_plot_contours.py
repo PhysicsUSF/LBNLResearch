@@ -7,7 +7,7 @@ import sncosmo as snc
 from pprint import pprint
 
 
-TITLE_FONTSIZE = 28
+TITLE_FONTSIZE = 18
 AXIS_LABEL_FONTSIZE = 24
 TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 20
@@ -188,7 +188,8 @@ def allphase_fit(info_dict):
 ################################################################################
 
 
-def main():
+def main(title, info_dict):
+        
         ebv_guess = 1.05
         ebv_pad = 0.25
         
@@ -196,7 +197,7 @@ def main():
         rv_pad = 0.6
         
         
-        info_dict = cPickle.load(open("spectra_mag_fit_results_03-44-32-11-14-2014.pkl", 'rb'))
+        
         phases = info_dict['phases']
         
         allphase_fit(info_dict)
@@ -212,7 +213,7 @@ def main():
         
         
         fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
-        fig.suptitle('SN2012cu: $E(B-V)$ vs. $R_V$', fontsize=TITLE_FONTSIZE)
+        fig.suptitle('{}: $E(B-V)$ vs. $R_V$'.format(title), fontsize=TITLE_FONTSIZE)
         plt.show()
 
 
@@ -220,4 +221,8 @@ def main():
 
 
 if __name__=="__main__":
-        main()
+        info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
+        info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
+        
+        for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2]):
+                main(t[0], t[1])
