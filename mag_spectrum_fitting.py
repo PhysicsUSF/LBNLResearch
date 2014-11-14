@@ -11,7 +11,7 @@ from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
 import cPickle
-from time import gmtime, strftime
+from time import localtime, strftime
 
 from scipy.interpolate import interp1d
 
@@ -32,7 +32,7 @@ def main():
         FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
                                 (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
         
-        # Uncomment below to use the entire spectrum:
+        # Use an empty list of features to fit for the entire spectrum:
         #FEATURES_ACTUAL = []
         
         
@@ -58,7 +58,7 @@ def main():
         
         def log(msg=""):
                 # attach time stamp to print statements
-                print "[{}] {}".format(strftime("%Y-%m-%d %H:%M:%S", gmtime()), msg)
+                print "[{}] {}".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), msg)
         
         
         def filter_features(features, wave):
@@ -69,6 +69,7 @@ def main():
                 Can be used like:
                         
                         mask = filter_features(FEAURES, wave)
+                        wave_no_features = wave[mask]
                         flux_no_features = flux[mask]
                 '''
                 intersection = np.array([False]*wave.shape[0])
