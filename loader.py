@@ -316,8 +316,9 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         
         # make into Spectrum object and add to list with phase data
         SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat, err_concat), FLXERROR) )
+        ## spectrum objects are created with snc.Spectrum(). The third attribute name is unfortunately set as "error".  The only way to access it is SN2012CU[i][1].error, where
+        ## i an item in the list SN2012CU.  One cannot use "var" even if the quantity is actually variance and not error.  -XH.
 
-    
     SN2012CU = sorted(SN2012CU, key=lambda t: t[0])
     
     if redtype==None:
@@ -326,7 +327,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
     elif redtype=='fm':
         if ebv!=None and rv!=None:
             return [(t[0], snc.Spectrum(t[1].wave, redden_fm(t[1].wave, t[1].flux, ebv, rv), t[1].error), FLXERROR)
-                    for t in SN2012CU]
+                    for t in SN2012CU]  ## about t[1].error, see comment above for the line SN2012CU.append().
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
