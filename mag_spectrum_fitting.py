@@ -81,12 +81,12 @@ def grid_fit():
     
         # config
         ebv_guess = 1.02
-        ebv_pad = 0.3
+        ebv_pad = 0.2
         
         rv_guess = 2.7
         rv_pad = 0.5
         
-        steps = 3
+        steps = 51
         #steps = 120
         
         
@@ -110,8 +110,8 @@ def grid_fit():
         # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
         # to the phases of 12cu, or just choose 12cu itself.
         #
-        obs_SN = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.02, rv=2.7, loadmast=False, loadptf=False))
-        #obs_SN = obs_12cu
+        #obs_SN = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.04, rv=2.75, loadmast=False, loadptf=False))
+        obs_SN = obs_12cu
         #
         ########################
         
@@ -334,11 +334,11 @@ def grid_fit():
                                         unred_mag_norm = unred_mag - unred_flux_avg_mag  #unred_V_mag
     
     
-                                        if phase_index == 11:
-                                            fig = plt.figure()
-                                            plt.plot(unred_mag_norm)
-                                            plt.plot(ref_mag_norm)
-                                                 
+#                                        if phase_index == 11:
+#                                            fig = plt.figure()
+#                                            plt.plot(unred_mag_norm)
+#                                            plt.plot(ref_mag_norm)
+
                                         # this is unreddened 12cu mag - pristine 11fe mag
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
                                         tmp_wave = ref_wave[mask]
@@ -376,7 +376,7 @@ def grid_fit():
                         best_ebvs.append(x[mx])
                         best_avs.append(x[mx]*y[my])
 
-                plt.show()
+#plt.show()
                 pprint( zip(phases, best_rvs, best_ebvs, best_avs, min_chi2s) )
                 
                 # save results
@@ -608,7 +608,7 @@ if __name__=="__main__":
                     
         i = 0
         for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
-            if i > 0: break
+            if i > 0: break   # this is to not plot the unblocked fit.
             plot_excess(t[0], t[1], pristine_11fe, obs_SN)
             i += 1
 
