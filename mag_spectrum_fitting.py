@@ -33,8 +33,6 @@ def main():
         FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
                                (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
 
-#FEATURES_ACTUAL = [(300, 310, 'Null'),]  # does NOT block anything.
-
 
         # Use an empty list of features to fit for the entire spectrum:
         #FEATURES_ACTUAL = []
@@ -166,20 +164,8 @@ def main():
                         ref_flux_avg = np.average(ref_flux)  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
                         ref_flux_avg_mag = -2.5*np.log10(ref_flux_avg)
 
-#                        print "11fe - Unweighted avg magnitude", -2.5*np.log10(np.average(ref_flux, weights = np.ones(ref_flux.shape)))
-#                        print "11fe - Weighted magnitude", ref_flux_avg_mag
-#ref_flux_avg_mag = -2.5*np.log10(ref_flux[np.abs(ref_wave - 5413.5).argmin()])  #normalize with single-wavelength V band magnitude.
-
-#                        plt.plot(ref_wave, ref_flux)
-#                        plt.plot(ref_wave, ref_var**0.5*1e1)
-#                        plt.show()
-#                        exit(1)
-
                         ref_interp = interp1d(ref_wave, ref_flux)
 
-
-
-                        
                         # convert flux, variance, and calibration error to magnitude space
 
                         ref_mag, ref_mag_var, ref_calibration_error_mag \
@@ -189,26 +175,14 @@ def main():
                         #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
                         ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())
 
-#ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
-
-                        ref_mag_norm = ref_mag - ref_flux_avg_mag  #ref_V_mag
-    
-    #                        ref_B_V_norm = ref_mag_norm[np.abs(ref_wave - 4400).argmin()] - ref_mag_norm[np.abs(ref_wave - 5413.5).argmin()]
-    #                    print 'ref_B_V_norm', ref_B_V_norm
-                        
+                        ref_mag_norm = ref_mag - ref_flux_avg_mag
 
     
                         # get mask for nan-values
                         nanmask_ref = ~np.isnan(ref_mag_norm[mask])
                         
-                        #fig = plt.figure()
-                        #plt.plot(ref_wave[mask], ref_flux[mask], 'ro')
-                        #plt.plot(ref_wave, ref_flux)
-                        #plt.show()
-                        
                         # 12cu/reddened 11fe
                         obs_wave = obs[1].wave
-#     obs_flux = interp1d(obs_wave, obs[1].flux)(ref_wave)
 
                         obs_interp = interp1d(obs_wave, obs[1].flux)
     
@@ -221,39 +195,7 @@ def main():
                         obs_mag = -2.5*np.log10(obs_flux)
                         obs_flux_avg_mag = -2.5*np.log10(np.average(obs_flux)) #, weights = 1/obs_interp_var))
 
-#print "12cu - Unweighted avg magnitude", -2.5*np.log10(np.average(obs_flux, weights = np.ones(obs_flux.shape)))
-#                        print "12cu - Weighted magnitude", obs_flux_avg_mag
-                        #exit(1)
-
-
                         obs_mag_norm = obs_mag - obs_flux_avg_mag
-
-#  red_B_V = -2.5*np.log10(red_flux[np.abs(ref_wave - 4400).argmin()]/red_flux[np.abs(ref_wave - 5413.5).argmin()])
-#                        print 'B-V for 12cu before normalization:', red_B_V
-#                        EBV_obs = red_B_V - ref_B_V
-#                        print 'E(B-V) of 12cu before normalization:', EBV_obs
-
-#                        red_B_V_norm = red_mag_norm[np.abs(ref_wave - 4400).argmin()] - red_mag_norm[np.abs(ref_wave - 5413.5).argmin()]
-#                        print 'B_V for 12cu AFTER normalization', red_B_V_norm
-#                        EBV_obs_norm = red_B_V_norm - ref_B_V_norm
-#                        print 'E(B-V) of 12cu AFTER normalization:', EBV_obs_norm
-
-
-#                        plt.plot(ref_wave, red_flux)
-#                        plt.plot(ref_wave, red_interp_var**0.5*1e1)
-#                        plt.show()
-#                        exit(1)
-
-
-
-#plt.plot(ref_mag, 'b--')
-#                        plt.plot(ref_mag_norm, 'g-')
-#                        plt.plot(red_mag, 'k.')
-#                        plt.plot(red_mag_norm, 'r.')
-
-#                        plt.show()
-#                        exit(1)
-
 
 
                         ## test ######################################################################
@@ -379,35 +321,6 @@ def main():
 
                                         unred_mag_norm = unred_mag - unred_flux_avg_mag  #unred_V_mag
     
-#                                        unred_B_V = unred_mag[np.abs(ref_wave - 4400).argmin()] - unred_mag[np.abs(ref_wave - 5413.5).argmin()]
-#                                        print 'B-V for 12cu after dereddening before normalization:', unred_B_V
-#                                        EBV_deredden = unred_B_V - ref_B_V
-#                                        print 'E(B-V) of 12cu after dereddening before normalization:', EBV_deredden
-#            
-#                                        unred_B_V_norm = unred_mag_norm[np.abs(ref_wave - 4400).argmin()] - unred_mag_norm[np.abs(ref_wave - 5413.5).argmin()]
-#                                        print 'B_V for 12cu after dereddening AFTER normalization', unred_B_V_norm
-#                                        EBV_deredden_norm = unred_B_V_norm - ref_B_V_norm
-#                                        print 'E(B-V) of 12cu after dereddening AFTER normalization:', EBV_deredden_norm
-#                                        
-#                                        
-#                                        
-#                                        plt.plot(ref_mag_norm, 'g-')
-##                        plt.plot(red_mag, 'k.')
-#                                        plt.plot(unred_mag_norm, 'r.')
-#    
-#                                        plt.show()
-#                                        exit(1)
-#
-#
-#                                        plt.plot(unred_mag - ref_mag)
-#                                        plt.plot(unred_mag_norm - ref_mag_norm)
-#                                        plt.show()
-#                                        
-#                                        
-#                                        exit(1)
-
-
-
 
                                         # this is unreddened 12cu mag - pristine 11fe mag
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
@@ -422,13 +335,10 @@ def main():
                                        
                                         
                                         # The original equation is delta.T * C_inv * delta, but delta
-                                        #  is already a row vector in numpy so it is the other way around.
+                                        # is already a row vector in numpy so it is the other way around.
                                         CHI2[k,j] = (delta * TMP_C_total_inv * delta.T)[0,0]
-                                        
-                        
-                        #plt.show()
-                        
-                        
+
+
                         #################################################
                         
                         ### report/save results
