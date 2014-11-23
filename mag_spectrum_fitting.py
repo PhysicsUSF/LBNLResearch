@@ -21,12 +21,12 @@ def main():
     
         # config
         ebv_guess = 1.05
-        ebv_pad = 0.25
+        ebv_pad = 0.3
         
-        rv_guess = 3.0
-        rv_pad = 0.6
+        rv_guess = 2.8
+        rv_pad = 0.5
         
-        steps = 21
+        steps = 101
         #steps = 120
         
         
@@ -154,15 +154,31 @@ def main():
                         # pristine_11fe
                         ref_wave = ref[1].wave
                         ref_flux = ref[1].flux
-                        ref_flux_avg = np.average(ref_flux)
+
+
+                        # B-V color for 11fe
+                        ref_B_V = -2.5*np.log10(ref_flux[np.abs(ref_wave - 4400).argmin()]/ref_flux[np.abs(ref_wave - 5413.5).argmin()])
+                        print 'B-V for 11fe:', ref_B_V
+
+                        ref_var = ref[1].error
+                        ref_calibration_error = ref[2]
+
+                        ref_flux_avg = np.average(ref_flux)  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
                         ref_flux_avg_mag = -2.5*np.log10(ref_flux_avg)
-                        #ref_flux_avg_mag = -2.5*np.log10(ref_flux[np.abs(ref_wave - 5413.5).argmin()])  #normalize with single-wavelength V band magnitude.
+
+#                        print "11fe - Unweighted avg magnitude", -2.5*np.log10(np.average(ref_flux, weights = np.ones(ref_flux.shape)))
+#                        print "11fe - Weighted magnitude", ref_flux_avg_mag
+#ref_flux_avg_mag = -2.5*np.log10(ref_flux[np.abs(ref_wave - 5413.5).argmin()])  #normalize with single-wavelength V band magnitude.
+
+#                        plt.plot(ref_wave, ref_flux)
+#                        plt.plot(ref_wave, ref_var**0.5*1e1)
+#                        plt.show()
+#                        exit(1)
 
                         ref_interp = interp1d(ref_wave, ref_flux)
 
 
-                        ref_var = ref[1].error
-                        ref_calibration_error = ref[2]
+
                         
                         # convert flux, variance, and calibration error to magnitude space
 
@@ -176,6 +192,11 @@ def main():
 #ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
 
                         ref_mag_norm = ref_mag - ref_flux_avg_mag  #ref_V_mag
+    
+    #                        ref_B_V_norm = ref_mag_norm[np.abs(ref_wave - 4400).argmin()] - ref_mag_norm[np.abs(ref_wave - 5413.5).argmin()]
+    #                    print 'ref_B_V_norm', ref_B_V_norm
+                        
+
     
                         # get mask for nan-values
                         nanmask_ref = ~np.isnan(ref_mag_norm[mask])
@@ -191,7 +212,47 @@ def main():
 
                         red_interp = interp1d(red_wave, red[1].flux)
     
+
+                        red_interp_var  = interp1d(red_wave, red[1].error)(ref_wave)
+                        red_calibration_error = red[2]
+
                         red_flux = red_interp(ref_wave)
+    
+                        red_mag = -2.5*np.log10(red_flux)
+                        red_flux_avg_mag = -2.5*np.log10(np.average(red_flux)) #, weights = 1/red_interp_var))
+
+#print "12cu - Unweighted avg magnitude", -2.5*np.log10(np.average(red_flux, weights = np.ones(red_flux.shape)))
+#                        print "12cu - Weighted magnitude", red_flux_avg_mag
+                        #exit(1)
+
+
+                        red_mag_norm = red_mag - red_flux_avg_mag
+
+#  red_B_V = -2.5*np.log10(red_flux[np.abs(ref_wave - 4400).argmin()]/red_flux[np.abs(ref_wave - 5413.5).argmin()])
+#                        print 'B-V for 12cu before normalization:', red_B_V
+#                        EBV_obs = red_B_V - ref_B_V
+#                        print 'E(B-V) of 12cu before normalization:', EBV_obs
+
+#                        red_B_V_norm = red_mag_norm[np.abs(ref_wave - 4400).argmin()] - red_mag_norm[np.abs(ref_wave - 5413.5).argmin()]
+#                        print 'B_V for 12cu AFTER normalization', red_B_V_norm
+#                        EBV_obs_norm = red_B_V_norm - ref_B_V_norm
+#                        print 'E(B-V) of 12cu AFTER normalization:', EBV_obs_norm
+
+
+#                        plt.plot(ref_wave, red_flux)
+#                        plt.plot(ref_wave, red_interp_var**0.5*1e1)
+#                        plt.show()
+#                        exit(1)
+
+
+
+#plt.plot(ref_mag, 'b--')
+#                        plt.plot(ref_mag_norm, 'g-')
+#                        plt.plot(red_mag, 'k.')
+#                        plt.plot(red_mag_norm, 'r.')
+
+#                        plt.show()
+#                        exit(1)
 
 
 
@@ -200,8 +261,6 @@ def main():
                         #red_flux = interp1d(red_wave, red_noisy_flux)(ref_wave)
                         ##############################################################################
                         
-                        red_interp_var  = interp1d(red_wave, red[1].error)(ref_wave)
-                        red_calibration_error = red[2]
                         
                         # convert flux, variance, and calibration error to magnitude space
 
@@ -311,7 +370,7 @@ def main():
                                         unred_interp = interp1d(ref_wave, unred_flux)
                                         
                                         # normalization
-                                        unred_flux_avg_mag = -2.5*np.log10(np.average(unred_flux))
+                                        unred_flux_avg_mag = -2.5*np.log10(np.average(unred_flux)) #, weights = 1/red_interp_var))
                                         
                                         unred_V_mag = -2.5*np.log10(unred_interp(V_band_range).mean())
                                         #unred_flux_avg_mag = -2.5*np.log10(unred_flux[np.abs(ref_wave - 5413.5).argmin()])  #normalize with single-wavelength V band magnitude.
@@ -320,6 +379,36 @@ def main():
 
                                         unred_mag_norm = unred_mag - unred_flux_avg_mag  #unred_V_mag
     
+#                                        unred_B_V = unred_mag[np.abs(ref_wave - 4400).argmin()] - unred_mag[np.abs(ref_wave - 5413.5).argmin()]
+#                                        print 'B-V for 12cu after dereddening before normalization:', unred_B_V
+#                                        EBV_deredden = unred_B_V - ref_B_V
+#                                        print 'E(B-V) of 12cu after dereddening before normalization:', EBV_deredden
+#            
+#                                        unred_B_V_norm = unred_mag_norm[np.abs(ref_wave - 4400).argmin()] - unred_mag_norm[np.abs(ref_wave - 5413.5).argmin()]
+#                                        print 'B_V for 12cu after dereddening AFTER normalization', unred_B_V_norm
+#                                        EBV_deredden_norm = unred_B_V_norm - ref_B_V_norm
+#                                        print 'E(B-V) of 12cu after dereddening AFTER normalization:', EBV_deredden_norm
+#                                        
+#                                        
+#                                        
+#                                        plt.plot(ref_mag_norm, 'g-')
+##                        plt.plot(red_mag, 'k.')
+#                                        plt.plot(unred_mag_norm, 'r.')
+#    
+#                                        plt.show()
+#                                        exit(1)
+#
+#
+#                                        plt.plot(unred_mag - ref_mag)
+#                                        plt.plot(unred_mag_norm - ref_mag_norm)
+#                                        plt.show()
+#                                        
+#                                        
+#                                        exit(1)
+
+
+
+
                                         # this is unreddened 12cu mag - pristine 11fe mag
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
                                         tmp_wave = ref_wave[mask]
