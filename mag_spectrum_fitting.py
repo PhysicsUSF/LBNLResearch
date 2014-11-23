@@ -26,7 +26,7 @@ def main():
         rv_guess = 2.8
         rv_pad = 0.5
         
-        steps = 101
+        steps = 41
         #steps = 120
         
         
@@ -41,19 +41,19 @@ def main():
         
         
         # load spectra, interpolate 11fe to 12cu phases (only first 12)
-        pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
-        phases = [t[0] for t in pristine_12cu]
+        obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
+        phases = [t[0] for t in obs_12cu]
         
         
         pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
         
         
         ########################
-        # Choose 'reddened' to be either an artificially reddened 11fe interpolated
+        # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
         # to the phases of 12cu, or just choose 12cu itself.
         #
-        #reddened = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-0.4, rv=2.45, loadmast=False, loadptf=False))
-        reddened = pristine_12cu
+        #SNobs = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-0.4, rv=2.45, loadmast=False, loadptf=False))
+        obs_SN = obs_12cu
         #
         ########################
         
@@ -140,7 +140,7 @@ def main():
                     
                     
                         ref = pristine_11fe[phase_index]
-                        red = reddened[phase_index]
+                        obs = obs_SN[phase_index]
                         
                         # mask for spectral features not included in fit
                         mask = filter_features(FEATURES_ACTUAL, ref[1].wave)
@@ -207,26 +207,26 @@ def main():
                         #plt.show()
                         
                         # 12cu/reddened 11fe
-                        red_wave = red[1].wave
-#     red_flux = interp1d(red_wave, red[1].flux)(ref_wave)
+                        obs_wave = obs[1].wave
+#     obs_flux = interp1d(obs_wave, obs[1].flux)(ref_wave)
 
-                        red_interp = interp1d(red_wave, red[1].flux)
+                        obs_interp = interp1d(obs_wave, obs[1].flux)
     
 
-                        red_interp_var  = interp1d(red_wave, red[1].error)(ref_wave)
-                        red_calibration_error = red[2]
+                        obs_interp_var  = interp1d(obs_wave, obs[1].error)(ref_wave)
+                        obs_calibration_error = obs[2]
 
-                        red_flux = red_interp(ref_wave)
+                        obs_flux = obs_interp(ref_wave)
     
-                        red_mag = -2.5*np.log10(red_flux)
-                        red_flux_avg_mag = -2.5*np.log10(np.average(red_flux)) #, weights = 1/red_interp_var))
+                        obs_mag = -2.5*np.log10(obs_flux)
+                        obs_flux_avg_mag = -2.5*np.log10(np.average(obs_flux)) #, weights = 1/obs_interp_var))
 
-#print "12cu - Unweighted avg magnitude", -2.5*np.log10(np.average(red_flux, weights = np.ones(red_flux.shape)))
-#                        print "12cu - Weighted magnitude", red_flux_avg_mag
+#print "12cu - Unweighted avg magnitude", -2.5*np.log10(np.average(obs_flux, weights = np.ones(obs_flux.shape)))
+#                        print "12cu - Weighted magnitude", obs_flux_avg_mag
                         #exit(1)
 
 
-                        red_mag_norm = red_mag - red_flux_avg_mag
+                        obs_mag_norm = obs_mag - obs_flux_avg_mag
 
 #  red_B_V = -2.5*np.log10(red_flux[np.abs(ref_wave - 4400).argmin()]/red_flux[np.abs(ref_wave - 5413.5).argmin()])
 #                        print 'B-V for 12cu before normalization:', red_B_V
@@ -264,16 +264,16 @@ def main():
                         
                         # convert flux, variance, and calibration error to magnitude space
 
-                        if (red_flux <= 0).any():
-                            print "some red_flux values are not positive:", red_flux[np.where(red_flux <= 0)]
+                        if (obs_flux <= 0).any():
+                            print "some obs_flux values are not positive:", obs_flux[np.where(obs_flux <= 0)]
                             print "These values will be rejected below as nan for the log."
                             print "(But it's better to deal with the non-pos values before taking the log.  Something to deal with later.)"
 
-                        red_interp_mag, red_interp_mag_var, red_calibration_error_mag \
-                        = flux2mag(red_flux, red_interp_var, red_calibration_error)
+                        obs_interp_mag, obs_interp_mag_var, obs_calibration_error_mag \
+                        = flux2mag(obs_flux, obs_interp_var, obs_calibration_error)
                         
                         # get mask for nanvalues
-                        nanmask_red_interp = ~np.isnan(red_interp_mag[mask])
+                        nanmask_obs_interp = ~np.isnan(obs_interp_mag[mask])
                         
                         
                         # calculate cov matrices
@@ -281,9 +281,9 @@ def main():
                         S_ref = (ref_calibration_error_mag**2)*np.ones(V_ref.shape)
                         C_ref = V_ref # + S_ref
                         
-                        V_red = np.diag(red_interp_mag_var[mask])
-                        S_red = (red_calibration_error_mag**2)*np.ones(V_red.shape)
-                        C_red = V_red # + S_red
+                        V_obs = np.diag(obs_interp_mag_var[mask])
+                        S_obs = (obs_calibration_error_mag**2)*np.ones(V_obs.shape)
+                        C_obs = V_obs # + S_obs
                         
                         #########################
                         
@@ -302,25 +302,25 @@ def main():
                                 log( S_ref )
                                 log( "C_ref:" )
                                 log( C_ref )
-                                log( "red_interp_mag:" )
-                                log( red_interp_mag )
-                                log( "red_interp_mag_var:" )
-                                log( red_interp_mag_var )
-                                log( "red_calibration_error_mag:" )
-                                log( red_calibration_error_mag )
-                                log( "V_red:" )
-                                log( V_red )
-                                log( "S_red:" )
-                                log( S_red )
-                                log( "C_red:" )
-                                log( C_red )
+                                log( "obs_interp_mag:" )
+                                log( obs_interp_mag )
+                                log( "obs_interp_mag_var:" )
+                                log( obs_interp_mag_var )
+                                log( "obs_calibration_error_mag:" )
+                                log( obs_calibration_error_mag )
+                                log( "V_obs:" )
+                                log( V_obs )
+                                log( "S_obs:" )
+                                log( S_obs )
+                                log( "C_obs:" )
+                                log( C_obs )
                         
                         #print_diagnostics()
                         
                         #########################
                         # INVERT TOTAL COVARIANCE MATRIX
                         
-                        C_total = C_ref + C_red
+                        C_total = C_ref + C_obs
                         
                         log( "Computing inverse..." )
                         C_total_inv = np.matrix(np.linalg.inv(C_total))
@@ -335,8 +335,8 @@ def main():
                         # find any rows with nan-values in C_inv matrix (there shouldn't be any)
                         nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
                         
-                        # merge mask with nan-masks from red_interp_mag, and ref_mag (calc'd above)
-                        nanmask = nanmask & nanmask_red_interp & nanmask_ref
+                        # merge mask with nan-masks from obs_interp_mag, and ref_mag (calc'd above)
+                        nanmask = nanmask & nanmask_obs_interp & nanmask_ref
                         
                         log( "num. points with negative flux discarded: {}".format(np.sum(~nanmask)) )
                         
@@ -364,7 +364,7 @@ def main():
                                 for k, RV in enumerate(y):
                                         
                                         # unredden the reddened spectrum, convert to mag
-                                        unred_flux = redden_fm(ref_wave, red_flux, EBV, RV)
+                                        unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
                                         unred_mag = flux2mag(unred_flux)
                                         
                                         unred_interp = interp1d(ref_wave, unred_flux)
