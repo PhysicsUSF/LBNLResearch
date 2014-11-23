@@ -26,7 +26,7 @@ def main():
         rv_guess = 2.8
         rv_pad = 0.5
         
-        steps = 41
+        steps = 101
         #steps = 120
         
         
@@ -218,14 +218,8 @@ def main():
                         nanmask_obs_interp = ~np.isnan(obs_interp_mag[mask])
                         
                         
-                        # calculate cov matrices
-                        V_ref = np.diag(ref_mag_var[mask])
-                        S_ref = (ref_calibration_error_mag**2)*np.ones(V_ref.shape)
-                        C_ref = V_ref # + S_ref
-                        
-                        V_obs = np.diag(obs_interp_mag_var[mask])
-                        S_obs = (obs_calibration_error_mag**2)*np.ones(V_obs.shape)
-                        C_obs = V_obs # + S_obs
+                        # Total Variance.
+                        var = ref_mag_var[mask] + obs_interp_mag_var[mask]
                         
                         #########################
                         
@@ -259,32 +253,22 @@ def main():
                         
                         #print_diagnostics()
                         
-                        #########################
-                        # INVERT TOTAL COVARIANCE MATRIX
-                        
-                        C_total = C_ref + C_obs
-                        
-                        log( "Computing inverse..." )
-                        C_total_inv = np.matrix(np.linalg.inv(C_total))
-                        
-                        #########################
-                        
                         
                         
                         #################################################
                         # hack thrown together to filter nan-values (which arrise from negative fluxes)
                         
                         # find any rows with nan-values in C_inv matrix (there shouldn't be any)
-                        nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
+                        #nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
                         
                         # merge mask with nan-masks from obs_interp_mag, and ref_mag (calc'd above)
-                        nanmask = nanmask & nanmask_obs_interp & nanmask_ref
+                        nanmask = nanmask_obs_interp & nanmask_ref
                         
                         log( "num. points with negative flux discarded: {}".format(np.sum(~nanmask)) )
                         
                         # create temp version of C_total_inv without rows/columns corresponding to nan-values
-                        nanmatrix = np.outer(nanmask, nanmask)
-                        TMP_C_total_inv = np.matrix(C_total_inv[nanmatrix].reshape(np.sum(nanmask), np.sum(nanmask)))
+                        var = var[nanmask]
+
                         #################################################
                         
                         
@@ -326,7 +310,7 @@ def main():
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
                                         tmp_wave = ref_wave[mask]
                                         # convert to vector from array and filter nan-values
-                                        delta = np.matrix(delta[nanmask])
+                                        delta = delta[nanmask]
                                         
                                         #delta_array = np.squeeze(np.asarray(delta))  # converting 1D matrix to 1D array.
                                         ## ----->I shoudl fix ylim<-------------------
@@ -336,7 +320,7 @@ def main():
                                         
                                         # The original equation is delta.T * C_inv * delta, but delta
                                         # is already a row vector in numpy so it is the other way around.
-                                        CHI2[k,j] = (delta * TMP_C_total_inv * delta.T)[0,0]
+                                        CHI2[k,j] = np.sum(delta*delta/var)
 
 
                         #################################################
