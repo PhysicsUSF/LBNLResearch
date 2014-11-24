@@ -2,7 +2,20 @@
 ::AUTHOR::
 Andrew Stocker
 
+
+::Modified by:
+Xiaosheng Huang
+    
+    
 '''
+
+#from __future__ import print_function
+
+
+import sys
+import cStringIO
+
+
 import loader as l
 from copy import deepcopy
 from pprint import pprint
@@ -77,16 +90,39 @@ def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
 
 
 
-def grid_fit():
+def grid_fit(pristine_11fe, obs_SN):
     
+
+        '''
+        The doctest below suppresses the print statements.
+        
+        doctest:
+        
+        (modified from:http://stackoverflow.com/questions/9949633/suppressing-print-as-stdout-python
+        also take a look at this (the decorator method seems pretty elegant:
+        http://stackoverflow.com/questions/2828953/silence-the-stdout-of-a-function-in-python-without-trashing-sys-stdout-and-resto
+        
+        >>> obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
+        >>> phases = [t[0] for t in obs_12cu]
+        >>> pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
+        >>> art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.7, loadmast=False, loadptf=False))
+        >>> actualstdout = sys.stdout
+        >>> sys.stdout = cStringIO.StringIO()
+        >>> result = grid_fit(pristine_11fe, art_reddened_11fe)
+        >>> sys.stdout = actualstdout
+        >>> sys.stdout.write(str(result))
+        ([2.7000000000000002], [1.0])
+        '''
+
+
         # config
-        ebv_guess = 1.02
+        ebv_guess = 1.0
         ebv_pad = 0.2
         
         rv_guess = 2.7
         rv_pad = 0.5
         
-        steps = 51
+        steps = 11
         #steps = 120
         
         
@@ -98,24 +134,12 @@ def grid_fit():
         #FEATURES_ACTUAL = []
         
         
-        # load spectra, interpolate 11fe to 12cu phases (only first 12)
-        obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
-        phases = [t[0] for t in obs_12cu]
-        
-        
-        pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-        
-        
-        ########################
-        # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
-        # to the phases of 12cu, or just choose 12cu itself.
-        #
-        #obs_SN = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.04, rv=2.75, loadmast=False, loadptf=False))
-        obs_SN = obs_12cu
-        #
-        ########################
-        
-        
+#        f1 = open('workfile', 'w')
+#        f1.write('This is a test')
+#        #print f, 'This is a test'
+#        f1.close()
+#        exit(1)
+
         ########################
         ### helper functions ###
 
@@ -194,7 +218,7 @@ def grid_fit():
                 V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 
                 
-                for phase_index in xrange(len(phases)):
+                for phase_index in [0,]: # xrange((len(phases)):
                     
                     
                         ref = pristine_11fe[phase_index]
@@ -376,6 +400,8 @@ def grid_fit():
                         best_ebvs.append(x[mx])
                         best_avs.append(x[mx]*y[my])
 
+                return best_rvs, best_ebvs
+
 #plt.show()
                 pprint( zip(phases, best_rvs, best_ebvs, best_avs, min_chi2s) )
                 
@@ -390,10 +416,17 @@ def grid_fit():
                 
                 log( "Results successfully saved in: {}".format(filename) )
 
-                
-                
-        perphase_fit()
-        return pristine_11fe, obs_SN
+
+
+        best_rvs, best_ebvs = perphase_fit()
+        print 'in per_phase():', best_rvs, best_ebvs
+
+
+        return best_rvs, best_ebvs
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
 
 
 
@@ -602,13 +635,37 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
 
 
 if __name__=="__main__":
-        pristine_11fe, obs_SN = grid_fit()
-        info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
-        info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
-                    
-        i = 0
-        for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
-            if i > 0: break   # this is to not plot the unblocked fit.
-            plot_excess(t[0], t[1], pristine_11fe, obs_SN)
-            i += 1
+    
+    # load spectra, interpolate 11fe to 12cu phases (only first 12)
+    obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
+    phases = [t[0] for t in obs_12cu]
+        
+        
+    pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
+    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.7, loadmast=False, loadptf=False))
+    
+        
+    ########################
+    # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
+    # to the phases of 12cu, or just choose 12cu itself.
+    #
+    obs_SN = art_reddened_11fe
+    #
+    ########################
+
+    print 'Hello!!'
+
+    grid_fit(pristine_11fe, obs_SN)
+    print 'look at above'
+    exit(1)
+
+    best_RVs, best_EBVs = grid_fit(pristine_11fe, obs_SN)
+    info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
+    info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
+                
+    i = 0
+    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
+        if i > 0: break   # this is to not plot the unblocked fit.
+        plot_excess(t[0], t[1], pristine_11fe, obs_SN)
+        i += 1
 
