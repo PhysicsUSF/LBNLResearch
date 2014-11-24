@@ -111,9 +111,9 @@ def grid_fit(pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.
         >>> result = grid_fit(pristine_11fe, art_reddened_11fe, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.0, ebv_pad = 0.2, steps = 11)
         >>> sys.stdout = actualstdout
         >>> sys.stdout.write(str(np.round(result[0], decimals = 3)))
-        [ 2.7  2.7]
+        [ 2.7  2.7  2.7]
         >>> sys.stdout.write(str(np.round(result[1], decimals = 3)))
-        [ 1.  1.]
+        [ 1.  1.  1.]
         '''
 
 
@@ -225,7 +225,7 @@ def grid_fit(pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.
                 #exit(1)
 
 
-                for phase_index in [0, 1]: # xrange((len(phases)):
+                for phase_index in xrange(3): # [0,]: # xrange((len(phases)):
                     
                     
                         print '\n\n\n', phase_index, '\n\n\n'
