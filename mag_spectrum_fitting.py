@@ -90,7 +90,7 @@ def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
 
 
 
-def grid_fit(pristine_11fe, obs_SN):
+def grid_fit(pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.0, ebv_pad = 0.2, steps = 11):
     
 
         '''
@@ -108,21 +108,23 @@ def grid_fit(pristine_11fe, obs_SN):
         >>> art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.7, loadmast=False, loadptf=False))
         >>> actualstdout = sys.stdout
         >>> sys.stdout = cStringIO.StringIO()
-        >>> result = grid_fit(pristine_11fe, art_reddened_11fe)
+        >>> result = grid_fit(pristine_11fe, art_reddened_11fe, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.0, ebv_pad = 0.2, steps = 11)
         >>> sys.stdout = actualstdout
-        >>> sys.stdout.write(str(result))
-        ([2.7000000000000002], [1.0])
+        >>> sys.stdout.write(str(np.round(result[0], decimals = 3)))
+        [ 2.7  2.7]
+        >>> sys.stdout.write(str(np.round(result[1], decimals = 3)))
+        [ 1.  1.]
         '''
 
 
         # config
-        ebv_guess = 1.0
-        ebv_pad = 0.2
-        
-        rv_guess = 2.7
-        rv_pad = 0.5
-        
-        steps = 11
+#        ebv_guess = 1.0
+#        ebv_pad = 0.2
+#        
+#        rv_guess = 2.7
+#        rv_pad = 0.5
+#        
+#        steps = 11
         #steps = 120
         
         
@@ -217,9 +219,17 @@ def grid_fit(pristine_11fe, obs_SN):
                 band_steps = 1200
                 V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 
-                
-                for phase_index in [0,]: # xrange((len(phases)):
+
+                print [0, 1, 2]
+                #print range(3)
+                #exit(1)
+
+
+                for phase_index in [0, 1]: # xrange((len(phases)):
                     
+                    
+                        print '\n\n\n', phase_index, '\n\n\n'
+                        #exit(1)
                     
                         ref = pristine_11fe[phase_index]
                         obs = obs_SN[phase_index]
@@ -420,7 +430,7 @@ def grid_fit(pristine_11fe, obs_SN):
 
         best_rvs, best_ebvs = perphase_fit()
         print 'in per_phase():', best_rvs, best_ebvs
-
+        print 'in per_phase():', type(best_rvs), type(best_ebvs)
 
         return best_rvs, best_ebvs
 
@@ -655,7 +665,11 @@ if __name__=="__main__":
 
     print 'Hello!!'
 
-    grid_fit(pristine_11fe, obs_SN)
+    result = grid_fit(pristine_11fe, obs_SN)
+    print 'in main():', result[0], result[1]
+    print 'in main():', type(result[0]), type(result[1])
+    exit(1)
+
     print 'look at above'
     exit(1)
 
