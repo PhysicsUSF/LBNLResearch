@@ -68,46 +68,58 @@ def extract_wave_flux_var(ref_wave, SN, mask):
     ## pristine_11fe
     #ref_wave = ref[1].wave
 
+    SN_flux = SN[1].flux
 
-    flux = interp1d(SN[1].wave, SN[1].flux)(ref_wave)
-        
+    if (SN_flux <= 0).any():
+        print "In extract_wave_flux_var():"
+        print "some flux values are not positive:", SN_flux[np.where(SN_flux <= 0)]
+        print "These values will be rejected below as nan for the log."
+        print "(But it's better to deal with the non-pos values before taking the log (even before interpolation).  Something to deal with later.)"
+        print "\n\n\n"
+
+
+
+    flux = interp1d(SN[1].wave, SN_flux)(ref_wave)
+
+
+
     # B-V color for 11fe
     #ref_B_V = -2.5*np.log10(ref_flux[np.abs(ref_wave - 4400).argmin()]/ref_flux[np.abs(ref_wave - 5413.5).argmin()])
     #print 'B-V for 11fe:', ref_B_V
                 
     var = SN[1].error
     calib_err = SN[2]
-    
-    flux_avg_mag = -2.5*np.log10(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
-                                                            # the _flux_ in the name is to emphasize: it's not the avg mag but the mag of the avg flux.
 
 
 #    ref_interp = interp1d(ref_wave, ref_flux)   # What does this accomplish?  -XH 11/25/14
     
     ## convert flux, variance, and calibration error to magnitude space
     
-    mag, mag_var, calib_err_mag \
+    mag_norm, mag_var, calib_err_mag \
     = flux2mag(flux, var, calib_err)
     
     # normalize for later use
     #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
     #ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())
     
-    mag_norm = mag - flux_avg_mag
+    #mag_norm = mag - flux_avg_mag
     
     
     # get mask for nan-values
     nanmask = ~np.isnan(mag_norm[mask])
     
 
-    return mag_norm, mag_var, calib_err, nanmask
+    return mag_norm, mag_var, calib_err, nanmask, flux
 
 def flux2mag(flux, var=None, calibration_err=None):
     mag_var = None
     calibration_err_mag = None
     
     mag = -2.5*np.log10(flux)
-        
+    flux_avg_mag = -2.5*np.log10(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
+    # the _flux_ in the name is to emphasize: it's not the avg mag but the mag of the avg flux.
+    mag_norm = mag - flux_avg_mag
+
     # calculate magnitude error
     if type(var)!=type(None):
         fr_err = np.sqrt(var)/flux
@@ -117,7 +129,7 @@ def flux2mag(flux, var=None, calibration_err=None):
     if type(calibration_err)!=type(None):
         calibration_err_mag = 1.0857362*calibration_err
     
-    results = tuple([r for r in (mag, mag_var, calibration_err_mag) if type(r)!=type(None)])
+    results = tuple([r for r in (mag_norm, mag_var, calibration_err_mag) if type(r)!=type(None)])
 
     return (results, results[0])[len(results)==1]
 
@@ -298,63 +310,29 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                         print '\n\n\n Phase_index', phase_index, '\n\n\n'
                     
                         ref = pristine_11fe[phase_index]
-                        obs = obs_SN[phase_index]
-            
                         ref_wave = ref[1].wave
+
+                        obs = obs_SN[phase_index]
 
                         # mask for spectral features not included in fit
                         mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
-                        ref_mag_norm, ref_mag_var, ref_calib_err, nanmask_ref = extract_wave_flux_var(ref_wave, ref, mask)
+                        ref_mag_norm, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask)
 
                         log()
                         log( "Phase: {}".format(ref[0]) )
                         
     
                         # get mask for nan-values
-                        nanmask_ref = ~np.isnan(ref_mag_norm[mask])
+                        #nanmask_ref = ~np.isnan(ref_mag_norm[mask])
                         
                         # 12cu/reddened 11fe
-                        obs_wave = obs[1].wave
 
-                        obs_interp = interp1d(obs_wave, obs[1].flux)
-    
-
-                        obs_var  = interp1d(obs_wave, obs[1].error)(ref_wave)
-                        obs_calibration_error = obs[2]
-
-                        obs_flux = obs_interp(ref_wave)
-    
-                        obs_mag = -2.5*np.log10(obs_flux)
-                        obs_flux_avg_mag = -2.5*np.log10(np.average(obs_flux)) #, weights = 1/obs_var))
-
-                        obs_mag_norm = obs_mag - obs_flux_avg_mag
+                        obs_mag_norm, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask)
 
 
-
-
-                        ## test ######################################################################
-                        #red_noisy_flux = (1 + 0.05*np.random.randn(red[1].flux.shape[0]) )*red[1].flux
-                        #red_flux = interp1d(red_wave, red_noisy_flux)(ref_wave)
-                        ##############################################################################
-                        
-                        
-                        # convert flux, variance, and calibration error to magnitude space
-
-                        if (obs_flux <= 0).any():
-                            print "some obs_flux values are not positive:", obs_flux[np.where(obs_flux <= 0)]
-                            print "These values will be rejected below as nan for the log."
-                            print "(But it's better to deal with the non-pos values before taking the log.  Something to deal with later.)"
-
-                        obs_interp_mag, obs_interp_mag_var, obs_calibration_error_mag \
-                        = flux2mag(obs_flux, obs_var, obs_calibration_error)
-                        
-                        # get mask for nanvalues
-                        nanmask_obs_interp = ~np.isnan(obs_interp_mag[mask])
-                        
-                        
                         # Total Variance.
-                        var = ref_mag_var[mask] + obs_interp_mag_var[mask]
+                        var = ref_mag_var[mask] + obs_mag_var[mask]
                         
                         
                         
@@ -365,7 +343,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                         #nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
                         
                         # merge mask with nan-masks from obs_interp_mag, and ref_mag (calc'd above)
-                        nanmask = nanmask_obs_interp & nanmask_ref
+                        nanmask = nanmask_obs & nanmask_ref
                         
                         log( "num. points with negative flux discarded: {}".format(np.sum(~nanmask)) )
                         
@@ -394,25 +372,11 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                                         
                                         # unredden the reddened spectrum, convert to mag
                                         unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
-                                        unred_mag = flux2mag(unred_flux)
+                                        unred_mag_norm = flux2mag(unred_flux)
                                         
-                                        unred_interp = interp1d(ref_wave, unred_flux)
-                                        
-                                        # normalization
-                                        unred_flux_avg_mag = -2.5*np.log10(np.average(unred_flux)) #, weights = 1/red_interp_var))
-                                        
-                                        unred_V_mag = -2.5*np.log10(unred_interp(V_band_range).mean())
-                                        #unred_flux_avg_mag = -2.5*np.log10(unred_flux[np.abs(ref_wave - 5413.5).argmin()])  #normalize with single-wavelength V band magnitude.
-                                        #unred_flux_V_mag = -2.5*np.log10(np.average(unred_flux[Vband_mask]))
-                                        #unred_mag_norm = unred_mag - unred_flux_V_mag
-
-                                        unred_mag_norm = unred_mag - unred_flux_avg_mag  #unred_V_mag
-    
-    
-#                                        if phase_index == 11:
-#                                            fig = plt.figure()
-#                                            plt.plot(unred_mag_norm)
-#                                            plt.plot(ref_mag_norm)
+                                        unred_interp = interp1d(ref_wave, unred_flux)  # what's purpose of this?  also what is ref_wave used here,
+                                                                                       # instead of obs_wave, as is done in excess_plot().
+                                                                                       # ----->  Need to truly understand how interp1d works. <--------
 
                                         # this is unreddened 12cu mag - pristine 11fe mag
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
