@@ -172,7 +172,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         def filter_features(features, wave):
             '''Returns a mask of boolean values the same size as
                 the wave array.  True=wavelength not in features, False=wavelength
-                is in featured.
+                is in features.
         
             Can be used like:
             
@@ -504,7 +504,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
         ref = pristine_11fe[i]
-        red = obs_SN[i]
+        obs = obs_SN[i]
         
         best_ebv = info_dict['ebv'][i]
         best_rv  = info_dict['rv'][i]
@@ -514,54 +514,54 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         ref_var = ref[1].error    # 11fe variance.
         
         ref_interp = interp1d(ref_wave, ref_flux)
-        red_interp = interp1d(red[1].wave, red[1].flux)
+        obs_interp = interp1d(obs[1].wave, obs[1].flux)
         
         
-        red_flux = red_interp(ref_wave)  # the type of red_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do red_interp_flux = interp1d(red_wave, red[1].flux)(ref_wave) -XH Nov 18, 2014
-        red_interp_var  = interp1d(red[1].wave, red[1].error)(ref_wave)  # 12cu variance.
+        obs_flux = obs_interp(ref_wave)  # the type of obs_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do obs_interp_flux = interp1d(obs_wave, obs[1].flux)(ref_wave) -XH Nov 18, 2014
+        obs_interp_var  = interp1d(obs[1].wave, obs[1].error)(ref_wave)  # 12cu variance.
         
         #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
         
         ## single wavelength magnitude
         ref_single_wave_mag = (-2.5*np.log10(ref_flux))
-        red_single_wave_mag = (-2.5*np.log10(red_flux))
+        obs_single_wave_mag = (-2.5*np.log10(obs_flux))
         
         
         #excess_ref = (-2.5*np.log10(np.mean(ref_flux))) - (-2.5*np.log10(ref_flux))  # need to add var's as weights.
-        #excess_red = (-2.5*np.log10(np.mean(red_flux))) - (-2.5*np.log10(red_flux))  # need to add var's as weights.
+        #excess_obs = (-2.5*np.log10(np.mean(obs_flux))) - (-2.5*np.log10(obs_flux))  # need to add var's as weights.
         
         
         
         ref_single_V_mag = -2.5*np.log10(ref_interp(V_wave))
-        red_single_V_mag = -2.5*np.log10(red_interp(V_wave))
+        obs_single_V_mag = -2.5*np.log10(obs_interp(V_wave))
         
         ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
-        red_V_mag = -2.5*np.log10(red_interp(V_band_range).mean())  # need to add var's as weights.
+        obs_V_mag = -2.5*np.log10(obs_interp(V_band_range).mean())  # need to add var's as weights.
         
         # This way seems to give wrong answer.
         #          ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
-        #        red_flux_V_mag = -2.5*np.log10(np.average(red_flux[Vband_mask]))
+        #        obs_flux_V_mag = -2.5*np.log10(np.average(obs_flux[Vband_mask]))
         
         #        color_ref =  ref_single_V_mag - ref_single_wave_mag
-        #        color_red =  red_single_V_mag - red_single_wave_mag
+        #        color_obs =  obs_single_V_mag - obs_single_wave_mag
         
         color_ref = ref_V_mag - ref_single_wave_mag
-        color_red = red_V_mag - red_single_wave_mag
+        color_obs = obs_V_mag - obs_single_wave_mag
         
         
         print '\n\n\n'
         print 'single lambda V band for 11fe', ref_single_V_mag
         print 'V band for 11fe', ref_V_mag
-        print 'single lambda V band for 12cu', red_single_V_mag
-        print 'V band for 12cu', red_V_mag
+        print 'single lambda V band for 12cu', obs_single_V_mag
+        print 'V band for 12cu', obs_V_mag
         
-        print 'ABS(Avg_mag - V_mag for 11fe) - (Avg_mag - V_mag for 12cu)', np.abs(-2.5*np.log10(ref_interp(V_wave)/np.mean(ref_flux)) - -2.5*np.log10(red_interp(V_wave)/np.mean(red_flux)))
+        print 'ABS(Avg_mag - V_mag for 11fe) - (Avg_mag - V_mag for 12cu)', np.abs(-2.5*np.log10(ref_interp(V_wave)/np.mean(ref_flux)) - -2.5*np.log10(obs_interp(V_wave)/np.mean(obs_flux)))
         
         
         print '\n\n\n'
         
         
-        excess = color_red - color_ref
+        excess = color_obs - color_ref
         
         
         # convert effective wavelengths to inverse microns
@@ -676,7 +676,7 @@ if __name__=="__main__":
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    obs_SN = art_reddened_11fe
+    obs_SN = art_obsdened_11fe
     #
     ########################
 
