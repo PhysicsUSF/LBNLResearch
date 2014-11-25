@@ -53,6 +53,73 @@ INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
 
+def extract_wave_flux_var(ref_wave, SN, mask):
+
+    '''
+    Added Nov 25, 2014.
+    
+    takes in 2 spectral pickle files from loader.py, extracts, interpolates and converts, and finally returns
+    normalized magntiudes and magnitude variances.
+    
+    '''
+
+
+
+    ## pristine_11fe
+    #ref_wave = ref[1].wave
+
+
+    flux = interp1d(SN[1].wave, SN[1].flux)(ref_wave)
+        
+    # B-V color for 11fe
+    #ref_B_V = -2.5*np.log10(ref_flux[np.abs(ref_wave - 4400).argmin()]/ref_flux[np.abs(ref_wave - 5413.5).argmin()])
+    #print 'B-V for 11fe:', ref_B_V
+                
+    var = SN[1].error
+    calib_err = SN[2]
+    
+    flux_avg_mag = -2.5*np.log10(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
+                                                            # the _flux_ in the name is to emphasize: it's not the avg mag but the mag of the avg flux.
+
+
+#    ref_interp = interp1d(ref_wave, ref_flux)   # What does this accomplish?  -XH 11/25/14
+    
+    ## convert flux, variance, and calibration error to magnitude space
+    
+    mag, mag_var, calib_err_mag \
+    = flux2mag(flux, var, calib_err)
+    
+    # normalize for later use
+    #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
+    #ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())
+    
+    mag_norm = mag - flux_avg_mag
+    
+    
+    # get mask for nan-values
+    nanmask = ~np.isnan(mag_norm[mask])
+    
+
+    return mag_norm, mag_var, calib_err, nanmask
+
+def flux2mag(flux, var=None, calibration_err=None):
+    mag_var = None
+    calibration_err_mag = None
+    
+    mag = -2.5*np.log10(flux)
+        
+    # calculate magnitude error
+    if type(var)!=type(None):
+        fr_err = np.sqrt(var)/flux
+        mag_var = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
+
+    # calculate calibration error in mag space
+    if type(calibration_err)!=type(None):
+        calibration_err_mag = 1.0857362*calibration_err
+    
+    results = tuple([r for r in (mag, mag_var, calibration_err_mag) if type(r)!=type(None)])
+
+    return (results, results[0])[len(results)==1]
 
 
 def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
@@ -194,24 +261,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         
         
         
-        def flux2mag(flux, var=None, calibration_err=None):
-                mag_var = None
-                calibration_err_mag = None
-
-                mag = -2.5*np.log10(flux)
-                
-                # calculate magnitude error
-                if type(var)!=type(None):
-                        fr_err = np.sqrt(var)/flux
-                        mag_var = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
-                
-                # calculate calibration error in mag space
-                if type(calibration_err)!=type(None):
-                        calibration_err_mag = 1.0857362*calibration_err
-                
-                results = tuple([r for r in (mag, mag_var, calibration_err_mag) if type(r)!=type(None)])
-                
-                return (results, results[0])[len(results)==1]
         
         ########################
         
@@ -250,42 +299,17 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                     
                         ref = pristine_11fe[phase_index]
                         obs = obs_SN[phase_index]
-                        
+            
+                        ref_wave = ref[1].wave
+
                         # mask for spectral features not included in fit
-                        mask = filter_features(FEATURES_ACTUAL, ref[1].wave)
-                        
+                        mask = filter_features(FEATURES_ACTUAL, ref_wave)
+
+                        ref_mag_norm, ref_mag_var, ref_calib_err, nanmask_ref = extract_wave_flux_var(ref_wave, ref, mask)
+
                         log()
                         log( "Phase: {}".format(ref[0]) )
                         
-                        
-                        # pristine_11fe
-                        ref_wave = ref[1].wave
-                        ref_flux = ref[1].flux
-
-
-                        # B-V color for 11fe
-                        ref_B_V = -2.5*np.log10(ref_flux[np.abs(ref_wave - 4400).argmin()]/ref_flux[np.abs(ref_wave - 5413.5).argmin()])
-                        print 'B-V for 11fe:', ref_B_V
-
-                        ref_var = ref[1].error
-                        ref_calibration_error = ref[2]
-
-                        ref_flux_avg = np.average(ref_flux)  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
-                        ref_flux_avg_mag = -2.5*np.log10(ref_flux_avg)
-
-                        ref_interp = interp1d(ref_wave, ref_flux)
-
-                        # convert flux, variance, and calibration error to magnitude space
-
-                        ref_mag, ref_mag_var, ref_calibration_error_mag \
-                        = flux2mag(ref_flux, ref_var, ref_calibration_error)
-                        
-                        # normalize for later use
-                        #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
-                        ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())
-
-                        ref_mag_norm = ref_mag - ref_flux_avg_mag
-
     
                         # get mask for nan-values
                         nanmask_ref = ~np.isnan(ref_mag_norm[mask])
@@ -296,13 +320,13 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                         obs_interp = interp1d(obs_wave, obs[1].flux)
     
 
-                        obs_interp_var  = interp1d(obs_wave, obs[1].error)(ref_wave)
+                        obs_var  = interp1d(obs_wave, obs[1].error)(ref_wave)
                         obs_calibration_error = obs[2]
 
                         obs_flux = obs_interp(ref_wave)
     
                         obs_mag = -2.5*np.log10(obs_flux)
-                        obs_flux_avg_mag = -2.5*np.log10(np.average(obs_flux)) #, weights = 1/obs_interp_var))
+                        obs_flux_avg_mag = -2.5*np.log10(np.average(obs_flux)) #, weights = 1/obs_var))
 
                         obs_mag_norm = obs_mag - obs_flux_avg_mag
 
@@ -323,7 +347,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                             print "(But it's better to deal with the non-pos values before taking the log.  Something to deal with later.)"
 
                         obs_interp_mag, obs_interp_mag_var, obs_calibration_error_mag \
-                        = flux2mag(obs_flux, obs_interp_var, obs_calibration_error)
+                        = flux2mag(obs_flux, obs_var, obs_calibration_error)
                         
                         # get mask for nanvalues
                         nanmask_obs_interp = ~np.isnan(obs_interp_mag[mask])
@@ -513,12 +537,14 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         ref_flux = ref[1].flux
         ref_var = ref[1].error    # 11fe variance.
         
-        ref_interp = interp1d(ref_wave, ref_flux)
+        ref_interp = interp1d(ref_wave, ref_flux)   # why is this step necessary?? Maybe to get single-lambda V-band mag. -XH, 11/25/14
         obs_interp = interp1d(obs[1].wave, obs[1].flux)
+
+        obs_flux = obs_interp(ref_wave)
         
         
-        obs_flux = obs_interp(ref_wave)  # the type of obs_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do obs_interp_flux = interp1d(obs_wave, obs[1].flux)(ref_wave) -XH Nov 18, 2014
-        obs_interp_var  = interp1d(obs[1].wave, obs[1].error)(ref_wave)  # 12cu variance.
+        #obs_flux = obs_interp  # the type of obs_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do obs_interp_flux = interp1d(obs_wave, obs[1].flux)(ref_wave) -XH Nov 18, 2014
+        obs_var  = interp1d(obs[1].wave, obs[1].error)(ref_wave)  # 12cu variance.
         
         #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
         
@@ -676,7 +702,7 @@ if __name__=="__main__":
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    obs_SN = art_obsdened_11fe
+    obs_SN = art_reddened_11fe
     #
     ########################
 
