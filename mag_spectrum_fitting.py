@@ -79,8 +79,8 @@ def extract_wave_flux_var(ref_wave, SN, mask):
 
 
 
-    flux = interp1d(SN[1].wave, SN_flux)(ref_wave)
-
+    flux = interp1d(SN[1].wave, SN_flux)(ref_wave)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
+                                                        # think of the two arrays supplied as the "training set".
 
 
     # B-V color for 11fe
@@ -95,8 +95,7 @@ def extract_wave_flux_var(ref_wave, SN, mask):
     
     ## convert flux, variance, and calibration error to magnitude space
     
-    mag_norm, mag_var, calib_err_mag \
-    = flux2mag(flux, var, calib_err)
+    mag_norm, mag_var, calib_err_mag = flux2mag(flux, var, calib_err)
     
     # normalize for later use
     #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
@@ -110,6 +109,7 @@ def extract_wave_flux_var(ref_wave, SN, mask):
     
 
     return mag_norm, mag_var, calib_err, nanmask, flux
+
 
 def flux2mag(flux, var=None, calibration_err=None):
     mag_var = None
@@ -374,10 +374,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                                         unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
                                         unred_mag_norm = flux2mag(unred_flux)
                                         
-                                        unred_interp = interp1d(ref_wave, unred_flux)  # what's purpose of this?  also what is ref_wave used here,
-                                                                                       # instead of obs_wave, as is done in excess_plot().
-                                                                                       # ----->  Need to truly understand how interp1d works. <--------
-
+                                        
                                         # this is unreddened 12cu mag - pristine 11fe mag
                                         delta = unred_mag_norm[mask]-ref_mag_norm[mask]
                                         tmp_wave = ref_wave[mask]
