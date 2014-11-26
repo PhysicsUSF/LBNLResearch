@@ -197,7 +197,7 @@ def log(msg=""):
 
 
 
-def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.0, ebv_pad = 0.2, steps = 11):
+def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11):
     
 
         '''
@@ -233,14 +233,16 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         >>> obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
         >>> phases = [t[0] for t in obs_12cu]
         >>> pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-        >>> art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.7, loadmast=False, loadptf=False))
+        >>> obs_SN = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, loadmast=False, loadptf=False))
         >>> actualstdout = sys.stdout
         >>> sys.stdout = cStringIO.StringIO()
-        >>> result = grid_fit(phases, pristine_11fe, art_reddened_11fe, rv_guess = 2.7, rv_pad = 0.5, ebv_guess = 1.0, ebv_pad = 0.2, steps = 11)
+        >>> result = grid_fit(phases, pristine_11fe, obs_SN, u_steps = 5, rv_steps = 11, ebv_steps = 11)
         >>> sys.stdout = actualstdout
         >>> sys.stdout.write(str(np.round(result[0], decimals = 3)))
-        [ 2.7  2.7  2.7  2.7  2.7  2.7  2.7  2.7  2.7  2.7  2.7  2.7]
+        [ 0.  0.  0.  0.  0.  0.  0.  0.  0.  0.  0.  0.]
         >>> sys.stdout.write(str(np.round(result[1], decimals = 3)))
+        [ 2.8  2.8  2.8  2.8  2.8  2.8  2.8  2.8  2.8  2.8  2.8  2.8]
+        >>> sys.stdout.write(str(np.round(result[2], decimals = 3)))
         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
         '''
         
@@ -255,15 +257,16 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         
         
         
-        tmpx = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, steps)
-        tmpy = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, steps)
+        tmpx = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, ebv_steps)
+        tmpy = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, rv_steps)
         
-        log( "SIZE OF GRID: {}".format(steps) )
+        log( "SIZE OF GRID: {}".format(u_steps*rv_steps*ebv_steps) )
         log( "EBV SEARCH GRID:" )
         log( tmpx )
         log( "RV SEARCH GRID:" )
         log( tmpy )
         
+        best_us = []
         best_rvs = []
         best_ebvs = []
         best_avs = []
@@ -341,14 +344,16 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                 
                 #################################################
                 
-                x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, steps)
-                y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, steps)
+                u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
+                x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, ebv_steps)
+                y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, rv_steps)
                 
-                X, Y = np.meshgrid(x, y)
-                CHI2 = np.zeros( X.shape )
+                #X, Y = np.meshgrid(x, y)
+                CHI2 = np.zeros((len(u), len(x), len(y)))
                 
                 log( "Scanning CHI2 grid..." )
-                for j, EBV in enumerate(x):
+                for i, dist in enumerate(u):
+                    for j, EBV in enumerate(x):
                         for k, RV in enumerate(y):
                                 
                                 # unredden the reddened spectrum, convert to mag
@@ -358,7 +363,8 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                               
                                 
                                 # this is (unreddened 12cu mag - pristine 11fe mag)
-                                delta = unred_mag_norm[mask]-ref_mag_norm
+                                delta = unred_mag_norm[mask] - ref_mag_norm - dist # yes, unred_mag_norm and ref_mag_norm are treated slightly asym'ly -- something I
+                                                                                   # should fix.  -XH
                                 
                                 # convert to vector from array and filter nan-values
                                 delta = delta[nanmask]
@@ -370,25 +376,36 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                                 #plt.plot(tmp_wave[nanmask], delta_array, 'ro')
                                
                                
-                                CHI2[k,j] = np.sum(delta*delta/var)
+                                CHI2[i, j, k] = np.sum(delta*delta/var)
 
 
 
 
                 ### report/save results
                 
+                #print 'CHI2', CHI2
+                
                 chi2_min = np.min(CHI2)
                 log( "min chi2: {}".format(chi2_min) )
                 
-                mindex = np.where(CHI2==chi2_min)
-                mx, my = mindex[1][0], mindex[0][0]
+                mindex = np.where(CHI2==chi2_min)   # can try use argmin() here.  -XH
+                
+                # basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
+                mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
+                print 'mindex', mindex
+                print 'mu, mx, my', mu, mx, my
+                print 'best_u, best_rv, best_ebv', u[mu], x[mx], y[my]
+               
+               
+               #exit(1)
                 
                 log( "\t {}".format(mindex) )
-                log( "\t RV={} EBV={} AV={}".format(y[my], x[mx], x[mx]*y[my]) )
+                log( "\t u={} RV={} EBV={} AV={}".format(u[mu], y[my], x[mx], x[mx]*y[my]) )
                 
                 chi2s.append(CHI2)
                 chi2_reductions.append(CHI2_reduction)
                 min_chi2s.append(chi2_min)
+                best_us.append(u[mu])
                 best_rvs.append(y[my])
                 best_ebvs.append(x[mx])
                 best_avs.append(x[mx]*y[my])
@@ -401,20 +418,25 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         #                filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
 
         filename = "spectra_mag_fit_results_FILTERED.pkl"
+#        cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
+#                        'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
+#                        'u': u, 'x': x, 'y': y, 'X': X, 'Y': Y},
+#                        open(filename, 'wb'))
+
         cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
-                        'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'steps': steps,
-                        'x': x, 'y': y, 'X': X, 'Y': Y},
-                        open(filename, 'wb'))
+                     'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
+                     'u': u, 'x': x, 'y': y}, open(filename, 'wb'))
         
         log( "Results successfully saved in: {}".format(filename) )
 
 
 
 #best_rvs, best_ebvs = perphase_fit()
-        print 'in per_phase():', best_rvs, best_ebvs
-        print 'in per_phase():', type(best_rvs), type(best_ebvs)
+        print 'in per_phase():', best_us, best_rvs, best_ebvs
+        #        print 'in per_phase():', type(best_rvs), type(best_ebvs)
 
-        return best_rvs, best_ebvs
+#exit(1)
+        return best_us, best_rvs, best_ebvs
 
 
 
@@ -599,26 +621,26 @@ if __name__=="__main__":
         
         
     pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.7, loadmast=False, loadptf=False))
+    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, loadmast=False, loadptf=False))
     
         
     ########################
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    #obs_SN = art_reddened_11fe
-    obs_SN = obs_12cu
+    obs_SN = art_reddened_11fe
+    #obs_SN = obs_12cu
     #
     ########################
 
 
-    best_RVs, best_EBVs = grid_fit(phases, pristine_11fe, obs_SN)
+    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_steps = 5, rv_steps = 11, ebv_steps = 11)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
-    i = 0
-    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
-        if i > 0: break   # this is to not plot the unblocked fit.
-        plot_excess(t[0], t[1], pristine_11fe, obs_SN)
-        i += 1
+#    i = 0
+#    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
+#        if i > 0: break   # this is to not plot the unblocked fit.
+#        plot_excess(t[0], t[1], pristine_11fe, obs_SN)
+#        i += 1
 
