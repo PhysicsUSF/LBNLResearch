@@ -53,7 +53,7 @@ INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
 V_wave = 5413.5  # see my mag_spectrum_plot_excess.py
-
+FrFlx2mag = 2.5/np.log(10)  #  =1.0857362
 
 
 def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
@@ -93,14 +93,14 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     #print 'B-V for 11fe:', ref_B_V
                 
     var = SN[1].error
-    calib_err = SN[2]
+    calib_err_mag = SN[2]
 
 
 #    ref_interp = interp1d(ref_wave, ref_flux)   # What does this accomplish?  -XH 11/25/14
     
     ## convert flux, variance, and calibration error to magnitude space
     
-    mag_norm, mag_var, calib_err_mag = flux2mag(flux, flux_interp, var, calib_err, norm_meth = norm_meth)
+    mag_norm, mag_var = flux2mag(flux, flux_interp, var, norm_meth = norm_meth)
     
     
     if mask != None:
@@ -115,12 +115,11 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, mag_var, calib_err, nanmask, flux
+    return mag_norm, mag_var, calib_err_mag, nanmask, flux
 
 
-def flux2mag(flux, flux_interp=None, var=None, calibration_err=None, norm_meth = 'AVG'):
+def flux2mag(flux, flux_interp=None, var=None, norm_meth = 'AVG'):
     mag_var = None
-    calibration_err_mag = None
     
     mag = -2.5*np.log10(flux)
     
@@ -135,15 +134,12 @@ def flux2mag(flux, flux_interp=None, var=None, calibration_err=None, norm_meth =
     # calculate magnitude error
     if type(var)!=type(None):
         fr_err = np.sqrt(var)/flux
-        mag_var = (1.0857362*fr_err)**2  # 2.5/np.log(10) = 1.0857362
+        mag_var = (FrFlx2mag*fr_err)**2
 
-    # calculate calibration error in mag space
-    if type(calibration_err)!=type(None):
-        calibration_err_mag = 1.0857362*calibration_err
-    
-    results = tuple([r for r in (mag_norm, mag_var, calibration_err_mag) if type(r)!=type(None)])
 
-    return (results, results[0])[len(results)==1]
+    results = tuple([r for r in (mag_norm, mag_var) if type(r)!=type(None)])
+
+    return (results, results[0])[len(results)==1]  # the purpose of this statement is that if only results[0] needs to be returned then that will happen.
 
 
 def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
@@ -422,7 +418,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
 
 def plot_excess(title, info_dict, pristine_11fe, obs_SN):
     
-    fig = plt.figure(figsize = (20, 12))#, dpi = 10)
+    fig = plt.figure(figsize = (20, 12))
     
     #obs_SN = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in obs_SN]
@@ -520,8 +516,8 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
          
         # plot power law reddening curve
-        pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-        plt.plot(ref_wave_inv, pl_red_curve, 'r-')
+        #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+        #plt.plot(ref_wave_inv, pl_red_curve, 'r-')
          
         # find 1-sigma and 2-sigma errors based on confidence
         maxebv_1sig, minebv_1sig = best_ebv, best_ebv
