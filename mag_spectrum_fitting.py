@@ -102,11 +102,6 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     
     mag_norm, mag_var, calib_err_mag = flux2mag(flux, flux_interp, var, calib_err, norm_meth = norm_meth)
     
-    # normalize for later use
-    #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
-    #ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())
-    
-    #mag_norm = mag - flux_avg_mag
     
     if mask != None:
         mag_norm = mag_norm[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
@@ -179,13 +174,29 @@ def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
     return interp1d(rng, snake_lo_1sig), interp1d(rng, snake_hi_1sig)
 
 
-## This function really should be imported from mag_spectrum_fitting.py if I can get that to work.
-#def filter_features(features, wave):
-#    intersection = np.array([False]*wave.shape[0])
-#    for feature in features:
-#        intersection |= ((wave>feature[0])&(wave<feature[1]))
-#    
-#    return ~intersection
+
+def filter_features(features, wave):
+        '''Returns a mask of boolean values the same size as
+        the wave array.  True=wavelength not in features, False=wavelength
+        is in features.
+        
+        Can be used like:
+        
+        mask = filter_features(FEAURES, wave)
+        wave_no_features = wave[mask]
+        flux_no_features = flux[mask]
+        '''
+        intersection = np.array([False]*wave.shape[0])
+        for feature in features:
+            intersection |= ((wave>feature[0])&(wave<feature[1]))
+            
+        return ~intersection
+                
+                
+                
+def log(msg=""):
+        # attach time stamp to print statements
+        print "[{}] {}".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), msg)
 
 
 
@@ -249,29 +260,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         ### helper functions ###
 
 
-        def filter_features(features, wave):
-            '''Returns a mask of boolean values the same size as
-                the wave array.  True=wavelength not in features, False=wavelength
-                is in features.
-        
-            Can be used like:
-            
-            mask = filter_features(FEAURES, wave)
-            wave_no_features = wave[mask]
-            flux_no_features = flux[mask]
-                '''
-            intersection = np.array([False]*wave.shape[0])
-            for feature in features:
-                intersection |= ((wave>feature[0])&(wave<feature[1]))
-                        
-            return ~intersection
 
-
-
-        def log(msg=""):
-                # attach time stamp to print statements
-                print "[{}] {}".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), msg)
-        
         
         
         
@@ -514,37 +503,15 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         
         ref_wave = ref[1].wave
 
-        color_ref, _, _, _, _  = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')
-        color_obs, _, _, _, _ = extract_wave_flux_var(ref_wave, obs, norm_meth = 'single_V')
+        color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
+        color_obs = extract_wave_flux_var(ref_wave, obs, norm_meth = 'single_V')[0]
 
+        excess = color_obs - color_ref
 
-#ref_flux = ref[1].flux
-        #ref_var = ref[1].error    # 11fe variance.  Why would I need the variance here?? -XH 11/25/14
+### Keeping the next few lines for now since I may want to anchor the E(V-X) plot using a broadband V-mag.
 
-#ref_interp = interp1d(ref_wave, ref_flux)   # why is this step necessary?? Maybe to get single-lambda V-band mag. -XH, 11/25/14
-#        obs_interp = interp1d(obs[1].wave, obs[1].flux)
-
-#        obs_flux = obs_interp(ref_wave)
-        
-        
-        #obs_flux = obs_interp  # the type of obs_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do obs_interp_flux = interp1d(obs_wave, obs[1].flux)(ref_wave) -XH Nov 18, 2014
-#        obs_var  = interp1d(obs[1].wave, obs[1].error)(ref_wave)  # 12cu variance.
-        
         #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
-        
-        ## single wavelength magnitude
-        #ref_single_wave_mag = (-2.5*np.log10(ref_flux))
-        #obs_single_wave_mag = (-2.5*np.log10(obs_flux))
-        
-        
-        #excess_ref = (-2.5*np.log10(np.mean(ref_flux))) - (-2.5*np.log10(ref_flux))  # need to add var's as weights.
-        #excess_obs = (-2.5*np.log10(np.mean(obs_flux))) - (-2.5*np.log10(obs_flux))  # need to add var's as weights.
-        
-        
-        
-        #ref_single_V_mag = -2.5*np.log10(ref_interp(V_wave))
-        #obs_single_V_mag = -2.5*np.log10(obs_interp(V_wave))
-        
+
 #ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
 #obs_V_mag = -2.5*np.log10(obs_interp(V_band_range).mean())  # need to add var's as weights.
         
@@ -552,26 +519,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         #          ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
         #        obs_flux_V_mag = -2.5*np.log10(np.average(obs_flux[Vband_mask]))
         
-        #        color_ref =  ref_single_V_mag - ref_single_wave_mag
-        #        color_obs =  obs_single_V_mag - obs_single_wave_mag
         
-#        color_ref = ref_V_mag - ref_single_wave_mag
-#        color_obs = obs_V_mag - obs_single_wave_mag
-        
-        
-#        print '\n\n\n'
-#        print 'single lambda V band for 11fe', ref_single_V_mag
-#        print 'V band for 11fe', ref_V_mag
-#        print 'single lambda V band for 12cu', obs_single_V_mag
-#        print 'V band for 12cu', obs_V_mag
-#        
-#        print 'ABS(Avg_mag - V_mag for 11fe) - (Avg_mag - V_mag for 12cu)', np.abs(-2.5*np.log10(ref_interp(V_wave)/np.mean(ref_flux)) - -2.5*np.log10(obs_interp(V_wave)/np.mean(obs_flux)))
-#        
-#        
-#        print '\n\n\n'
-
-        
-        excess = color_obs - color_ref
         
         
         # convert effective wavelengths to inverse microns
