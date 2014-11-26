@@ -72,6 +72,7 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     #ref_wave = ref[1].wave
 
     SN_flux = SN[1].flux
+    var = SN[1].error
 
     if (SN_flux <= 0).any():
         print "In extract_wave_flux_var():"
@@ -87,12 +88,13 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
 
     flux = flux_interp(ref_wave)
 
+    var = interp1d(SN[1].wave, var)(ref_wave)
+
 
     # B-V color for 11fe
     #ref_B_V = -2.5*np.log10(ref_flux[np.abs(ref_wave - 4400).argmin()]/ref_flux[np.abs(ref_wave - 5413.5).argmin()])
     #print 'B-V for 11fe:', ref_B_V
                 
-    var = SN[1].error
     calib_err_mag = SN[2]
 
 
@@ -243,12 +245,12 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         '''
         
         
-        FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
-                               (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+        #FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
+        #                      (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
 
 
         # Use an empty list of features to fit for the entire spectrum:
-        #FEATURES_ACTUAL = []
+        FEATURES_ACTUAL = []
         
         
         
@@ -499,8 +501,10 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
             
         # plot reddening curve
         fm_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+        fm_curve27 = redden_fm(ref_wave, np.zeros(ref_wave.shape), -1.02*np.ones(best_ebv.shape), 2.7*np.ones(best_rv.shape), return_excess=True)
         plt.plot(ref_wave_inv, fm_curve, 'k--')
-         
+        plt.plot(ref_wave_inv, fm_curve27, 'r-')
+        
         # plot where V band is.
         plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
         plt.plot([1e4/V_wave, 1e4/V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
@@ -513,7 +517,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         CHI2 /= CHI2_reduction
         CHI2 = CHI2 - np.min(CHI2)
          
-        slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
+         #slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
          
         # plot power law reddening curve
         #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
@@ -602,7 +606,8 @@ if __name__=="__main__":
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    obs_SN = art_reddened_11fe
+    #obs_SN = art_reddened_11fe
+    obs_SN = obs_12cu
     #
     ########################
 
