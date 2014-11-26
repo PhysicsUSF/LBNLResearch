@@ -52,8 +52,11 @@ TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
+V_wave = 5413.5  # see my mag_spectrum_plot_excess.py
 
-def extract_wave_flux_var(ref_wave, SN, mask):
+
+
+def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
 
     '''
     Added Nov 25, 2014.
@@ -79,8 +82,10 @@ def extract_wave_flux_var(ref_wave, SN, mask):
 
 
 
-    flux = interp1d(SN[1].wave, SN_flux)(ref_wave)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
-                                                        # think of the two arrays supplied as the "training set".
+    flux_interp = interp1d(SN[1].wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
+                                                 # think of the two arrays supplied as the "training set".  So flux_interp() is a function.
+
+    flux = flux_interp(ref_wave)
 
 
     # B-V color for 11fe
@@ -95,7 +100,7 @@ def extract_wave_flux_var(ref_wave, SN, mask):
     
     ## convert flux, variance, and calibration error to magnitude space
     
-    mag_norm, mag_var, calib_err_mag = flux2mag(flux, var, calib_err)
+    mag_norm, mag_var, calib_err_mag = flux2mag(flux, flux_interp, var, calib_err, norm_meth = norm_meth)
     
     # normalize for later use
     #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
@@ -103,22 +108,35 @@ def extract_wave_flux_var(ref_wave, SN, mask):
     
     #mag_norm = mag - flux_avg_mag
     
-    
+    if mask != None:
+        mag_norm = mag_norm[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
+                                   # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
+                                   # be blocked, the operation mag_norm[mask] does just that.  One can think of mask as providing a truth table that tells python
+                                   # which of the elements in mag_norm to keep and which to discard.  Yes, it doesn't make sense at first sight since mask doesn't
+                                   # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
+
+
     # get mask for nan-values
-    nanmask = ~np.isnan(mag_norm[mask])
+    nanmask = ~np.isnan(mag_norm)
     
 
     return mag_norm, mag_var, calib_err, nanmask, flux
 
 
-def flux2mag(flux, var=None, calibration_err=None):
+def flux2mag(flux, flux_interp=None, var=None, calibration_err=None, norm_meth = 'AVG'):
     mag_var = None
     calibration_err_mag = None
     
     mag = -2.5*np.log10(flux)
-    flux_avg_mag = -2.5*np.log10(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
-    # the _flux_ in the name is to emphasize: it's not the avg mag but the mag of the avg flux.
-    mag_norm = mag - flux_avg_mag
+    print 'norm_meth', norm_meth
+
+    if norm_meth == 'AVG':
+        mag_zp = -2.5*np.log10(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
+                                                  # Note it's not the avg mag but the mag of the avg flux.
+    elif norm_meth == 'single_V':
+        mag_zp = -2.5*np.log10(flux_interp(V_wave))
+
+    mag_norm = -(mag - mag_zp)  # the minus sign is because we will plot E(V-X)
 
     # calculate magnitude error
     if type(var)!=type(None):
@@ -217,17 +235,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         >>> sys.stdout.write(str(np.round(result[1], decimals = 3)))
         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
         '''
-
-
-        # config
-#        ebv_guess = 1.0
-#        ebv_pad = 0.2
-#        
-#        rv_guess = 2.7
-#        rv_pad = 0.5
-#        
-#        steps = 11
-        #steps = 120
         
         
         FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
@@ -238,12 +245,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         #FEATURES_ACTUAL = []
         
         
-#        f1 = open('workfile', 'w')
-#        f1.write('This is a test')
-#        #print f, 'This is a test'
-#        f1.close()
-#        exit(1)
-
         ########################
         ### helper functions ###
 
@@ -299,7 +300,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                 #V_band = [(5300., 5500., 'Vband')]
 
                 del_lamb = 1.
-                V_wave = 5413.5  # see my mag_spectrum_plot_excess.py
                 band_steps = 1200
                 V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 
@@ -314,24 +314,39 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
 
                         obs = obs_SN[phase_index]
 
+                        print 'ref_wave when untempered with', len(ref_wave)
+
+
+
                         # mask for spectral features not included in fit
                         mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
-                        ref_mag_norm, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask)
+                        print 'mask when defined:', len(mask)
+
+
+
+                        ref_mag_norm, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = 'AVG')
+
+#                        print 'ref_mag_norm', len(ref_mag_norm)
+#                        print 'ref_wave', len(ref_wave)
+#                        print 'mask', len(mask)
+#                        
+#                        exit(1)
+#                        
 
                         log()
                         log( "Phase: {}".format(ref[0]) )
                         
     
-                        # get mask for nan-values
-                        #nanmask_ref = ~np.isnan(ref_mag_norm[mask])
-                        
-                        # 12cu/reddened 11fe
+    
+                        ## 12cu/reddened 11fe
 
-                        obs_mag_norm, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask)
+                        obs_mag_norm, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = 'AVG')
 
+                        print 'obs_mag_norm', len(obs_mag_norm)
+                        print 'ref_wave', len(ref_wave)
 
-                        # Total Variance.
+                        ## Total Variance.
                         var = ref_mag_var[mask] + obs_mag_var[mask]
                         
                         
@@ -354,7 +369,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                         
                         
                         
-                        # for calculation of CHI2 per dof
+                        ## for calculation of CHI2 per dof
                         CHI2_reduction = np.sum(nanmask) - 2  # (num. data points)-(num. parameters)
                         log( "CHI2 reduction: {}".format(CHI2_reduction) )
                         
@@ -372,23 +387,31 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
                                         
                                         # unredden the reddened spectrum, convert to mag
                                         unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
-                                        unred_mag_norm = flux2mag(unred_flux)
+                                        unred_mag_norm = flux2mag(unred_flux, norm_meth = 'AVG')
+                                        ## I should implement a better way to use mask -- right now, there is a lot of reptition that is unnecessary.
                                         
+                                        print 'ref_wave', len(ref_wave)
+                                        print 'unred_flux', len(unred_flux)
+                                        print 'mask length', len(mask)
+                                        print 'ref_mag_norm length', len(ref_mag_norm)
+                                        print 'unred_mag_norm length', len(unred_mag_norm)
+                                        print 'nanmask length', len(nanmask)
+                                        print "nanmask 1's length", np.sum(nanmask[np.where(nanmask > 0)])
+                                      
                                         
-                                        # this is unreddened 12cu mag - pristine 11fe mag
-                                        delta = unred_mag_norm[mask]-ref_mag_norm[mask]
-                                        tmp_wave = ref_wave[mask]
+                                        # this is (unreddened 12cu mag - pristine 11fe mag)
+                                        delta = unred_mag_norm[mask]-ref_mag_norm
+                                        
                                         # convert to vector from array and filter nan-values
                                         delta = delta[nanmask]
                                         
                                         #delta_array = np.squeeze(np.asarray(delta))  # converting 1D matrix to 1D array.
                                         ## ----->I shoudl fix ylim<-------------------
+                                        #tmp_wave = ref_wave[mask]
                                         #fig = plt.figure()
                                         #plt.plot(tmp_wave[nanmask], delta_array, 'ro')
                                        
-                                        
-                                        # The original equation is delta.T * C_inv * delta, but delta
-                                        # is already a row vector in numpy so it is the other way around.
+                                       
                                         CHI2[k,j] = np.sum(delta*delta/var)
 
 
@@ -414,10 +437,9 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
 
                 return best_rvs, best_ebvs
 
-#plt.show()
                 pprint( zip(phases, best_rvs, best_ebvs, best_avs, min_chi2s) )
                 
-                # save results
+                ## save results with date
                 #                filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
 
                 filename = "spectra_mag_fit_results_FILTERED.pkl"
@@ -435,10 +457,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, rv_guess = 2.7, rv_pad = 0.5, ebv_gu
         print 'in per_phase():', type(best_rvs), type(best_ebvs)
 
         return best_rvs, best_ebvs
-
-#if __name__ == "__main__":
-#    import doctest
-#    doctest.testmod()
 
 
 
@@ -471,7 +489,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
     print 'zero EBV wavelength (V band wavelength):', V_wave  # As I said, this value should be close to 5413.5 A.
     
     
-    V_wave = 5413.5  # See the comment for the above block of code.
+    #V_wave = 5413.5  # See the comment for the above block of code.
     # AS previously used V_wave = 5417.2
     
     
@@ -495,23 +513,28 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         best_rv  = info_dict['rv'][i]
         
         ref_wave = ref[1].wave
-        ref_flux = ref[1].flux
-        ref_var = ref[1].error    # 11fe variance.
-        
-        ref_interp = interp1d(ref_wave, ref_flux)   # why is this step necessary?? Maybe to get single-lambda V-band mag. -XH, 11/25/14
-        obs_interp = interp1d(obs[1].wave, obs[1].flux)
 
-        obs_flux = obs_interp(ref_wave)
+        color_ref, _, _, _, _  = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')
+        color_obs, _, _, _, _ = extract_wave_flux_var(ref_wave, obs, norm_meth = 'single_V')
+
+
+#ref_flux = ref[1].flux
+        #ref_var = ref[1].error    # 11fe variance.  Why would I need the variance here?? -XH 11/25/14
+
+#ref_interp = interp1d(ref_wave, ref_flux)   # why is this step necessary?? Maybe to get single-lambda V-band mag. -XH, 11/25/14
+#        obs_interp = interp1d(obs[1].wave, obs[1].flux)
+
+#        obs_flux = obs_interp(ref_wave)
         
         
         #obs_flux = obs_interp  # the type of obs_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do obs_interp_flux = interp1d(obs_wave, obs[1].flux)(ref_wave) -XH Nov 18, 2014
-        obs_var  = interp1d(obs[1].wave, obs[1].error)(ref_wave)  # 12cu variance.
+#        obs_var  = interp1d(obs[1].wave, obs[1].error)(ref_wave)  # 12cu variance.
         
         #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
         
         ## single wavelength magnitude
-        ref_single_wave_mag = (-2.5*np.log10(ref_flux))
-        obs_single_wave_mag = (-2.5*np.log10(obs_flux))
+        #ref_single_wave_mag = (-2.5*np.log10(ref_flux))
+        #obs_single_wave_mag = (-2.5*np.log10(obs_flux))
         
         
         #excess_ref = (-2.5*np.log10(np.mean(ref_flux))) - (-2.5*np.log10(ref_flux))  # need to add var's as weights.
@@ -519,11 +542,11 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         
         
         
-        ref_single_V_mag = -2.5*np.log10(ref_interp(V_wave))
-        obs_single_V_mag = -2.5*np.log10(obs_interp(V_wave))
+        #ref_single_V_mag = -2.5*np.log10(ref_interp(V_wave))
+        #obs_single_V_mag = -2.5*np.log10(obs_interp(V_wave))
         
-        ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
-        obs_V_mag = -2.5*np.log10(obs_interp(V_band_range).mean())  # need to add var's as weights.
+#ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
+#obs_V_mag = -2.5*np.log10(obs_interp(V_band_range).mean())  # need to add var's as weights.
         
         # This way seems to give wrong answer.
         #          ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
@@ -532,21 +555,21 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         #        color_ref =  ref_single_V_mag - ref_single_wave_mag
         #        color_obs =  obs_single_V_mag - obs_single_wave_mag
         
-        color_ref = ref_V_mag - ref_single_wave_mag
-        color_obs = obs_V_mag - obs_single_wave_mag
+#        color_ref = ref_V_mag - ref_single_wave_mag
+#        color_obs = obs_V_mag - obs_single_wave_mag
         
         
-        print '\n\n\n'
-        print 'single lambda V band for 11fe', ref_single_V_mag
-        print 'V band for 11fe', ref_V_mag
-        print 'single lambda V band for 12cu', obs_single_V_mag
-        print 'V band for 12cu', obs_V_mag
-        
-        print 'ABS(Avg_mag - V_mag for 11fe) - (Avg_mag - V_mag for 12cu)', np.abs(-2.5*np.log10(ref_interp(V_wave)/np.mean(ref_flux)) - -2.5*np.log10(obs_interp(V_wave)/np.mean(obs_flux)))
-        
-        
-        print '\n\n\n'
-        
+#        print '\n\n\n'
+#        print 'single lambda V band for 11fe', ref_single_V_mag
+#        print 'V band for 11fe', ref_V_mag
+#        print 'single lambda V band for 12cu', obs_single_V_mag
+#        print 'V band for 12cu', obs_V_mag
+#        
+#        print 'ABS(Avg_mag - V_mag for 11fe) - (Avg_mag - V_mag for 12cu)', np.abs(-2.5*np.log10(ref_interp(V_wave)/np.mean(ref_flux)) - -2.5*np.log10(obs_interp(V_wave)/np.mean(obs_flux)))
+#        
+#        
+#        print '\n\n\n'
+
         
         excess = color_obs - color_ref
         
