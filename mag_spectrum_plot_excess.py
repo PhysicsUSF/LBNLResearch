@@ -23,7 +23,7 @@ from loader import redden_fm, redden_pl, redden_pl2
 from pprint import pprint
 from scipy.interpolate import interp1d
 from sys import argv
-#from mag_spectrum_fitting import filter_features
+
 
 
 
@@ -51,7 +51,6 @@ def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
             _chi2 = CHI2[j,i]
             if _chi2<1.00:
                 red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
-                ind_min = np.abs(red_curve).argmin()
                 snake_hi_1sig = np.maximum(snake_hi_1sig, red_curve)
                 snake_lo_1sig = np.minimum(snake_lo_1sig, red_curve)
             elif plot2sig and _chi2<4.00:
@@ -66,22 +65,13 @@ def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
     return interp1d(rng, snake_lo_1sig), interp1d(rng, snake_hi_1sig)
 
 
-## This function really should be imported from mag_spectrum_fitting.py if I can get that to work.
-def filter_features(features, wave):
-    intersection = np.array([False]*wave.shape[0])
-    for feature in features:
-        intersection |= ((wave>feature[0])&(wave<feature[1]))
-                
-    return ~intersection
 
-
-
-
+    
 
 
 def main(title, info_dict):
     
-    fig = plt.figure(figsize = (20, 12))#, dpi = 10)
+    fig = plt.figure()
     
     pristine_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in pristine_12cu]
@@ -91,37 +81,8 @@ def main(title, info_dict):
     
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     pmin, pmax = np.min(phases), np.max(phases)
-
-
-## To figure out the wavelength of the "zero" of the F99 law.  Using different phases, the value varies a bit (my estimate: 5413.5+/-0.1).
-## Haven't looked at this too closely.  But probably because of numerical error, such as during the interpolation process.  It's interesting
-## that, reading through the fm_unred.py, which AS and ZR have adopted, it's not obvious what this value should be.
-## Here I have arbitrarily chosen the first phase to infer what this wavelength should be.  -XH 11/18/14
-    best_ebv = info_dict['ebv'][0]
-    best_rv  = info_dict['rv'][0]
-    ref_wave = pristine_11fe[0][1].wave
-    red_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-    ind_min = np.abs(red_curve).argmin()
-    f99wv = np.array([ref_wave[ind_min-1],ref_wave[ind_min],ref_wave[ind_min+1]])
-    f99ebv = np.array([red_curve[ind_min-1],red_curve[ind_min],red_curve[ind_min+1]])
-    V_wave = np.interp(0., f99ebv, f99wv)
-    print 'zero EBV wavelength (V band wavelength):', V_wave  # As I said, this value should be close to 5413.5 A.
-
-
-    V_wave = 5413.5  # See the comment for the above block of code.
-    # AS previously used V_wave = 5417.2
-
-
-    V_band = [(5412., 5414., 'Vband')]
-    del_lamb = 1.
-    band_steps = 1200
-    V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
-    print V_band_range
-
-
+    
     for i, phase in enumerate(phases):
-
-        
         print "Plotting phase {} ...".format(phase)
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
@@ -133,57 +94,16 @@ def main(title, info_dict):
         
         ref_wave = ref[1].wave
         ref_flux = ref[1].flux
-        ref_var = ref[1].error    # 11fe variance.
         
         ref_interp = interp1d(ref_wave, ref_flux)
         red_interp = interp1d(red[1].wave, red[1].flux)
         
+        red_flux = red_interp(ref_wave)
         
-        red_flux = red_interp(ref_wave)  # the type of red_interp is <class 'scipy.interpolate.interpolate.interp1d'>, and not just an array.  It probably behaves as a function. One could also do red_interp_flux = interp1d(red_wave, red[1].flux)(ref_wave) -XH Nov 18, 2014
-        red_interp_var  = interp1d(red[1].wave, red[1].error)(ref_wave)  # 12cu variance.
- 
-        Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
-
-## single wavelength magnitude
-        ref_single_wave_mag = (-2.5*np.log10(ref_flux))
-        red_single_wave_mag = (-2.5*np.log10(red_flux))
-
-
-        #excess_ref = (-2.5*np.log10(np.mean(ref_flux))) - (-2.5*np.log10(ref_flux))  # need to add var's as weights.
-        #excess_red = (-2.5*np.log10(np.mean(red_flux))) - (-2.5*np.log10(red_flux))  # need to add var's as weights.
-
-
-
-        ref_single_V_mag = -2.5*np.log10(ref_interp(V_wave))
-        red_single_V_mag = -2.5*np.log10(red_interp(V_wave))
-
-        ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
-        red_V_mag = -2.5*np.log10(red_interp(V_band_range).mean())  # need to add var's as weights.
-
-# This way seems to give wrong answer.
-#          ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
-#        red_flux_V_mag = -2.5*np.log10(np.average(red_flux[Vband_mask]))
-
-#        color_ref =  ref_single_V_mag - ref_single_wave_mag
-#        color_red =  red_single_V_mag - red_single_wave_mag
-
-        color_ref = ref_V_mag - ref_single_wave_mag
-        color_red = red_V_mag - red_single_wave_mag
-
-
-        print '\n\n\n'
-        print 'single lambda V band for 11fe', ref_single_V_mag
-        print 'V band for 11fe', ref_V_mag
-        print 'single lambda V band for 12cu', red_single_V_mag
-        print 'V band for 12cu', red_V_mag
-
-        print 'ABS(Avg_mag - V_mag for 11fe) - (Avg_mag - V_mag for 12cu)', np.abs(-2.5*np.log10(ref_interp(V_wave)/np.mean(ref_flux)) - -2.5*np.log10(red_interp(V_wave)/np.mean(red_flux)))
+        excess_ref = (-2.5*np.log10(ref_interp(5417.2))) - (-2.5*np.log10(ref_flux))
+        excess_red = (-2.5*np.log10(red_interp(5417.2))) - (-2.5*np.log10(red_flux))
         
-
-        print '\n\n\n'
-        
-        
-        excess = color_red - color_ref
+        excess = excess_red - excess_ref
         
         
         # convert effective wavelengths to inverse microns
@@ -197,10 +117,6 @@ def main(title, info_dict):
         # plot reddening curve
         fm_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
         plt.plot(ref_wave_inv, fm_curve, 'k--')
-        
-        # plot where V band is.
-        plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
-        plt.plot([1e4/V_wave, 1e4/V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
         
         # plot error snake
         x = info_dict['x']
@@ -279,10 +195,7 @@ def main(title, info_dict):
                loc=1, bbox_to_anchor=(0, 0, .97, .99), ncol=2, prop={'size':LEGEND_FONTSIZE})
     
     fig.subplots_adjust(left=0.06, bottom=0.1, right=0.94, top=0.90, wspace=0.2, hspace=0.2)
-    filenm = filter(str.isalnum, title)+'.png' # to get rid of white space and parentheses; and add extension.
-    fig.savefig(filenm)
-
-#plt.show()
+    plt.show()
 
 
 
@@ -291,8 +204,5 @@ if __name__=='__main__':
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
     
-    i = 0
     for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2]):
-        if i > 0: break
         main(t[0], t[1])
-        i += 1

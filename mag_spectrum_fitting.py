@@ -197,7 +197,7 @@ def log(msg=""):
 
 
 
-def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11):
+def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11):
     
 
         '''
@@ -344,7 +344,11 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps=3, rv
                 
                 #################################################
                 
-                u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
+                if u_steps > 1:
+                    u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
+                elif u_steps == 1:
+                    u = np.array([u_guess,])
+
                 x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, ebv_steps)
                 y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, rv_steps)
                 
@@ -465,9 +469,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
     ind_min = np.abs(red_curve).argmin()
     f99wv = np.array([ref_wave[ind_min-1],ref_wave[ind_min],ref_wave[ind_min+1]])
     f99ebv = np.array([red_curve[ind_min-1],red_curve[ind_min],red_curve[ind_min+1]])
-    V_wave = np.interp(0., f99ebv, f99wv)
-    
-    
+    V_wave = np.interp(0., f99ebv, f99wv)  # need to add comment here -- see comment immediately below.  -XH 11/25/14
     #V_wave = 5413.5  # See the comment for the above block of code.
     # AS previously used V_wave = 5417.2
     
@@ -520,24 +522,29 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         
         # plot excess
         plt.plot(ref_wave_inv, excess, '.', color=mfc_color, ms=6, mec='none', mfc=mfc_color, alpha=0.8)
-            
+
+
+
         # plot reddening curve
         fm_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
         fm_curve27 = redden_fm(ref_wave, np.zeros(ref_wave.shape), -1.02*np.ones(best_ebv.shape), 2.7*np.ones(best_rv.shape), return_excess=True)
         plt.plot(ref_wave_inv, fm_curve, 'k--')
         plt.plot(ref_wave_inv, fm_curve27, 'r-')
         
-        # plot where V band is.
+        # plot where V band is.   -XH
         plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
         plt.plot([1e4/V_wave, 1e4/V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
          
-        # plot error snake
+        ## plot error snake
+
+        u = info_dict['u']  # this is the distance dimension of the fitting.
+
         x = info_dict['x']
         y = info_dict['y']
         CHI2 = info_dict['chi2'][i]
         CHI2_reduction = info_dict['chi2_reductions'][i]
         CHI2 /= CHI2_reduction
-        CHI2 = CHI2 - np.min(CHI2)
+        delCHI2 = CHI2 - np.min(CHI2)
          
          #slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
          
@@ -548,14 +555,16 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         # find 1-sigma and 2-sigma errors based on confidence
         maxebv_1sig, minebv_1sig = best_ebv, best_ebv
         maxrv_1sig, minrv_1sig = best_rv, best_rv
-        for e, EBV in enumerate(x):
-            for r, RV in enumerate(y):
-                _chi2 = CHI2[r,e]
-                if _chi2<1.00:
-                    maxebv_1sig = np.maximum(maxebv_1sig, EBV)
-                    minebv_1sig = np.minimum(minebv_1sig, EBV)
-                    maxrv_1sig = np.maximum(maxrv_1sig, RV)
-                    minrv_1sig = np.minimum(minrv_1sig, RV)
+        for i, u in enumerate(u):
+            for e, EBV in enumerate(x):
+                for r, RV in enumerate(y):
+                    del_chi2 = delCHI2[i,r,e]
+                    if del_chi2<1.00:
+                        maxebv_1sig = np.maximum(maxebv_1sig, EBV)
+                        minebv_1sig = np.minimum(minebv_1sig, EBV)
+                        maxrv_1sig = np.maximum(maxrv_1sig, RV)
+                        minrv_1sig = np.minimum(minrv_1sig, RV)
+
 
 
 
@@ -597,12 +606,13 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
 # format figure
         fig.suptitle('{}: Color Excess'.format(title), fontsize=TITLE_FONTSIZE)
     
-        fig.text(0.5, .05, 'Inverse Wavelength ($1 / \mu m$)',
+        fig.text(0.5,
+                 .05, 'Inverse Wavelength ($1 / \mu m$)',
              fontsize=AXIS_LABEL_FONTSIZE, horizontalalignment='center')
          
         p1, = plt.plot(np.array([]), np.array([]), 'k--')
         p2, = plt.plot(np.array([]), np.array([]), 'r-')
-        fig.legend([p1, p2], ['Fitzpatrick-Massa 1999*', 'Power-Law (Goobar 2008)'],
+        fig.legend([p1, p2], ['Fitzpatrick-Massa 1999*', 'F99-RV27'],
                     loc=1, bbox_to_anchor=(0, 0, .97, .99), ncol=2, prop={'size':LEGEND_FONTSIZE})
          
         fig.subplots_adjust(left=0.06, bottom=0.1, right=0.94, top=0.90, wspace=0.2, hspace=0.2)
@@ -628,19 +638,19 @@ if __name__=="__main__":
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    obs_SN = art_reddened_11fe
-    #obs_SN = obs_12cu
+    #obs_SN = art_reddened_11fe
+    obs_SN = obs_12cu
     #
     ########################
 
 
-    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_steps = 5, rv_steps = 11, ebv_steps = 11)
+    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps = 61, rv_guess=2.8, rv_pad=0.5, rv_steps=101, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 101)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
-#    i = 0
-#    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
-#        if i > 0: break   # this is to not plot the unblocked fit.
-#        plot_excess(t[0], t[1], pristine_11fe, obs_SN)
-#        i += 1
+    i = 0
+    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
+        if i > 0: break   # this is to not plot the unblocked fit.
+        plot_excess(t[0], t[1], pristine_11fe, obs_SN)
+        i += 1
 
