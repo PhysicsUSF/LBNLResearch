@@ -644,7 +644,7 @@ if __name__=="__main__":
     ########################
 
 
-    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 15, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11)
+    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 11, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
