@@ -2,16 +2,26 @@
 ::Author::
 Andrew Stocker
 
+::Modified by:
+Xiaosheng Huang
+
+
 ::Description::
 Loader module for 2012cu and 2011fe spectra, 2014j photometry, Pereira (2013) tophat
 UBVRI filters, and the Fitzpatrick-Massa (1999) and Goobar (2008) extinction laws.  The
 extinction laws are modified to artificially apply reddening.
 
 ::Last Modified::
-07/22/2014
+11/25/2014
 
 ::Notes::
 Source for A_lambda values for 2012cu -> http://ned.ipac.caltech.edu/forms/byname.html
+
+About var vs. error: spectrum objects are created with sncosmo.Spectrum(). The third attribute name is unfortunately set as "error".  The only way to access it is 
+SN2012CU[i][1].error, where i is an item in the list SN2012CU.  One cannot use "var" even if the quantity is actually variance and not error.  For the Factory data,
+as much as possible, I have used var, except when the object is being put together at the end for each SN.  This is true in mag_spectrum_fitting.py -- when one tries
+to extract the variance, one unfortunately has to use xxxx.error.    -XH 11/25/14
+
 
 '''
 import numpy as np
@@ -253,7 +263,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
     SN2012CU = []
     
     # this is an estimation of the calibration error, since its not in the fits file
-    FLXERROR = 0.02
+    FLXERROR = 0.02   # If we treat this as fractional flux error of 2% then it needs to be converted to mag.  -XH 11/25/14
 
     # get fits files from 12cu data folder (exclude .yaml file)
     FILES = [f for f in os.listdir( dirname + '/data/SNF-0201-INCR01a-2012cu' ) if f[-4:]!='yaml']
@@ -275,7 +285,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         phase = round(MJD - BMAX, 1)  # convert to phase by subtracting date of BMAX
 
         flux = pf[0].data  # this is the flux data
-        err  = pf[1].data
+        var  = pf[1].data
         
         CRVAL1 = header['CRVAL1']  # this is the starting wavelength of the spectrum
         CDELT1 = header['CDELT1']  # this is the wavelength incrememnet per pixel
@@ -285,19 +295,19 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         if not _12CU.has_key(phase):
             _12CU[phase] = []
             
-        _12CU[phase].append({'wave': wave, 'flux': flux, 'err': err})
+        _12CU[phase].append({'wave': wave, 'flux': flux, 'var': var})
 
 
     # concatenate spectra at same phases
     for phase, dict_list in _12CU.items():
         wave_concat = np.array([])
         flux_concat = np.array([])
-        err_concat  = np.array([])
+        var_concat  = np.array([])
 
         for d in dict_list:
             wave_concat = np.concatenate( (wave_concat, d['wave']) )
             flux_concat = np.concatenate( (flux_concat, d['flux']) )
-            err_concat  = np.concatenate( (err_concat,  d['err'])  )
+            var_concat  = np.concatenate( (var_concat,  d['var'])  )
 
         # sort wavelength array and flux array ordered by wavelength
         #   argsort() docs with helpful examples ->
@@ -305,17 +315,17 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
         I = wave_concat.argsort()
         wave_concat = wave_concat[I]
         flux_concat = flux_concat[I]
-        err_concat  = err_concat[I]
+        var_concat  = var_concat[I]
         
         # remove duplicate wavelengths
         mask = np.unique(wave_concat, return_index=True)[1]
         
         wave_concat = wave_concat[mask]
         flux_concat = flux_concat[mask]
-        err_concat  = err_concat[mask]
+        var_concat  = var_concat[mask]
         
         # make into Spectrum object and add to list with phase data
-        SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat, err_concat), FLXERROR) )
+        SN2012CU.append( (phase, snc.Spectrum(wave_concat, flux_concat, var_concat), FLXERROR) )
         ## spectrum objects are created with snc.Spectrum(). The third attribute name is unfortunately set as "error".  The only way to access it is SN2012CU[i][1].error, where
         ## i an item in the list SN2012CU.  One cannot use "var" even if the quantity is actually variance and not error.  -XH.
 
@@ -327,7 +337,8 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
     elif redtype=='fm':
         if ebv!=None and rv!=None:
             return [(t[0], snc.Spectrum(t[1].wave, redden_fm(t[1].wave, t[1].flux, ebv, rv), t[1].error), FLXERROR)
-                    for t in SN2012CU]  ## about t[1].error, see comment above for the line SN2012CU.append().
+                    for t in SN2012CU]  ## about t[1].error, see comment above for the line SN2012CU.append().  And this is true in mag_spectrum_fitting.py -- when one tries
+                                        ## to read out the variance, one unfortunately has to use xxx.error.    -XH 11/25/14
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
@@ -350,8 +361,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
 ##### LOAD SN2011FE SPECTRA ####################################################
 
 
-def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
-             loadptf=False, loadsnf=True, loadmast=False):
+def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, noiz=0.0,loadptf=False, loadsnf=True, loadmast=False):
     '''
     ::IMPORTANT NOTE::
     Not fixed yet: ptf and possibly mast give error and not variance, need to determine
@@ -383,21 +393,23 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
             pf = pyfits.open(filename)
             header = pf[0].header
             
-            FLXERROR = header['FLXERROR']/(2.5/np.log(10))  # convert from mag to flux uncertainty
+            FLXERROR = header['FLXERROR']    # AS put this here: /(2.5/np.log(10))  # convert from mag to flux uncertainty
+                                             # But it's not needed.  We would would calib uncertainty in mag.   -XH 11/25/14
             CRVAL1 = header['CRVAL1'] # coordinate start value
             CDELT1 = header['CDELT1'] # coordinate increment per pixel
             TMAX   = header['TMAX']   # phase in days relative to B-band maximum
             
             phase = float(TMAX)
+        
             flux = pf[0].data
-            err  = pf[1].data
+            var  = pf[1].data
             wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
             
             SN2011FE.append({
                             'phase': phase,
                             'wave' : wave,
                             'flux' : flux,
-                            'err'  : err,
+                            'var'  : var,
                             'cerr' : FLXERROR,
                             'set'  : 'SNF'
                             })
@@ -484,6 +496,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
             mjd = float(F[9:15])/10  # get mjd from filename
             phase = round(mjd-55814.51, 2)
             
+            
             wave, flux, err = A[:,0], A[:,1], A[:,2]
 
             SN2011FE.append({
@@ -499,13 +512,21 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
     # sort list of dictionaries by phase
     SN2011FE = sorted([e for e in SN2011FE], key=lambda e: e['phase'])
 
+
+
     # return list of reddened spectra
+
+    ## NOTE: below I have added artificial distance modulus to the flux.
+    
+    
+    noise_dist_fac = (1 + noiz*np.random.randn(SN2011FE[0]['flux'].shape[0])) * 10**(-0.4*del_mu)
+
     if redtype==None:
-        return [(D['phase'], snc.Spectrum(D['wave'], D['flux'], D['err']), D['cerr'], D['set']) for D in SN2011FE]
+        return [(D['phase'], snc.Spectrum(D['wave'], D['flux']*noise_dist_fac, D['var']), D['cerr'], D['set']) for D in SN2011FE]
         
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv), D['err']), D['cerr'], D['set'])
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*noise_dist_fac, D['var']), D['cerr'], D['set'])
                     for D in SN2011FE]
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
@@ -513,7 +534,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None,
             
     elif redtype=='pl':
         if av!=None and p!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p), D['err']), D['cerr'], D['set'])
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)*noise_dist_fac, D['var']), D['cerr'], D['set'])
                     for D in SN2011FE]
         else:
             msg = 'Goobar Power-Law Reddeing: Invalid values for [av] and/or [p]'
