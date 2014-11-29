@@ -52,8 +52,21 @@ TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
-V_wave = 5413.5  # see my mag_spectrum_plot_excess.py
+V_wave = 5413.5 
+## ind_min = np.abs(red_curve).argmin()
+## f99wv = np.array([ref_wave[ind_min-1],ref_wave[ind_min],ref_wave[ind_min+1]])
+## f99ebv = np.array([red_curve[ind_min-1],red_curve[ind_min],red_curve[ind_min+1]])
+## V_wave = np.interp(0., f99ebv, f99wv).  To figure out the wavelength of the "zero" of the F99 law.  Using different phases, the value varies a bit (my estimate: 5413.5+/-0.1).
+## Haven't looked at this too closely.  But probably because of numerical error, such as during the interpolation process.  It's interesting
+## that, reading through the fm_unred.py, which AS and ZR have adopted, it's not obvious what this value should be.
+## Here I have arbitrarily chosen the first phase to infer what this wavelength should be.  -XH 11/18/14
+## AS previously used V_wave = 5417.2
+
+
 FrFlx2mag = 2.5/np.log(10)  #  =1.0857362
+
+def ABmag(flux_per_Hz):
+    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.
 
 
 def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
@@ -71,7 +84,9 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     ## pristine_11fe
     #ref_wave = ref[1].wave
 
+
     SN_flux = SN[1].flux
+
     var = SN[1].error
 
     if (SN_flux <= 0).any():
@@ -86,7 +101,12 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     flux_interp = interp1d(SN[1].wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
                                                  # think of the two arrays supplied as the "training set".  So flux_interp() is a function.
 
-    flux = flux_interp(ref_wave)
+    ## This is flux per frequency -- in order to calculate the AB magnitude -- see Bessell & Murphy eq 2 and eq A1; O'Donnell Astro 511 Lec 14.
+    ## It doesn't seem to make any difference in terms of determining RV but it is the right way of doing things.  Magnitudes and colors calculated
+    ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
+    ## Does F99 assume a certain magnitude system?
+    flux = flux_interp(ref_wave)#*(ref_wave**2)
+    #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
     var = interp1d(SN[1].wave, var)(ref_wave)
 
@@ -97,12 +117,13 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
                 
     calib_err_mag = SN[2]
 
-
-#    ref_interp = interp1d(ref_wave, ref_flux)   # What does this accomplish?  -XH 11/25/14
-    
     ## convert flux, variance, and calibration error to magnitude space
-    
-    mag_norm, mag_var = flux2mag(flux, flux_interp, var, norm_meth = norm_meth)
+
+#    mag_avg_flux = ABmag(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
+                                            # Note it's not the avg mag but the mag of the avg flux.
+#    mag_single_V = ABmag(flux_single_V)
+
+    mag_norm, mag_var, mag_avg_flux, mag_single_V = flux2mag(flux, ref_wave, var, norm_meth = norm_meth)
     
     
     if mask != None:
@@ -117,19 +138,22 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, mag_var, calib_err_mag, nanmask, flux
+    return mag_norm, mag_avg_flux, mag_single_V, mag_var, calib_err_mag, nanmask, flux
 
 
-def flux2mag(flux, flux_interp=None, var=None, norm_meth = 'AVG'):
+def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
     mag_var = None
     
-    mag = -2.5*np.log10(flux)
-    
+    mag = ABmag(flux)
+    mag_avg_flux = ABmag(np.average(flux))   # see Bessell & Murphy 2012 eq 2.
+    mag_single_V = ABmag(flux[np.argmin(np.abs(ref_wave - V_wave))])
+
+
     if norm_meth == 'AVG':
-        mag_zp = -2.5*np.log10(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
-                                                  # Note it's not the avg mag but the mag of the avg flux.
+        mag_zp = mag_avg_flux
+    
     elif norm_meth == 'single_V':
-        mag_zp = -2.5*np.log10(flux_interp(V_wave))
+        mag_zp = mag_single_V
 
     mag_norm = -(mag - mag_zp)  # the minus sign is because we will plot E(V-X)
 
@@ -139,10 +163,14 @@ def flux2mag(flux, flux_interp=None, var=None, norm_meth = 'AVG'):
         mag_var = (FrFlx2mag*fr_err)**2
 
 
-    results = tuple([r for r in (mag_norm, mag_var) if type(r)!=type(None)])
+    if type(var)!=type(None):
+        results = (mag_norm, mag_var, mag_avg_flux, mag_single_V)
+    else:
+        results = (mag_norm, mag_avg_flux, mag_single_V)
+                              
 
-    return (results, results[0])[len(results)==1]  # the purpose of this statement is that if only results[0] needs to be returned then that will happen.
-
+    return results                                                    # the purpose of this statement is that if only results[0] needs to be returned then that will happen.
+                                                                      # After the + sign: to concatenate two tuples.
 
 def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
     snake_hi_1sig = deepcopy(init)
@@ -270,9 +298,14 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         best_rvs = []
         best_ebvs = []
         best_avs = []
-        chi2s = []
+        chi2dofs = []
         min_chi2s = []
-        chi2_reductions = []
+        
+        ebv_uncert_uppers = []
+        ebv_uncert_lowers = []
+        rv_uncert_uppers = []
+        rv_uncert_lowers = []
+        
         
         #V_band = [(5300., 5500., 'Vband')]
 
@@ -287,7 +320,19 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 print '\n\n\n Phase_index', phase_index, '\n\n\n'
             
                 ref = pristine_11fe[phase_index]
-                ref_wave = ref[1].wave
+                ref_wave = ref[1].wave  ## I have determined that ref_wave is equally spaced at 2A.
+
+#                ref_wave_R = ref_wave[1:]
+#                ref_wave_L = ref_wave[:-1]
+#                ref_wave_del = ref_wave_R - ref_wave_L
+#                print ref_wave_R
+#                print ref_wave_L
+#                print np.max(ref_wave_del), np.min(ref_wave_del), np.mean(ref_wave_del)
+#                plt.plot(ref_wave_L, ref_wave_del, 'k.')
+#                #plt.ylim([-1., 5.])
+#                plt.show()
+#                exit(1)   ## This determined ref_wave are equally spaced at 2A.
+
 
                 obs = obs_SN[phase_index]
 
@@ -296,7 +341,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
 
-                ref_mag_norm, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = 'AVG')
+                ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = 'AVG')
 
 #                        print 'ref_mag_norm', len(ref_mag_norm)
 #                        print 'ref_wave', len(ref_wave)
@@ -312,8 +357,14 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
 
                 ## 12cu/reddened 11fe
 
-                obs_mag_norm, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = 'AVG')
+                obs_mag_norm, obs_mag_avg_flux, obs_mag_single_V, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = 'AVG')
 
+
+                ## estimated of distance modulus
+                del_mag_avg = obs_mag_avg_flux - ref_mag_avg_flux
+                del_single_V_mag = obs_mag_single_V - ref_mag_single_V
+                print '\n\n\n difference in magnitudes of average flux:', del_mag_avg
+                print ' difference in single-wavelength V magnitudes:', del_single_V_mag, '\n\n\n'
 
                 ## Total Variance.
                 var = ref_mag_var[mask] + obs_mag_var[mask]
@@ -339,8 +390,8 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 
                 
                 ## for calculation of CHI2 per dof
-                CHI2_reduction = np.sum(nanmask) - 2  # (num. data points)-(num. parameters)
-                log( "CHI2 reduction: {}".format(CHI2_reduction) )
+                dof = np.sum(nanmask) - 2  # (num. data points)-(num. parameters)
+                log( "dof: {}".format(dof) )
                 
                 #################################################
                 
@@ -362,7 +413,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                                 
                                 # unredden the reddened spectrum, convert to mag
                                 unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
-                                unred_mag_norm = flux2mag(unred_flux, norm_meth = 'AVG')
+                                unred_mag_norm, unred_mag_avg_flux, unred_mag_single_V = flux2mag(unred_flux, ref_wave, norm_meth = 'AVG')
                                 ## I should implement a better way to use mask -- right now, there is a lot of reptition that is unnecessary.
                               
                                 
@@ -383,40 +434,99 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                                 CHI2[i, j, k] = np.sum(delta*delta/var)
 
 
-
+                CHI2_dof = CHI2/dof
+                CHI2_dof_min = np.min(CHI2_dof)
+                log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
+                delCHI2_dof = CHI2_dof - CHI2_dof_min
+                
+                #slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
+                
+                # plot power law reddening curve
+                #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+                #plt.plot(ref_wave_inv, pl_red_curve, 'r-')
+                
+                # find 1-sigma and 2-sigma errors based on confidence
 
                 ### report/save results
                 
                 #print 'CHI2', CHI2
                 
-                chi2_min = np.min(CHI2)
-                log( "min chi2: {}".format(chi2_min) )
-                
-                mindex = np.where(CHI2==chi2_min)   # can try use argmin() here.  -XH
-                
+                mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
+                print 'mindex', mindex
+
                 # basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
                 mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
                 print 'mindex', mindex
                 print 'mu, mx, my', mu, mx, my
-                print 'best_u, best_rv, best_ebv', u[mu], x[mx], y[my]
-               
-               
-               #exit(1)
+                best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
+                print 'best_u, best_rv, best_ebv', best_u, best_rv, best_ebv
+                ## estimate of distance modulus
+                best_av = best_rv*best_ebv
+
+                print 'delCHI2_dof', delCHI2_dof
+
                 
+                maxebv_1sig, minebv_1sig = best_ebv, best_ebv
+                maxrv_1sig, minrv_1sig = best_rv, best_rv
+                print 'Before for loops: maxebv_1sig, maxrv_1sig', maxebv_1sig, maxrv_1sig
+                for i, dist in enumerate(u):
+                    for e, EBV in enumerate(x):
+                        #print '\n\nEBV', EBV
+                        for r, RV in enumerate(y):
+                            #print 'RV', RV
+                            if delCHI2_dof[i, e, r] < 1.0:
+                                #print 'Before - EBV, maxebv_1sig', EBV, maxebv_1sig
+                                maxebv_1sig = np.maximum(maxebv_1sig, EBV)
+                                #print 'After - EBV, maxebv_1sig', EBV, maxebv_1sig
+                                minebv_1sig = np.minimum(minebv_1sig, EBV)
+                                maxrv_1sig = np.maximum(maxrv_1sig, RV)
+                                minrv_1sig = np.minimum(minrv_1sig, RV)
+                                #print 'delCHI2_dof', delCHI2_dof[i, e, r]
+                                #print 'maxrv_1sig:', maxrv_1sig
+                                #print 'maxebv_1sig:', maxebv_1sig, '\n\n'
+
+
+
+                print 'best_ebv, best_rv', best_ebv, best_rv
+                print 'maxebv_1sig, minebv_1sig, maxrv_1sig, minrv_1sig', maxebv_1sig, minebv_1sig, maxrv_1sig, minrv_1sig
+            
+                
+                ebv_uncert_upper = maxebv_1sig - best_ebv
+                ebv_uncert_lower = best_ebv - minebv_1sig
+                rv_uncert_upper = maxrv_1sig - best_rv
+                rv_uncert_lower = best_rv - minrv_1sig
+                
+                print 'ebv_uncert_upper, ebv_uncert_lower', ebv_uncert_upper, ebv_uncert_lower
+                print 'rv_uncert_upper, rv_uncert_lower', rv_uncert_upper, rv_uncert_upper
+
+                
+                
+                
+                print '\n\n\n rough estimate of distance modulus:', del_single_V_mag - best_av, '\n\n\n'
+
+               
+               
                 log( "\t {}".format(mindex) )
-                log( "\t u={} RV={} EBV={} AV={}".format(u[mu], y[my], x[mx], x[mx]*y[my]) )
+                log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
                 
-                chi2s.append(CHI2)
-                chi2_reductions.append(CHI2_reduction)
-                min_chi2s.append(chi2_min)
-                best_us.append(u[mu])
-                best_rvs.append(y[my])
-                best_ebvs.append(x[mx])
-                best_avs.append(x[mx]*y[my])
+                chi2dofs.append(CHI2_dof)
+                #chi2_reductions.append(CHI2_dof)
+                min_chi2s.append(CHI2_dof_min)
+                best_us.append(best_u)
+                best_rvs.append(best_rv)
+                best_ebvs.append(best_ebv)
+                best_avs.append(best_av)
+                
+                ebv_uncert_uppers.append(ebv_uncert_upper)
+                ebv_uncert_lowers.append(ebv_uncert_lower)
+                rv_uncert_uppers.append(rv_uncert_upper)
+                rv_uncert_lowers.append(rv_uncert_lower)
+
 
 #        return best_rvs, best_ebvs
 
-        pprint( zip(phases, best_rvs, best_ebvs, best_avs, min_chi2s) )
+
+        pprint( zip(phases, best_rvs, rv_uncert_uppers, rv_uncert_lowers, best_ebvs, ebv_uncert_uppers, ebv_uncert_lowers, best_avs, min_chi2s) )
                 
         ## save results with date
         #                filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
@@ -428,8 +538,9 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
 #                        open(filename, 'wb'))
 
         cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
-                     'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
-                     'u': u, 'x': x, 'y': y}, open(filename, 'wb'))
+                     'chi2dof': chi2dofs, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
+                     'u': u, 'x': x, 'y': y, 'ebv_uncert_upper': ebv_uncert_uppers, 'ebv_uncert_lower': ebv_uncert_lowers, \
+                     'rv_uncert_upper': rv_uncert_uppers,'rv_uncert_lower': rv_uncert_lowers}, open(filename, 'wb'))
         
         log( "Results successfully saved in: {}".format(filename) )
 
@@ -457,25 +568,19 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     pmin, pmax = np.min(phases), np.max(phases)
     
-    
-    ## To figure out the wavelength of the "zero" of the F99 law.  Using different phases, the value varies a bit (my estimate: 5413.5+/-0.1).
-    ## Haven't looked at this too closely.  But probably because of numerical error, such as during the interpolation process.  It's interesting
-    ## that, reading through the fm_unred.py, which AS and ZR have adopted, it's not obvious what this value should be.
-    ## Here I have arbitrarily chosen the first phase to infer what this wavelength should be.  -XH 11/18/14
     best_ebv = info_dict['ebv'][0]
     best_rv  = info_dict['rv'][0]
+    ebv_uncert_upper = info_dict['ebv_uncert_upper'][0]
+    ebv_uncert_lower = info_dict['ebv_uncert_lower'][0]
+    rv_uncert_upper = info_dict['rv_uncert_upper'][0]
+    rv_uncert_lower = info_dict['rv_uncert_lower'][0]
+
     ref_wave = pristine_11fe[0][1].wave
     red_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-    ind_min = np.abs(red_curve).argmin()
-    f99wv = np.array([ref_wave[ind_min-1],ref_wave[ind_min],ref_wave[ind_min+1]])
-    f99ebv = np.array([red_curve[ind_min-1],red_curve[ind_min],red_curve[ind_min+1]])
-    V_wave = np.interp(0., f99ebv, f99wv)  # need to add comment here -- see comment immediately below.  -XH 11/25/14
-    #V_wave = 5413.5  # See the comment for the above block of code.
-    # AS previously used V_wave = 5417.2
+   
     
-    
-    
-    
+
+    exit(1)
     for i, phase in enumerate(phases):
         
         
@@ -489,6 +594,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         best_rv  = info_dict['rv'][i]
         
         ref_wave = ref[1].wave
+        
 
         color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
         color_obs = extract_wave_flux_var(ref_wave, obs, norm_meth = 'single_V')[0]
@@ -537,43 +643,14 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
          
         ## plot error snake
 
-        u = info_dict['u']  # this is the distance dimension of the fitting.
-
-        x = info_dict['x']
-        y = info_dict['y']
-        CHI2 = info_dict['chi2'][i]
-        CHI2_reduction = info_dict['chi2_reductions'][i]
-        CHI2 /= CHI2_reduction
-        delCHI2 = CHI2 - np.min(CHI2)
-         
-         #slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
-         
-        # plot power law reddening curve
-        #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-        #plt.plot(ref_wave_inv, pl_red_curve, 'r-')
-         
-        # find 1-sigma and 2-sigma errors based on confidence
-        maxebv_1sig, minebv_1sig = best_ebv, best_ebv
-        maxrv_1sig, minrv_1sig = best_rv, best_rv
-        for i, u in enumerate(u):
-            for e, EBV in enumerate(x):
-                for r, RV in enumerate(y):
-                    del_chi2 = delCHI2[i,r,e]
-                    if del_chi2<1.00:
-                        maxebv_1sig = np.maximum(maxebv_1sig, EBV)
-                        minebv_1sig = np.minimum(minebv_1sig, EBV)
-                        maxrv_1sig = np.maximum(maxrv_1sig, RV)
-                        minrv_1sig = np.minimum(minrv_1sig, RV)
-
-
 
 
 ### FORMAT SUBPLOT ###
 
 # print data on subplot
         plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-        plttext = plttext.format(best_ebv, maxebv_1sig-best_ebv, best_ebv-minebv_1sig,
-                                 best_rv, maxrv_1sig-best_rv, best_rv-minrv_1sig
+        plttext = plttext.format(best_ebv, ebv_uncert_upper, ebv_uncert_lower,
+                                 best_rv, rv_uncert_upper, rv_uncert_lower
                                  )
             
         ax.text(.95, .98, plttext, size=INPLOT_LEGEND_FONTSIZE,
@@ -631,7 +708,7 @@ if __name__=="__main__":
         
         
     pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, loadmast=False, loadptf=False))
+    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, del_mu=0.5, noiz=0.0, loadmast=False, loadptf=False))
     
         
     ########################
@@ -644,7 +721,7 @@ if __name__=="__main__":
     ########################
 
 
-    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 11, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11)
+    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 1, rv_guess=2.8, rv_pad=1., rv_steps=21, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 21)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
