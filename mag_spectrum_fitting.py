@@ -169,34 +169,37 @@ def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
         results = (mag_norm, mag_avg_flux, mag_single_V)
                               
 
-    return results                                                    # the purpose of this statement is that if only results[0] needs to be returned then that will happen.
-                                                                      # After the + sign: to concatenate two tuples.
+    return results
 
-def plot_snake(ax, rng, init, red_law, x, y, CHI2, plot2sig=False):
-    snake_hi_1sig = deepcopy(init)
-    snake_lo_1sig = deepcopy(init)
-    if plot2sig:
-        snake_hi_2sig = deepcopy(init)
-        snake_lo_2sig = deepcopy(init)
+
+def plot_snake(ax, ref_wave, best_fit_curve, red_law, ebvs, rvs, CHI2, plot2sig=False):
     
-    for i, EBV in enumerate(x):
-        for j, RV in enumerate(y):
-            _chi2 = CHI2[j,i]
+    snake_hi_1sig = deepcopy(best_fit_curve)
+    snake_lo_1sig = deepcopy(best_fit_curve)
+
+    if plot2sig:
+        snake_hi_2sig = deepcopy(best_fit_curve)
+        snake_lo_2sig = deepcopy(best_fit_curve)
+    
+    for i, EBV in enumerate(ebvs):
+        for j, RV in enumerate(rvs):
+            _chi2 = CHI2[j,i]   ## it's trying to find the outmost contour of all excess curves with delta-chi2 < 1
+                                ## I think there might be a matplotlib way of doing that.  -XH
             if _chi2<1.00:
-                red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
-                ind_min = np.abs(red_curve).argmin()
-                snake_hi_1sig = np.maximum(snake_hi_1sig, red_curve)
-                snake_lo_1sig = np.minimum(snake_lo_1sig, red_curve)
+                redden_curve = red_law(ref_wave, np.zeros(ref_wave.shape), -EBV, RV, return_excess=True)
+                #ind_min = np.abs(redden_curve).argmin()
+                snake_hi_1sig = np.maximum(snake_hi_1sig, redden_curve)  # the result is the higher values from either array is picked.
+                snake_lo_1sig = np.minimum(snake_lo_1sig, redden_curve)
             elif plot2sig and _chi2<4.00:
-                red_curve = red_law(rng, np.zeros(rng.shape), -EBV, RV, return_excess=True)
+                red_curve = red_law(rng, np.zeros(ref_wave.shape), -EBV, RV, return_excess=True)
                 snake_hi_2sig = np.maximum(snake_hi_2sig, red_curve)
                 snake_lo_2sig = np.minimum(snake_lo_2sig, red_curve)
     
-    ax.fill_between(10000./rng, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.3)
+    ax.fill_between(10000./ref_wave, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.3)
     if plot2sig:
         ax.fill_between(10000./rng, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.1)
     
-    return interp1d(rng, snake_lo_1sig), interp1d(rng, snake_hi_1sig)
+    return interp1d(ref_wave, snake_lo_1sig), interp1d(ref_wave, snake_hi_1sig)
 
 
 
@@ -439,7 +442,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
                 delCHI2_dof = CHI2_dof - CHI2_dof_min
                 
-                #slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, CHI2)
                 
                 # plot power law reddening curve
                 #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
@@ -568,19 +570,15 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     pmin, pmax = np.min(phases), np.max(phases)
     
-    best_ebv = info_dict['ebv'][0]
-    best_rv  = info_dict['rv'][0]
-    ebv_uncert_upper = info_dict['ebv_uncert_upper'][0]
-    ebv_uncert_lower = info_dict['ebv_uncert_lower'][0]
-    rv_uncert_upper = info_dict['rv_uncert_upper'][0]
-    rv_uncert_lower = info_dict['rv_uncert_lower'][0]
+#    best_ebv = info_dict['ebv'][0]
+#    best_rv  = info_dict['rv'][0]
+
 
     ref_wave = pristine_11fe[0][1].wave
-    red_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
    
-    
+   
+#exit(1)
 
-    exit(1)
     for i, phase in enumerate(phases):
         
         
@@ -590,10 +588,8 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         ref = pristine_11fe[i]
         obs = obs_SN[i]
         
-        best_ebv = info_dict['ebv'][i]
-        best_rv  = info_dict['rv'][i]
-        
-        ref_wave = ref[1].wave
+
+#ref_wave = ref[1].wave
         
 
         color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
@@ -623,20 +619,69 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         
         
         # convert effective wavelengths to inverse microns
+        
+
+
+
+        best_ebv = info_dict['ebv'][i]
+        best_rv  = info_dict['rv'][i]
+        x = info_dict['x']
+        y = info_dict['y']
+        #        print len(chi2dof)
+# print chi2dof[0].shape
+
         ref_wave_inv = 10000./ref_wave
         mfc_color = plt.cm.cool(5./11)
         
-        # plot excess
+        ## plot excess (this is the data)
         plt.plot(ref_wave_inv, excess, '.', color=mfc_color, ms=6, mec='none', mfc=mfc_color, alpha=0.8)
 
 
 
         # plot reddening curve
         fm_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+        ## RV = 2.7, EBV = 1.02 reddenging curve.
         fm_curve27 = redden_fm(ref_wave, np.zeros(ref_wave.shape), -1.02*np.ones(best_ebv.shape), 2.7*np.ones(best_rv.shape), return_excess=True)
-        plt.plot(ref_wave_inv, fm_curve, 'k--')
         plt.plot(ref_wave_inv, fm_curve27, 'r-')
+
+
+        plt.plot(ref_wave_inv, fm_curve, 'k--')
         
+        # plot error snake
+        x = info_dict['x']
+        y = info_dict['y']
+        chi2dof = info_dict['chi2dof'][i]
+
+#        CHI2 = info_dict['chi2'][i]
+#        CHI2_reduction = info_dict['chi2_reductions'][i]
+#        CHI2 /= CHI2_reduction
+#        CHI2 = CHI2 - np.min(CHI2)
+
+        slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, chi2dof[0])
+        #plt.show()
+        #exit(1)
+
+
+
+
+
+
+
+#red_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+        #    exit(1)
+        
+        #print 'x.shape', x.shape
+        #print 'y.shape', y.shape
+        #print 'chi2dof[0].shape', chi2dof[0].shape
+        #exit(1)
+        
+        #        slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, chi2dof[0])
+
+
+
+#plt.plot(ref_wave_inv, fm_curve, 'k--')
+
+
         # plot where V band is.   -XH
         plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
         plt.plot([1e4/V_wave, 1e4/V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
@@ -648,6 +693,12 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
 ### FORMAT SUBPLOT ###
 
 # print data on subplot
+
+        ebv_uncert_upper = info_dict['ebv_uncert_upper'][i]
+        ebv_uncert_lower = info_dict['ebv_uncert_lower'][i]
+        rv_uncert_upper = info_dict['rv_uncert_upper'][i]
+        rv_uncert_lower = info_dict['rv_uncert_lower'][i]
+
         plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
         plttext = plttext.format(best_ebv, ebv_uncert_upper, ebv_uncert_lower,
                                  best_rv, rv_uncert_upper, rv_uncert_lower
@@ -715,13 +766,13 @@ if __name__=="__main__":
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    #obs_SN = art_reddened_11fe
-    obs_SN = obs_12cu
+    obs_SN = art_reddened_11fe
+    #obs_SN = obs_12cu
     #
     ########################
 
 
-    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 1, rv_guess=2.8, rv_pad=1., rv_steps=21, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 21)
+    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 1, rv_guess=2.8, rv_pad=1., rv_steps=41, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 41)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
