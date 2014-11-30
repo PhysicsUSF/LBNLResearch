@@ -360,20 +360,25 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 # create temp version of C_total_inv without rows/columns corresponding to nan-values
                 var = var[nanmask]
 
+
+                ## Determine whether 2D or 3D fit.
+                if u_steps > 1:
+                    u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
+                    param_num = 3
+                elif u_steps == 1:
+                    u = np.array([u_guess,])
+                    param_num = 2
+
+
                 #################################################
                 
-                
-                
                 ## for calculation of CHI2 per dof
-                dof = np.sum(nanmask) - 2  # (num. data points)-(num. parameters)
+                dof = np.sum(nanmask) - param_num  # (num. data points)-(num. parameters)
                 log( "dof: {}".format(dof) )
                 
                 #################################################
                 
-                if u_steps > 1:
-                    u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
-                elif u_steps == 1:
-                    u = np.array([u_guess,])
+
 
                 x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, ebv_steps)
                 y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, rv_steps)
@@ -744,7 +749,7 @@ if __name__=="__main__":
     ########################
 
 
-    snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 1, rv_guess=2.8, rv_pad=1., rv_steps=41, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 51)
+    snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 3, rv_guess=2.8, rv_pad=1., rv_steps=41, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 51)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
