@@ -172,37 +172,6 @@ def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
     return results
 
 
-def plot_snake(ax, ref_wave, best_fit_curve, red_law, ebvs, rvs, CHI2, plot2sig=False):
-    
-    snake_hi_1sig = deepcopy(best_fit_curve)
-    snake_lo_1sig = deepcopy(best_fit_curve)
-
-    if plot2sig:
-        snake_hi_2sig = deepcopy(best_fit_curve)
-        snake_lo_2sig = deepcopy(best_fit_curve)
-    
-    for i, EBV in enumerate(ebvs):
-        for j, RV in enumerate(rvs):
-            _chi2 = CHI2[j,i]   ## it's trying to find the outmost contour of all excess curves with delta-chi2 < 1
-                                ## I think there might be a matplotlib way of doing that.  -XH
-            if _chi2<1.00:
-                redden_curve = red_law(ref_wave, np.zeros(ref_wave.shape), -EBV, RV, return_excess=True)
-                #ind_min = np.abs(redden_curve).argmin()
-                snake_hi_1sig = np.maximum(snake_hi_1sig, redden_curve)  # the result is the higher values from either array is picked.
-                snake_lo_1sig = np.minimum(snake_lo_1sig, redden_curve)
-            elif plot2sig and _chi2<4.00:
-                red_curve = red_law(rng, np.zeros(ref_wave.shape), -EBV, RV, return_excess=True)
-                snake_hi_2sig = np.maximum(snake_hi_2sig, red_curve)
-                snake_lo_2sig = np.minimum(snake_lo_2sig, red_curve)
-    
-    ax.fill_between(10000./ref_wave, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.3)
-    if plot2sig:
-        ax.fill_between(10000./rng, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.1)
-    
-    return interp1d(ref_wave, snake_lo_1sig), interp1d(ref_wave, snake_hi_1sig)
-
-
-
 def filter_features(features, wave):
         '''Returns a mask of boolean values the same size as
         the wave array.  True=wavelength not in features, False=wavelength
@@ -308,6 +277,9 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         ebv_uncert_lowers = []
         rv_uncert_uppers = []
         rv_uncert_lowers = []
+        
+        snake_hi_1sigs = []
+        snake_lo_1sigs = []
         
         
         #V_band = [(5300., 5500., 'Vband')]
@@ -447,7 +419,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
                 #plt.plot(ref_wave_inv, pl_red_curve, 'r-')
                 
-                # find 1-sigma and 2-sigma errors based on confidence
+                ##*********************************** find 1-sigma and 2-sigma errors based on confidence **************************************
 
                 ### report/save results
                 
@@ -467,26 +439,33 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
 
                 print 'delCHI2_dof', delCHI2_dof
 
-                
+
+                best_fit_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+                snake_hi_1sig = deepcopy(best_fit_curve)
+                snake_lo_1sig = deepcopy(best_fit_curve)
+
                 maxebv_1sig, minebv_1sig = best_ebv, best_ebv
                 maxrv_1sig, minrv_1sig = best_rv, best_rv
-                print 'Before for loops: maxebv_1sig, maxrv_1sig', maxebv_1sig, maxrv_1sig
                 for i, dist in enumerate(u):
                     for e, EBV in enumerate(x):
-                        #print '\n\nEBV', EBV
                         for r, RV in enumerate(y):
-                            #print 'RV', RV
                             if delCHI2_dof[i, e, r] < 1.0:
-                                #print 'Before - EBV, maxebv_1sig', EBV, maxebv_1sig
                                 maxebv_1sig = np.maximum(maxebv_1sig, EBV)
-                                #print 'After - EBV, maxebv_1sig', EBV, maxebv_1sig
                                 minebv_1sig = np.minimum(minebv_1sig, EBV)
                                 maxrv_1sig = np.maximum(maxrv_1sig, RV)
                                 minrv_1sig = np.minimum(minrv_1sig, RV)
-                                #print 'delCHI2_dof', delCHI2_dof[i, e, r]
-                                #print 'maxrv_1sig:', maxrv_1sig
-                                #print 'maxebv_1sig:', maxebv_1sig, '\n\n'
 
+                                ## for plotting uncertainty snake.
+                                ## the approach is trying to find the outmost contour of all excess curves with delta_chi2 < 1
+                                ## As such it finds the region where the probability of a E(V-X) curve lies within which is 68%.
+                                ## This typically is a (much) smaller region than the one enclosed between the F99 curve with (RV+sig_RV, EBV+sig_EBV)
+                                ## and the one with (RV-sig_RV, EBV-sig_EBV).  I think it is the correct way of representing the 1-sigma uncertainty snake. -XH
+
+                                ## AS reverses the order of j and k; I think I'm right.  In fact if the steps are different for RV and EBV
+                                ## one gets an error message if j and k are reversed.
+                                redden_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -EBV, RV, return_excess=True)
+                                snake_hi_1sig = np.maximum(snake_hi_1sig, redden_curve)  # the result is the higher values from either array is picked.
+                                snake_lo_1sig = np.minimum(snake_lo_1sig, redden_curve)
 
 
                 print 'best_ebv, best_rv', best_ebv, best_rv
@@ -524,6 +503,9 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 rv_uncert_uppers.append(rv_uncert_upper)
                 rv_uncert_lowers.append(rv_uncert_lower)
 
+                snake_lo_1sigs.append(snake_lo_1sig)
+                snake_hi_1sigs.append(snake_hi_1sig)
+
 
 #        return best_rvs, best_ebvs
 
@@ -553,11 +535,11 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         #        print 'in per_phase():', type(best_rvs), type(best_ebvs)
 
 #exit(1)
-        return best_us, best_rvs, best_ebvs
+        return snake_hi_1sigs, snake_lo_1sigs
 
 
 
-def plot_excess(title, info_dict, pristine_11fe, obs_SN):
+def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs):
     
     fig = plt.figure(figsize = (20, 12))
     
@@ -627,6 +609,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
         best_rv  = info_dict['rv'][i]
         x = info_dict['x']
         y = info_dict['y']
+        u = info_dict['u']
         #        print len(chi2dof)
 # print chi2dof[0].shape
 
@@ -650,12 +633,12 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
 
 
         ## plot error snake
-        x = info_dict['x']
-        y = info_dict['y']
-        chi2dof = info_dict['chi2dof'][i]
+#        x = info_dict['x']
+#        y = info_dict['y']
+#        chi2dof = info_dict['chi2dof'][i]
 
 
-        slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, chi2dof[0])
+        ax.fill_between(10000./ref_wave, snake_lo_1sigs[i], snake_hi_1sigs[i], facecolor='black', alpha=0.3)
 
 
 
@@ -668,12 +651,26 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
 
 ### FORMAT SUBPLOT ###
 
-# print data on subplot
+        ## print data on subplot
 
         ebv_uncert_upper = info_dict['ebv_uncert_upper'][i]
         ebv_uncert_lower = info_dict['ebv_uncert_lower'][i]
         rv_uncert_upper = info_dict['rv_uncert_upper'][i]
         rv_uncert_lower = info_dict['rv_uncert_lower'][i]
+
+
+
+        ## Below essentially plots the region enclosed between the F99 curve with (RV+sig_RV, EBV+sig_EBV)
+        ## and the one with (RV-sig_RV, EBV-sig_EBV).  I think this is the INCORRECT way of representing the 1-sigma uncertainty snake.
+        ##  See comments in plot_snake(). Thus the following four statements are typically commented out.  -XH
+        ##        fm_curve_upper = redden_fm(ref_wave, np.zeros(ref_wave.shape), -(best_ebv + ebv_uncert_upper), best_rv + rv_uncert_upper, return_excess=True)
+        ##        plt.plot(ref_wave_inv, fm_curve_upper, 'b-')
+        ##
+        ##        fm_curve_lower = redden_fm(ref_wave, np.zeros(ref_wave.shape), -(best_ebv - ebv_uncert_lower), best_rv - rv_uncert_lower, return_excess=True)
+        ##        plt.plot(ref_wave_inv, fm_curve_lower, 'g-')
+
+
+
 
         plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
         plttext = plttext.format(best_ebv, ebv_uncert_upper, ebv_uncert_lower,
@@ -685,7 +682,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
                  verticalalignment='top',
                  transform=ax.transAxes)
          
-        # format subplot
+        ## format subplot
         plt.xlim(1.0, 3.0)
         plt.ylim(-3.0, 2.0)
 
@@ -707,11 +704,10 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
             plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
 
 
-# format figure
+        ## format figure
         fig.suptitle('{}: Color Excess'.format(title), fontsize=TITLE_FONTSIZE)
     
-        fig.text(0.5,
-                 .05, 'Inverse Wavelength ($1 / \mu m$)',
+        fig.text(0.5,.05, 'Inverse Wavelength ($1 / \mu m$)',
              fontsize=AXIS_LABEL_FONTSIZE, horizontalalignment='center')
          
         p1, = plt.plot(np.array([]), np.array([]), 'k--')
@@ -748,13 +744,13 @@ if __name__=="__main__":
     ########################
 
 
-    best_us, best_rvs, best_ebvs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 1, rv_guess=2.8, rv_pad=1., rv_steps=41, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 41)
+    snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 1, rv_guess=2.8, rv_pad=1., rv_steps=41, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 51)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
     info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
                 
     i = 0
     for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
         if i > 0: break   # this is to not plot the unblocked fit.
-        plot_excess(t[0], t[1], pristine_11fe, obs_SN)
+        plot_excess(t[0], t[1], pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
         i += 1
 
