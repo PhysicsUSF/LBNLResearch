@@ -13,6 +13,7 @@ Xiaosheng Huang
 
 
 import sys
+import argparse
 import cStringIO
 
 
@@ -730,7 +731,55 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
 
 if __name__=="__main__":
     
-    # load spectra, interpolate 11fe to 12cu phases (only first 12)
+    
+
+    ####### Converting inputs #######
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-obs_SN', type = str)
+#    parser.add_argument('-Gn', '--Gn', action='store_true')
+#    parser.add_argument('-LN', '--LN', action='store_true')
+#    parser.add_argument('-plot_dmap', '--plot_dmap', action='store_true')
+#    parser.add_argument('-save_dmap_data', '--save_dmap_data', action='store_true')
+#    parser.add_argument('-run_ini_ind', type = int)
+#    parser.add_argument('-use_saved', '--use_saved', action='store_true')
+#    parser.add_argument('-disks', '--disks',  action='store_true')
+#    parser.add_argument('-disksAv', '--disksAv',  action='store_true')
+#    parser.add_argument('-Rnoiz', '--Rnoiz',  action='store_true')
+#    parser.add_argument('-file_loc', type = str)
+#    _ = parser.add_argument('-Rv', '--calcRv', action='store_true')  # just another way to add an argument to the list.
+
+    ### The '*' means there can be more than one positional arguments.
+    #parser.add_argument('params', nargs = '*', type = float)
+    args = parser.parse_args()
+    print 'args', args
+    obs_SN = args.obs_SN
+#    Ndim = args.Ndim
+#    AvScale = args.AvScale
+#    AvMean = args.AvMean
+#    AvLNScale = args.AvLNScale
+#    AvLNMin = args.AvLNMin
+#    t_start = args.t_start
+#    t_end = args.t_end
+#    tsteps = args.tsteps
+#    ntrials = args.ntrials
+#    Gn = args.Gn
+#    LN = args.LN
+#    plot_dmap = args.plot_dmap
+#    save_dmap_data = args.save_dmap_data
+#    run_ini_ind = args.run_ini_ind
+#    use_saved = args.use_saved
+#    day_fixed1 = args.day_fixed1
+#    day_fixed2 = args.day_fixed2
+#    disks = args.disks
+#    disksAv = args.disksAv
+#    Rnoiz = args.Rnoiz
+#    calcRv = args.calcRv
+#    file_loc = args.file_loc
+
+    
+    
+    ## load spectra, interpolate 11fe to 12cu phases (only first 12)
     obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in obs_12cu]
         
@@ -743,8 +792,10 @@ if __name__=="__main__":
     # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
     # to the phases of 12cu, or just choose 12cu itself.
     #
-    obs_SN = art_reddened_11fe
-    #obs_SN = obs_12cu
+    if obs_SN == 'red_11fe':
+        obs_SN = art_reddened_11fe
+    elif obs_SN == '12cu':
+        obs_SN = obs_12cu
     #
     ########################
 
