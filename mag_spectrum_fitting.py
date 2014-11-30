@@ -638,55 +638,31 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN):
 
 
 
-        # plot reddening curve
+        ## plot best-fit reddening curve
         fm_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+        plt.plot(ref_wave_inv, fm_curve, 'k--')
+
+
         ## RV = 2.7, EBV = 1.02 reddenging curve.
         fm_curve27 = redden_fm(ref_wave, np.zeros(ref_wave.shape), -1.02*np.ones(best_ebv.shape), 2.7*np.ones(best_rv.shape), return_excess=True)
         plt.plot(ref_wave_inv, fm_curve27, 'r-')
 
 
-        plt.plot(ref_wave_inv, fm_curve, 'k--')
-        
-        # plot error snake
+
+        ## plot error snake
         x = info_dict['x']
         y = info_dict['y']
         chi2dof = info_dict['chi2dof'][i]
 
-#        CHI2 = info_dict['chi2'][i]
-#        CHI2_reduction = info_dict['chi2_reductions'][i]
-#        CHI2 /= CHI2_reduction
-#        CHI2 = CHI2 - np.min(CHI2)
 
         slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, chi2dof[0])
-        #plt.show()
-        #exit(1)
 
 
 
-
-
-
-
-#red_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-        #    exit(1)
-        
-        #print 'x.shape', x.shape
-        #print 'y.shape', y.shape
-        #print 'chi2dof[0].shape', chi2dof[0].shape
-        #exit(1)
-        
-        #        slo, shi = plot_snake(ax, ref_wave, fm_curve, redden_fm, x, y, chi2dof[0])
-
-
-
-#plt.plot(ref_wave_inv, fm_curve, 'k--')
-
-
-        # plot where V band is.   -XH
+        ## plot where V band is.   -XH
         plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
         plt.plot([1e4/V_wave, 1e4/V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
          
-        ## plot error snake
 
 
 
