@@ -198,7 +198,7 @@ def log(msg=""):
 
 
 
-def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11):
+def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False):
     
 
         '''
@@ -247,13 +247,12 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.]
         '''
         
-        
-        #FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),
-        #                      (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+        if unfilt == True:
+            FEATURES_ACTUAL = []
+        else:
+            FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),\
+                              (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
 
-
-        # Use an empty list of features to fit for the entire spectrum:
-        FEATURES_ACTUAL = []
         
         
         
@@ -521,7 +520,12 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         ## save results with date
         #                filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
 
-        filename = "spectra_mag_fit_results_FILTERED.pkl"
+
+        if unfilt:
+            filename = "spectra_mag_fit_results_UNFILTERED.pkl"
+        else:
+            filename = "spectra_mag_fit_results_FILTERED.pkl"
+
 #        cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
 #                        'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
 #                        'u': u, 'x': x, 'y': y, 'X': X, 'Y': Y},
@@ -730,13 +734,40 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
 
 
 if __name__=="__main__":
+    '''
     
+    Example:
+    
+    
+    python mag_spectrum_fitting.py -obs_SN 'red_11fe' -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11
+    -unfilt
+    
+    Note: it is possible to to add FEATURES_ACTUAL at the command line too.  It takes a little finessing.  When I'm ready to implement, try one or both of the following:
+    One could use nargs = '*':
+    http://stackoverflow.com/questions/10984769/argparse-optional-argument-with-list-tuple
+    
+    Or one can define one's own type:
+    http://stackoverflow.com/questions/9978880/python-argument-parser-list-of-list-or-tuple-of-tuples
+    
+    '''
     
 
     ####### Converting inputs #######
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-obs_SN', type = str)
+    parser.add_argument('-u_guess', type = float)
+    parser.add_argument('-u_pad', type = float)
+    parser.add_argument('-u_steps', type = int)
+    parser.add_argument('-rv_guess', type = float)
+    parser.add_argument('-rv_pad', type = float)
+    parser.add_argument('-rv_steps', type = int)
+    parser.add_argument('-ebv_guess', type = float)
+    parser.add_argument('-ebv_pad', type = float)
+    parser.add_argument('-ebv_steps', type = int)
+    _ = parser.add_argument('-unfilt', '--unfilt', action='store_true')  # just another way to add an argument to the list.
+
+
 #    parser.add_argument('-Gn', '--Gn', action='store_true')
 #    parser.add_argument('-LN', '--LN', action='store_true')
 #    parser.add_argument('-plot_dmap', '--plot_dmap', action='store_true')
@@ -747,13 +778,22 @@ if __name__=="__main__":
 #    parser.add_argument('-disksAv', '--disksAv',  action='store_true')
 #    parser.add_argument('-Rnoiz', '--Rnoiz',  action='store_true')
 #    parser.add_argument('-file_loc', type = str)
-#    _ = parser.add_argument('-Rv', '--calcRv', action='store_true')  # just another way to add an argument to the list.
 
     ### The '*' means there can be more than one positional arguments.
     #parser.add_argument('params', nargs = '*', type = float)
     args = parser.parse_args()
     print 'args', args
     obs_SN = args.obs_SN
+    u_guess = args.u_guess
+    u_pad = args.u_pad
+    u_steps = args.u_steps
+    rv_guess = args.rv_guess
+    rv_pad = args.rv_pad
+    rv_steps = args.rv_steps
+    ebv_guess = args.ebv_guess
+    ebv_pad = args.ebv_pad
+    ebv_steps = args.ebv_steps
+    unfilt = args.unfilt
 #    Ndim = args.Ndim
 #    AvScale = args.AvScale
 #    AvMean = args.AvMean
@@ -800,13 +840,23 @@ if __name__=="__main__":
     ########################
 
 
-    snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1, u_steps = 3, rv_guess=2.8, rv_pad=1., rv_steps=41, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 51)
+    snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps)
     info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
-    info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
-                
-    i = 0
-    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
-        if i > 0: break   # this is to not plot the unblocked fit.
-        plot_excess(t[0], t[1], pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
-        i += 1
+    plot_excess("SN2012cu (Feature Filtered)", info_dict1, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
 
+    if unfilt:
+        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, unfilt = True)
+        info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
+        plot_excess("SN2012cu", info_dict2, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
+
+
+
+#    i = 0
+#    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
+#        print 't[0]', t[0]
+#        print 't[1]', t[1]
+#        exit(1)
+#        if (not(unfilt) and i > 0): break   # this is to not plot the unblocked fit.
+#        plot_excess("SN2012cu (Feature Filtered)", info_dict1, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
+#        i += 1
+#
