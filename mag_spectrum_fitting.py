@@ -42,7 +42,7 @@ from sys import argv
 
 
 
-# config
+## Configuration
 PLOTS_PER_ROW = 6
 N_BUCKETS = 20
 RED_LAW = redden_fm
@@ -53,7 +53,7 @@ TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
-V_wave = 5413.5 
+
 ## ind_min = np.abs(red_curve).argmin()
 ## f99wv = np.array([ref_wave[ind_min-1],ref_wave[ind_min],ref_wave[ind_min+1]])
 ## f99ebv = np.array([red_curve[ind_min-1],red_curve[ind_min],red_curve[ind_min+1]])
@@ -62,6 +62,7 @@ V_wave = 5413.5
 ## that, reading through the fm_unred.py, which AS and ZR have adopted, it's not obvious what this value should be.
 ## Here I have arbitrarily chosen the first phase to infer what this wavelength should be.  -XH 11/18/14
 ## AS previously used V_wave = 5417.2
+V_wave = 5413.5
 
 
 FrFlx2mag = 2.5/np.log(10)  #  =1.0857362
@@ -79,11 +80,6 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
     normalized magntiudes and magnitude variances.
     
     '''
-
-
-
-    ## pristine_11fe
-    #ref_wave = ref[1].wave
 
 
     SN_flux = SN[1].flux
@@ -111,18 +107,9 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
 
     var = interp1d(SN[1].wave, var)(ref_wave)
 
-
-    # B-V color for 11fe
-    #ref_B_V = -2.5*np.log10(ref_flux[np.abs(ref_wave - 4400).argmin()]/ref_flux[np.abs(ref_wave - 5413.5).argmin()])
-    #print 'B-V for 11fe:', ref_B_V
-                
     calib_err_mag = SN[2]
 
     ## convert flux, variance, and calibration error to magnitude space
-
-#    mag_avg_flux = ABmag(np.average(flux))  # One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
-                                            # Note it's not the avg mag but the mag of the avg flux.
-#    mag_single_V = ABmag(flux_single_V)
 
     mag_norm, mag_var, mag_avg_flux, mag_single_V = flux2mag(flux, ref_wave, var, norm_meth = norm_meth)
     
@@ -135,7 +122,7 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
                                    # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
 
 
-    # get mask for nan-values
+    ## get mask for nan-values
     nanmask = ~np.isnan(mag_norm)
     
 
@@ -146,6 +133,8 @@ def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
     mag_var = None
     
     mag = ABmag(flux)
+    ## One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
+    ## Also note it's not the avg mag but the mag of the avg flux.
     mag_avg_flux = ABmag(np.average(flux))   # see Bessell & Murphy 2012 eq 2.
     mag_single_V = ABmag(flux[np.argmin(np.abs(ref_wave - V_wave))])
 
@@ -158,7 +147,7 @@ def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
 
     mag_norm = -(mag - mag_zp)  # the minus sign is because we will plot E(V-X)
 
-    # calculate magnitude error
+    ## calculate magnitude uncertainty
     if type(var)!=type(None):
         fr_err = np.sqrt(var)/flux
         mag_var = (FrFlx2mag*fr_err)**2
@@ -193,7 +182,7 @@ def filter_features(features, wave):
                 
                 
 def log(msg=""):
-        # attach time stamp to print statements
+        ## attach time stamp to print statements
         print "[{}] {}".format(strftime("%Y-%m-%d %H:%M:%S", localtime()), msg)
 
 
@@ -280,23 +269,23 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         
         snake_hi_1sigs = []
         snake_lo_1sigs = []
-        
-        
-        #V_band = [(5300., 5500., 'Vband')]
 
         del_lamb = 1.
         band_steps = 1200
         V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 
 
-        for phase_index in xrange(len(phases)): # [0,]: # xrange((len(phases)):
+        for phase_index in xrange(len(phases)): # [0,]
             
             
                 print '\n\n\n Phase_index', phase_index, '\n\n\n'
             
                 ref = pristine_11fe[phase_index]
-                ref_wave = ref[1].wave  ## I have determined that ref_wave is equally spaced at 2A.
+                ## Note: I have determined that ref_wave is equally spaced at 2A.
+                ref_wave = ref[1].wave
 
+
+## The following few lines determine ref_wave are equally spaced at 2A.
 #                ref_wave_R = ref_wave[1:]
 #                ref_wave_L = ref_wave[:-1]
 #                ref_wave_del = ref_wave_R - ref_wave_L
@@ -306,32 +295,23 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
 #                plt.plot(ref_wave_L, ref_wave_del, 'k.')
 #                #plt.ylim([-1., 5.])
 #                plt.show()
-#                exit(1)   ## This determined ref_wave are equally spaced at 2A.
+#                exit(1)
 
 
                 obs = obs_SN[phase_index]
 
 
-                # mask for spectral features not included in fit
+                ## mask for spectral features not included in fit
                 mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
 
                 ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = 'AVG')
 
-#                        print 'ref_mag_norm', len(ref_mag_norm)
-#                        print 'ref_wave', len(ref_wave)
-#                        print 'mask', len(mask)
-#                        
-#                        exit(1)
-#                        
 
                 log()
                 log( "Phase: {}".format(ref[0]) )
                 
-
-
-                ## 12cu/reddened 11fe
-
+                ## 12cu or artificially reddened 11fe
                 obs_mag_norm, obs_mag_avg_flux, obs_mag_single_V, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = 'AVG')
 
 
@@ -344,46 +324,37 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 ## Total Variance.
                 var = ref_mag_var[mask] + obs_mag_var[mask]
                 
-                
-                
-                #################################################
-                # hack thrown together to filter nan-values (which arrise from negative fluxes)
-                
-                # find any rows with nan-values in C_inv matrix (there shouldn't be any)
-                #nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
-                
-                # merge mask with nan-masks from obs_interp_mag, and ref_mag (calc'd above)
+                ## hack thrown together to filter nan-values (which arrise from negative fluxes)
+                ## find any rows with nan-values in C_inv matrix (there shouldn't be any)
+                ## nanmask = np.array(~np.max(np.isnan(C_total_inv), axis=1))[:,0]
+                ## merge mask with nan-masks from obs_interp_mag, and ref_mag (calc'd above)
                 nanmask = nanmask_obs & nanmask_ref
-                
                 log( "num. points with negative flux discarded: {}".format(np.sum(~nanmask)) )
                 
-                # create temp version of C_total_inv without rows/columns corresponding to nan-values
+                ## remove nan values from var
                 var = var[nanmask]
 
 
                 ## Determine whether 2D or 3D fit.
                 if u_steps > 1:
+                    ## 3D case
                     u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
                     param_num = 3
                 elif u_steps == 1:
+                    ## 2D case: only use the central value of u
                     u = np.array([u_guess,])
                     param_num = 2
 
 
-                #################################################
-                
-                ## for calculation of CHI2 per dof
+
+                ##  dof for CHI2
                 dof = np.sum(nanmask) - param_num  # (num. data points)-(num. parameters)
                 log( "dof: {}".format(dof) )
-                
-                #################################################
-                
 
 
                 x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, ebv_steps)
                 y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, rv_steps)
-                
-                #X, Y = np.meshgrid(x, y)
+
                 CHI2 = np.zeros((len(u), len(x), len(y)))
                 
                 log( "Scanning CHI2 grid..." )
@@ -391,24 +362,22 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                     for j, EBV in enumerate(x):
                         for k, RV in enumerate(y):
                                 
-                                # unredden the reddened spectrum, convert to mag
+                                ## unredden the reddened spectrum, convert to mag
                                 unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
                                 unred_mag_norm, unred_mag_avg_flux, unred_mag_single_V = flux2mag(unred_flux, ref_wave, norm_meth = 'AVG')
                                 ## I should implement a better way to use mask -- right now, there is a lot of reptition that is unnecessary.
                               
                                 
-                                # this is (unreddened 12cu mag - pristine 11fe mag)
+                                ## this is (unreddened 12cu mag - pristine 11fe mag)
                                 delta = unred_mag_norm[mask] - ref_mag_norm - dist # yes, unred_mag_norm and ref_mag_norm are treated slightly asym'ly -- something I
                                                                                    # should fix.  -XH
                                 
                                 # convert to vector from array and filter nan-values
                                 delta = delta[nanmask]
                                 
-                                #delta_array = np.squeeze(np.asarray(delta))  # converting 1D matrix to 1D array.
-                                ## ----->I shoudl fix ylim<-------------------
-                                #tmp_wave = ref_wave[mask]
-                                #fig = plt.figure()
-                                #plt.plot(tmp_wave[nanmask], delta_array, 'ro')
+                                ## Remember if I ever want to things the matrix way, one needs to converst an array to a matrix:
+                                ##   delta_array = np.squeeze(np.asarray(delta))  # converting 1D matrix to 1D array.
+                            
                                
                                
                                 CHI2[i, j, k] = np.sum(delta*delta/var)
@@ -420,20 +389,19 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 delCHI2_dof = CHI2_dof - CHI2_dof_min
                 
                 
-                # plot power law reddening curve
-                #pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-                #plt.plot(ref_wave_inv, pl_red_curve, 'r-')
+                ## plot power law reddening curve
+                ##  pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
+                ##  plt.plot(ref_wave_inv, pl_red_curve, 'r-')
                 
-                ##*********************************** find 1-sigma and 2-sigma errors based on confidence **************************************
+                ##*********************************** find 1-sigma and 2-sigma uncertainties based on confidence **************************************
 
-                ### report/save results
-                
-                #print 'CHI2', CHI2
+                ## report/save results
+
                 
                 mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
                 print 'mindex', mindex
 
-                # basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
+                ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
                 mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
                 print 'mindex', mindex
                 print 'mu, mx, my', mu, mx, my
@@ -484,14 +452,9 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 
                 print 'ebv_uncert_upper, ebv_uncert_lower', ebv_uncert_upper, ebv_uncert_lower
                 print 'rv_uncert_upper, rv_uncert_lower', rv_uncert_upper, rv_uncert_upper
-
-                
-                
                 
                 print '\n\n\n rough estimate of distance modulus:', del_single_V_mag - best_av, '\n\n\n'
 
-               
-               
                 log( "\t {}".format(mindex) )
                 log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
                 
@@ -512,13 +475,10 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 snake_hi_1sigs.append(snake_hi_1sig)
 
 
-#        return best_rvs, best_ebvs
-
-
         pprint( zip(phases, best_rvs, rv_uncert_uppers, rv_uncert_lowers, best_ebvs, ebv_uncert_uppers, ebv_uncert_lowers, best_avs, min_chi2s) )
                 
         ## save results with date
-        #                filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
+        ##   filename = "spectra_mag_fit_results_{}.pkl".format(strftime("%H-%M-%S-%m-%d-%Y", gmtime()))
 
 
         if unfilt:
@@ -526,10 +486,6 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         else:
             filename = "spectra_mag_fit_results_FILTERED.pkl"
 
-#        cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
-#                        'chi2': chi2s, 'chi2_reductions': chi2_reductions, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
-#                        'u': u, 'x': x, 'y': y, 'X': X, 'Y': Y},
-#                        open(filename, 'wb'))
 
         cPickle.dump({'phases': phases, 'rv': best_rvs, 'ebv': best_ebvs, 'av': best_avs,
                      'chi2dof': chi2dofs, 'u_steps': u_steps, 'rv_steps': rv_steps, 'ebv_steps': ebv_steps,
@@ -538,13 +494,8 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         
         log( "Results successfully saved in: {}".format(filename) )
 
-
-
-#best_rvs, best_ebvs = perphase_fit()
         print 'in per_phase():', best_us, best_rvs, best_ebvs
-        #        print 'in per_phase():', type(best_rvs), type(best_ebvs)
 
-#exit(1)
         return snake_hi_1sigs, snake_lo_1sigs
 
 
@@ -553,23 +504,13 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
     
     fig = plt.figure(figsize = (20, 12))
     
-    #obs_SN = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in obs_SN]
-    
-    #pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-    
     
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     pmin, pmax = np.min(phases), np.max(phases)
-    
-#    best_ebv = info_dict['ebv'][0]
-#    best_rv  = info_dict['rv'][0]
 
 
     ref_wave = pristine_11fe[0][1].wave
-   
-   
-#exit(1)
 
     for i, phase in enumerate(phases):
         
@@ -581,48 +522,36 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
         obs = obs_SN[i]
         
 
-#ref_wave = ref[1].wave
-        
-
         color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
         color_obs = extract_wave_flux_var(ref_wave, obs, norm_meth = 'single_V')[0]
 
         excess = color_obs - color_ref
 
 ### Keeping the next few lines for now since I may want to anchor the E(V-X) plot using a broadband V-mag.
-
-#    #V_band = [(5412., 5414., 'Vband')]
-# del_lamb = 1.
+#    V_band = [(5412., 5414., 'Vband')]
+#    del_lamb = 1.
 #    band_steps = 1200
 #    V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 #    print V_band_range
+#    ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
+#    obs_V_mag = -2.5*np.log10(obs_interp(V_band_range).mean())  # need to add var's as weights.
 
 
-        #Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
-
-#ref_V_mag = -2.5*np.log10(ref_interp(V_band_range).mean())  # need to add var's as weights.
-#obs_V_mag = -2.5*np.log10(obs_interp(V_band_range).mean())  # need to add var's as weights.
+        # This way doesn't seem to give the correct V-band.  Hasn't looked into this too closely.  If the program works fine, can throw away these lines.  -XH, 11/30/14
+        #  V_band = [(5300., 5500., 'Vband')]
+        #  Vband_mask = filter_features(V_band, ref_wave) # Not the most efficient way of doing things, but this statement is here because ref_wave is inside the for loop -- also inefficient. Should fix this.
+        #  ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
+        #  obs_flux_V_mag = -2.5*np.log10(np.average(obs_flux[Vband_mask]))
         
-        # This way seems to give wrong answer.
-        #          ref_flux_V_mag = -2.5*np.log10(np.average(ref_flux[Vband_mask]))
-        #        obs_flux_V_mag = -2.5*np.log10(np.average(obs_flux[Vband_mask]))
-        
-        
-        
-        
-        # convert effective wavelengths to inverse microns
-        
-
-
 
         best_ebv = info_dict['ebv'][i]
         best_rv  = info_dict['rv'][i]
         x = info_dict['x']
         y = info_dict['y']
         u = info_dict['u']
-        #        print len(chi2dof)
-# print chi2dof[0].shape
-
+        
+        
+        ## convert effective wavelengths to inverse microns
         ref_wave_inv = 10000./ref_wave
         mfc_color = plt.cm.cool(5./11)
         
@@ -640,17 +569,8 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
         fm_curve27 = redden_fm(ref_wave, np.zeros(ref_wave.shape), -1.02*np.ones(best_ebv.shape), 2.7*np.ones(best_rv.shape), return_excess=True)
         plt.plot(ref_wave_inv, fm_curve27, 'r-')
 
-
-
-        ## plot error snake
-#        x = info_dict['x']
-#        y = info_dict['y']
-#        chi2dof = info_dict['chi2dof'][i]
-
-
+        ## Plot uncertainty snake.
         ax.fill_between(10000./ref_wave, snake_lo_1sigs[i], snake_hi_1sigs[i], facecolor='black', alpha=0.3)
-
-
 
         ## plot where V band is.   -XH
         plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
@@ -672,7 +592,8 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
 
         ## Below essentially plots the region enclosed between the F99 curve with (RV+sig_RV, EBV+sig_EBV)
         ## and the one with (RV-sig_RV, EBV-sig_EBV).  I think this is the INCORRECT way of representing the 1-sigma uncertainty snake.
-        ##  See comments in plot_snake(). Thus the following four statements are typically commented out.  -XH
+        ## See comments in the section where I compute 1-sigma uncertainties based on delta_chi2.
+        ## Thus the following four statements are typically commented out.  Can remove them at some point  -XH, 11/30/2014
         ##        fm_curve_upper = redden_fm(ref_wave, np.zeros(ref_wave.shape), -(best_ebv + ebv_uncert_upper), best_rv + rv_uncert_upper, return_excess=True)
         ##        plt.plot(ref_wave_inv, fm_curve_upper, 'b-')
         ##
@@ -729,9 +650,7 @@ def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_l
         filenm = filter(str.isalnum, title)+'.png' # to get rid of white space and parentheses; and add extension.
         fig.savefig(filenm)
 
-#plt.show()
-
-
+##******************************************************** MAIN *******************************************************
 
 if __name__=="__main__":
     '''
@@ -768,17 +687,6 @@ if __name__=="__main__":
     _ = parser.add_argument('-unfilt', '--unfilt', action='store_true')  # just another way to add an argument to the list.
 
 
-#    parser.add_argument('-Gn', '--Gn', action='store_true')
-#    parser.add_argument('-LN', '--LN', action='store_true')
-#    parser.add_argument('-plot_dmap', '--plot_dmap', action='store_true')
-#    parser.add_argument('-save_dmap_data', '--save_dmap_data', action='store_true')
-#    parser.add_argument('-run_ini_ind', type = int)
-#    parser.add_argument('-use_saved', '--use_saved', action='store_true')
-#    parser.add_argument('-disks', '--disks',  action='store_true')
-#    parser.add_argument('-disksAv', '--disksAv',  action='store_true')
-#    parser.add_argument('-Rnoiz', '--Rnoiz',  action='store_true')
-#    parser.add_argument('-file_loc', type = str)
-
     ### The '*' means there can be more than one positional arguments.
     #parser.add_argument('params', nargs = '*', type = float)
     args = parser.parse_args()
@@ -794,30 +702,6 @@ if __name__=="__main__":
     ebv_pad = args.ebv_pad
     ebv_steps = args.ebv_steps
     unfilt = args.unfilt
-#    Ndim = args.Ndim
-#    AvScale = args.AvScale
-#    AvMean = args.AvMean
-#    AvLNScale = args.AvLNScale
-#    AvLNMin = args.AvLNMin
-#    t_start = args.t_start
-#    t_end = args.t_end
-#    tsteps = args.tsteps
-#    ntrials = args.ntrials
-#    Gn = args.Gn
-#    LN = args.LN
-#    plot_dmap = args.plot_dmap
-#    save_dmap_data = args.save_dmap_data
-#    run_ini_ind = args.run_ini_ind
-#    use_saved = args.use_saved
-#    day_fixed1 = args.day_fixed1
-#    day_fixed2 = args.day_fixed2
-#    disks = args.disks
-#    disksAv = args.disksAv
-#    Rnoiz = args.Rnoiz
-#    calcRv = args.calcRv
-#    file_loc = args.file_loc
-
-    
     
     ## load spectra, interpolate 11fe to 12cu phases (only first 12)
     obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
@@ -828,35 +712,21 @@ if __name__=="__main__":
     art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, del_mu=0.5, noiz=0.0, loadmast=False, loadptf=False))
     
         
-    ########################
-    # Choose 'SNobs' to be either an artificially reddened 11fe interpolated
-    # to the phases of 12cu, or just choose 12cu itself.
-    #
+    ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
     if obs_SN == 'red_11fe':
         obs_SN = art_reddened_11fe
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
-    #
-    ########################
-
-
-    snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps)
-    info_dict1 = cPickle.load(open("spectra_mag_fit_results_FILTERED.pkl", 'rb'))
-    plot_excess("SN2012cu (Feature Filtered)", info_dict1, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
-
-    if unfilt:
-        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, unfilt = True)
-        info_dict2 = cPickle.load(open("spectra_mag_fit_results_UNFILTERED.pkl", 'rb'))
-        plot_excess("SN2012cu", info_dict2, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
 
 
 
-#    i = 0
-#    for t in zip(["SN2012cu (Feature Filtered)", "SN2012cu"], [info_dict1, info_dict2], pristine_11fe, obs_SN):
-#        print 't[0]', t[0]
-#        print 't[1]', t[1]
-#        exit(1)
-#        if (not(unfilt) and i > 0): break   # this is to not plot the unblocked fit.
-#        plot_excess("SN2012cu (Feature Filtered)", info_dict1, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
-#        i += 1
-#
+    ## The following is a little hackish. i = 0 (unfilt = False) corresponds to the filtered case, and i = 1 (unfilt = True) corresponds to the unfiltered case.
+    ## Also range(False) gives []; so I use range(unfilt + 1): range(False+1] gives [0], range[True+1] gives [0, 1].
+    print 'unfilt', unfilt
+    for i in range(unfilt+1):
+        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, unfilt = i)
+        pkl_file = "spectra_mag_fit_results_FILTERED.pkl" if i == 0 else "spectra_mag_fit_results_UNFILTERED.pkl"
+        info_dict = cPickle.load(open(pkl_file, 'rb'))
+        save_name = "SN2012cu (Feature Filtered)" if i == 0 else "SN2012cu"
+        plot_excess(save_name, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
+
