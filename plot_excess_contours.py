@@ -2,6 +2,18 @@
 ::Author::
 Andrew Stocker
 
+
+::Modidfied by::
+Xiaosheng Huang
+
+- I have changed 'vega' to 'ab' in loader.py.  1) to make easier comparison between photometric fit and spectral fit.  2) I ran into an error with 'vega' -- it seems that it can't retrieve data from a ftp site.  It really ought to be changed here and on the command line.
+
+- Even with AB mag, I have recovered low RV values.  The last phase still looks different from other phases.
+
+- At 40 bins or above, one need to remove nan to make it work.  - Dec 2. 2014
+
+
+
 ::Description::
 This program will fit RV based on color excess of 2012cu
 
@@ -41,30 +53,75 @@ LEGEND_FONTSIZE = 15
 ################################################################################
 
 def load_12cu_excess(filters, zp):
-        prefix = zp['prefix']
+        prefix = zp['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
+        
+        print 'filters', filters
+        print "zp['V']", zp['V']  # the bands are numbered except V band, which is labeled as 'V'.
+        
         
         EXCESS = {}
         
         # correct for Milky Way extinction
         sn12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)
-        sn12cu = filter(lambda t: t[0]<28, sn12cu)
+        sn12cu = filter(lambda t: t[0]<28, sn12cu)   # here filter() is a python built-in function.
         phases = [t[0] for t in sn12cu]
         
-        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')/zp['V']) for t in sn12cu]
+        #      print 'sn12cu[1]',
+        
+        ## the method bandflux() returns (bandflux, bandfluxerr), see spectral.py
+        ## Further need to understandhow bandflux and bandfluerr are calcuated in spectral.py.
+        ## It seems that there may be a conversion between photon flux and energy flux.
+        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')[0]/zp['V']) for t in sn12cu]
+#        print '\n\n', dir(sn12cu[0][1])
+#        print '\n\n', sn12cu[0][1].wave
+#        print '\n\n ERROR:', sn12cu[0][1].error
+#
+#        print sn12cu[0][1].bandflux(prefix+'V')
+#        print -2.5*np.log10(sn12cu[0][1].bandflux(prefix+'V')), '\n\n'
+#        exit(1)
+#        print '\n\n', sn12cu[1][1].bandflux(prefix+'V'), '\n\n'
+#        print '\n\n', sn12cu[2][1].bandflux(prefix+'V'), '\n\n'
+#        print '\n\n', sn12cu[3][1].bandflux(prefix+'V'), '\n\n'
+#        print '\n\n', sn12cu[4][1].bandflux(prefix+'V'), '\n\n'
+#        print '\n\n', sn12cu[5][1].bandflux(prefix+'V'), '\n\n'
+#
+#        print 'sn12cu_vmags', sn12cu_vmags
+#        exit(1)
         sn12cu_colors = {i:{} for i in xrange(len(phases))}
         for f in filters:
-                band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f)/zp[f]) for t in sn12cu]
+                band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f)[0]/zp[f]) for t in sn12cu]
                 band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
                 for i, color in enumerate(band_colors):
                         sn12cu_colors[i][f] = color
         
         sn11fe = l.interpolate_spectra(phases, l.get_11fe())
         for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
-                sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)/zp[f])
+                sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp[f])
                                for f in filters}
-                sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
-                ref_colors = [sn12cu_colors[i][f] for f in filters]
                 
+#                print 'prefix+filters[0]', prefix+filters[0]
+#                exit(1)
+#                print sn11fe_phase[1].bandflux(prefix+filters[0])
+#                print sn11fe_phase[1].bandflux(prefix+filters[-1])
+#                exit(1)
+#                print -2.5*np.log10( sn11fe_phase[1].bandflux(prefix+filters[0])/zp[filters[0]])
+#                exit(1)
+#                print 'sn11fe_mag', sn11fe_mags
+#                print 'sn11fe_mag length', len(sn11fe_mags)
+#                exit(1)
+#
+                sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters] ## Note: V-band magnitude for 11fe and 12cu are treated differently;
+                                                                                   ## need to fix this.  -XH
+#                print 'sn11fe_colors', sn11fe_colors
+#                print 'sn11fe_colors', len(sn11fe_colors)
+#                exit(1)
+                ref_colors = [sn12cu_colors[i][f] for f in filters]
+#                print 'ref_colors', ref_colors
+#                print 'ref_colors', len(ref_colors)
+#                exit(1)
+
+
+                ## why are phases > 20 singled out??  -XH
                 if phase>20:
                         print "phase: ",phase
                         
@@ -75,7 +132,13 @@ def load_12cu_excess(filters, zp):
                         pprint( zip(filters, sn11fe_colors) )
                 
                 phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
+#                print 'np.array(ref_colors).shape', np.array(ref_colors).shape
+#                print 'np.array(ref_colors)[:, 0]', np.array(ref_colors)[:, 0]
+#                print 'np.array(ref_colors)[:, 1]', np.array(ref_colors)[:, 1]
+#
+#                exit(1)
                 EXCESS[i] = phase_excesses
+
         
         return EXCESS, phases
 
@@ -100,13 +163,35 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                         if i==0 and j==0:
                                 print "reddening excess:", ftz_curve
                                 print "12cu color excess:", ref_excess
-                        Z[j,i] = np.sum((ftz_curve-ref_excess)**2)
-        
+#                        print 'ftz_curve.shape', ftz_curve.shape
+#                        print 'ref_excess.shape', ref_excess.shape
+#                        print 'ftz_curve', ftz_curve
+#                        print 'ref_excess', ref_excess
+                        #exit(1)
+                        #print 'ftz_curve', ftz_curve
+                        #print 'ref_excess', ref_excess
+                        
+                        nanvals = np.isnan(ref_excess)
+                        
+                        nanmask = ~nanvals
+                        Z[j,i] = np.sum((ftz_curve-ref_excess)[nanmask]**2)
+
+
+        if np.sum(nanvals):
+            print '\n\n\nWARNING. WARNGING. WARNTING.'
+            print 'WARNING: THERE ARE %d BANDS WITH NAN VALUES.' % (np.sum(nanvals))
+            print 'WARNING. WARNGING. WARNTING.\n\n\n'
+
+
         #print Z
         
         # find minimum ssr
         ssr_min = np.min(Z)
         mindex = np.where(Z==ssr_min)
+        print 'Z', Z
+        print 'ssr_min', ssr_min
+        print 'mindex', mindex
+        print 'mindex length', len(mindex)
         mx, my = mindex[1][0], mindex[0][0]
         
         print "BEST E(B-V): {}".format(x[mx])
@@ -249,36 +334,6 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                                                  av_2sig
 
         
-################################################################################
-
-def main():
-        filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
-
-        
-        filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff
-                                     for f in filters_bucket]
-                                    )
-        
-        sn12cu_excess, phases = load_12cu_excess(filters_bucket, zp_bucket)
-        
-        
-        fig = plt.figure()
-        
-        for i, phase in enumerate(phases):
-                print "Plotting phase {} ...".format(phase)
-                
-                ax = plt.subplot(2,6,i+1)
-                
-                plot_contour(i, phase, redden_fm, sn12cu_excess[i], filter_eff_waves,
-                             EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, STEPS, ax)
-                             
-        
-        fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
-        fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
-        plt.show()
-
-
-################################################################################
 
 def get_all_phases_best_fit():
         red_law = redden_fm
@@ -403,4 +458,33 @@ def get_12cu_best_ebv_rv(red_law, filters, zp):
 ################################################################################
 
 if __name__ == "__main__":
-        main()
+
+    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
+    
+    #        print 'filters_bucket', filters_bucket
+    #        print 'zp_bucket', zp_bucket
+    #        exit(1)
+    
+    
+    filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff
+                                 for f in filters_bucket])
+        
+    sn12cu_excess, phases = load_12cu_excess(filters_bucket, zp_bucket)
+    
+    
+    fig = plt.figure(figsize = (20, 12))
+    
+    for i, phase in enumerate(phases):
+        print "Plotting phase {} ...".format(phase)
+            
+        ax = plt.subplot(2,6,i+1)
+                #                print 'sn12cu_excess[i].shape', sn12cu_excess[i].shape
+                #                exit(1)
+        plot_contour(i, phase, redden_fm, sn12cu_excess[i], filter_eff_waves,
+                             EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, STEPS, ax)
+            
+
+    fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
+    fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
+    plt.show()
+
