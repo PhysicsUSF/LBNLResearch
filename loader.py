@@ -63,7 +63,7 @@ def load_filters(FILTER_PREFIX='tophat_'):
             bandpass = snc.Bandpass( data[:,0], data[:,1] )
             snc.registry.register(bandpass, filter_name)
 
-        zpsys = snc.get_magsystem('vega')
+        zpsys = snc.get_magsystem('ab')
         zp_phot = zpsys.zpbandflux(filter_name)
 
         ZP_CACHE[f] = zp_phot
@@ -771,7 +771,7 @@ def generate_buckets(low, high, n, inverse_microns=False):
         toregister[index] = {'wave':wave, 'trans':trans}
 
     filters = []
-    zpsys = snc.get_magsystem('vega')
+    zpsys = snc.get_magsystem('ab')
     for index, info in toregister.items():
         wave, trans = info['wave'], info['trans']
         bandpass = snc.Bandpass(wave, trans)
