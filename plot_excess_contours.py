@@ -6,6 +6,36 @@ Andrew Stocker
 ::Modidfied by::
 Xiaosheng Huang
 
+There is A LOT of confusion about how to calculate synthetic photometry.  Here I summarize what is the two most important points from Bessell & Murphy
+2012 (BM12):
+
+1. One can calculate AB magnitude both from photon-counting and energy intergration -- see BM12 eq (A30).  As long as one uses the correct constants (which probably amounts to choosing the right zero points, which AS seems to have done correctly since the comparison with 2014J photometry is very good.)
+
+2. The AB magnitude has a straightforward physical interpretation (BM12 eq (A29)):
+
+                                AB mag = -2.5log<f_nu> - 48.557                                                         *
+                                
+    I can therefore back out <f_nu> given AB mag.
+    
+3. If the frequency bins are very small (or equivalently the inverse wavelength bins) are very small,
+
+                                    <f_nu> --> f_nu                                                                     **
+                                    
+    And I can convert f_nu to f_lamb with BM12 eq (A1)
+    
+    
+                                    f_lamb = f_nu*c/lamb^2                                                              ***
+                                    
+    I can then do the photometry fit and spectral fit comparison
+    
+    Or equivalently I can first convert f_lamb to f_nu, and then use BM12 eq (A3) to calculate 
+    
+                                AB_nu = -2.5log(f_nu) - 48.557                                                          ****
+                                
+    In the limit of very small nu (or inverse lamb) bins, my eqn **** should agree with my eq *.
+    
+
+
 - I have changed 'vega' to 'ab' in loader.py.  1) to make easier comparison between photometric fit and spectral fit.  2) I ran into an error with 'vega' -- it seems that it can't retrieve data from a ftp site.  It really ought to be changed here and on the command line.
 
 - Even with AB mag, I have recovered low RV values.  The last phase still looks different from other phases.
@@ -34,8 +64,8 @@ from scipy.stats import chisquare
 
 
 ### VARS ###
-STEPS = 40
-N_BUCKETS = 40
+STEPS = 100
+N_BUCKETS = 60
 
 EBV_GUESS = 1.1
 EBV_PAD = .3
@@ -223,7 +253,7 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                                 maxrv_2sig = np.maximum(maxrv_2sig, RV)
                                 minrv_2sig = np.minimum(minrv_2sig, RV)
         
-        # get best AV and calculate error in quadrature
+        # get best AV and calculate error in quadrature   # This is NOT the correct way. though the correct probably would give similar AV error since RV error dominates  -XH 12/2/14
         best_av = x[mx]*y[my]
         av_1sig = (best_av-np.sqrt((minebv_1sig-x[mx])**2 + (minrv_1sig-y[my])**2),
                    best_av+np.sqrt((maxebv_1sig-x[mx])**2 + (maxrv_1sig-y[my])**2)
@@ -333,7 +363,7 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
                                                  av_1sig, \
                                                  av_2sig
 
-        
+
 
 def get_all_phases_best_fit():
         red_law = redden_fm
