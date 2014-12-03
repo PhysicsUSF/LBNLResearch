@@ -132,26 +132,37 @@ def plot_phase_excesses(name, loader, red_law, filters, zp):
         print "Plotting phase {} ...".format(phase)
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
-        # calculate sn11fe band magnitudes
-        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)/zp[f])
+        # calculate sn11fe band magnitudes.  Note since the method bandflux() returns the mag and the error, I have added [0] to select the total flux.  -XH
+        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp[f])
                        for f in filters}
-        
+#        print 'len(sn11fe_mags)', len(sn11fe_mags)
+#        print 'sn11fe_mags', sn11fe_mags
+
+
+
+
         # calculate V-X colors for sn11fe
         sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
         
-        # make list of colors of reference supernova for given phase index i
-        ref_colors = [ref[i][f] for f in filters]
-        
+        # make list of colors of reference supernova for given phase index i.  Again each ref[i][f] is an array of two number: mag and flux error converted to mag (via -2.5*log(flux error), which is not the right way); I use [0] to select the mag for now.  -XH
+        ref_colors = [ref[i][f][0] for f in filters]
+#        print 'ref_colors', ref_colors
+#        exit(1)
+
         # get colors excess of reference supernova compared for sn11fe
         phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
-        
+  
         
         # convert effective wavelengths to inverse microns then plot
         eff_waves_inv = (10000./np.array(filter_eff_waves))
         mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))    
         plt.plot(eff_waves_inv, phase_excesses, 's', color=mfc_color,
                  ms=8, mec='none', mfc=mfc_color, alpha=0.8)
-        
+#        print 'eff_waves_inv', eff_waves_inv
+#        print 'phase_excesses', phase_excesses
+#        plt.show()
+#        exit(1)
+
         # reddening law vars
         linestyle = '--'
         
@@ -160,7 +171,7 @@ def plot_phase_excesses(name, loader, red_law, filters, zp):
         red_curve = red_law(x, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
         plt.plot(xinv, red_curve, 'k'+linestyle)
         slo, shi = plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
-        
+
         
         
         
@@ -172,7 +183,8 @@ def plot_phase_excesses(name, loader, red_law, filters, zp):
         P = np.log((1/dd['BEST_RV'])+1)/np.log(0.8)
         W.writerow([phase, AV, P])
         ############################
-        
+
+
         #pprint( zip([int(f) for f in filter_eff_waves],
                 #[round(f,2) for f in 10000./np.array(filter_eff_waves)],
                 #filters,
@@ -220,7 +232,9 @@ def plot_phase_excesses(name, loader, red_law, filters, zp):
         plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
         plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
     
-    
+
+
+
     # TEST #####################
     F.close()
     ############################
@@ -233,7 +247,7 @@ def plot_phase_excesses(name, loader, red_law, filters, zp):
 def main():
     filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
     
-    fig = plt.figure()
+    fig = plt.figure(figsize = (20, 12))
     
     
     plot_phase_excesses('SN2012CU', load_12cu_colors, RED_LAW, filters_bucket, zp_bucket)
