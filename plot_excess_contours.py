@@ -82,7 +82,7 @@ LEGEND_FONTSIZE = 15
 
 ################################################################################
 
-def load_12cu_excess(filters, zp):
+def load_12cu_excess(filters, zp, del_wave):
         prefix = zp['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
         
         print 'filters', filters
@@ -94,61 +94,57 @@ def load_12cu_excess(filters, zp):
         # correct for Milky Way extinction
         sn12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)
         sn12cu = filter(lambda t: t[0]<28, sn12cu)   # here filter() is a python built-in function.
+ 
+        # to just do the -6.5 phase.  12/4/2014.
+        sn12cu = filter(lambda t: t[0]<-5, sn12cu)   # here filter() is a python built-in function.
+
         phases = [t[0] for t in sn12cu]
-        
+ 
         #      print 'sn12cu[1]',
         
         ## the method bandflux() returns (bandflux, bandfluxerr), see spectral.py
         ## Further need to understandhow bandflux and bandfluerr are calcuated in spectral.py.
         ## It seems that there may be a conversion between photon flux and energy flux.
-        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')[0]/zp['V']) for t in sn12cu]
-#        print '\n\n', dir(sn12cu[0][1])
-#        print '\n\n', sn12cu[0][1].wave
-#        print '\n\n ERROR:', sn12cu[0][1].error
-#
-#        print sn12cu[0][1].bandflux(prefix+'V')
-#        print -2.5*np.log10(sn12cu[0][1].bandflux(prefix+'V')), '\n\n'
-#        exit(1)
-#        print '\n\n', sn12cu[1][1].bandflux(prefix+'V'), '\n\n'
-#        print '\n\n', sn12cu[2][1].bandflux(prefix+'V'), '\n\n'
-#        print '\n\n', sn12cu[3][1].bandflux(prefix+'V'), '\n\n'
-#        print '\n\n', sn12cu[4][1].bandflux(prefix+'V'), '\n\n'
-#        print '\n\n', sn12cu[5][1].bandflux(prefix+'V'), '\n\n'
-#
-#        print 'sn12cu_vmags', sn12cu_vmags
-#        exit(1)
-        sn12cu_colors = {i:{} for i in xrange(len(phases))}
-        for f in filters:
-                band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f)[0]/zp[f]) for t in sn12cu]
-                band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
-                for i, color in enumerate(band_colors):
-                        sn12cu_colors[i][f] = color
         
+        
+        print 'del_wave', del_wave
+        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for t in sn12cu]  # AS seems to be treating V band differently from the rest of the bands.  Need to understand what's going on here.  -XH 12/14/2014
+ 
+
+        sn12cu_colors = {i:{} for i in xrange(len(phases))}
+        
+        for f in filters:
+                print '\n\n\nin for filters:'
+            #                print 'len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
+                band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for t in sn12cu]
+                #print 'band_mags for different filters in for loop.'
+                #exit(1)
+                band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
+                print len(band_colors)
+                #exit(1)
+                for i, color in enumerate(band_colors):
+                        print '\n\n\n in for colors'
+                        print 'sn12cu_colors[i]:', sn12cu_colors[i]
+                        sn12cu_colors[i][f] = color
+                        print 'i, color, f', i, color, f
+                        print 'sn12cu_colors[i][f]:', sn12cu_colors[i][f]
+                print '\n\n\n len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
+
+
         sn11fe = l.interpolate_spectra(phases, l.get_11fe())
+
+        ##  This is to make it possible to run just one phase.  sn11fe normally is a list of tuple.
+        ##  With just one phase, I'm forcing it to be a list.
+        if type(sn11fe) == tuple:
+            sn11fe = [sn11fe]
+
         for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
-                sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp[f])
-                               for f in filters}
-                
-#                print 'prefix+filters[0]', prefix+filters[0]
-#                exit(1)
-#                print sn11fe_phase[1].bandflux(prefix+filters[0])
-#                print sn11fe_phase[1].bandflux(prefix+filters[-1])
-#                exit(1)
-#                print -2.5*np.log10( sn11fe_phase[1].bandflux(prefix+filters[0])/zp[filters[0]])
-#                exit(1)
-#                print 'sn11fe_mag', sn11fe_mags
-#                print 'sn11fe_mag length', len(sn11fe_mags)
-#                exit(1)
-#
+            
+                sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for f in filters}
+
                 sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters] ## Note: V-band magnitude for 11fe and 12cu are treated differently;
                                                                                    ## need to fix this.  -XH
-#                print 'sn11fe_colors', sn11fe_colors
-#                print 'sn11fe_colors', len(sn11fe_colors)
-#                exit(1)
                 ref_colors = [sn12cu_colors[i][f] for f in filters]
-#                print 'ref_colors', ref_colors
-#                print 'ref_colors', len(ref_colors)
-#                exit(1)
 
 
                 ## why are phases > 20 singled out??  -XH
@@ -162,11 +158,7 @@ def load_12cu_excess(filters, zp):
                         pprint( zip(filters, sn11fe_colors) )
                 
                 phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
-#                print 'np.array(ref_colors).shape', np.array(ref_colors).shape
-#                print 'np.array(ref_colors)[:, 0]', np.array(ref_colors)[:, 0]
-#                print 'np.array(ref_colors)[:, 1]', np.array(ref_colors)[:, 1]
-#
-#                exit(1)
+
                 EXCESS[i] = phase_excesses
 
         
