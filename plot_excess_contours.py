@@ -109,19 +109,24 @@ def load_12cu_excess(filters, zp, del_wave):
         
         print 'del_wave', del_wave
         sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for t in sn12cu]  # AS seems to be treating V band differently from the rest of the bands.  Need to understand what's going on here.  -XH 12/14/2014
- 
+        #exit(1)
 
         sn12cu_colors = {i:{} for i in xrange(len(phases))}
         
         for f in filters:
-                print '\n\n\nin for filters:'
+                print '\n\n\n f in filters:', f
             #                print 'len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
+                print 'zp[f]', zp[f]
+                #exit(1)
                 band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for t in sn12cu]
                 #print 'band_mags for different filters in for loop.'
                 #exit(1)
                 band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
-                print len(band_colors)
+                print 'sn12cu_vmags', np.array(sn12cu_vmags)
+                print 'band_mags', np.array(band_mags)
                 #exit(1)
+                print len(band_colors)
+                print 'band_colors', band_colors
                 for i, color in enumerate(band_colors):
                         print '\n\n\n in for colors'
                         print 'sn12cu_colors[i]:', sn12cu_colors[i]
@@ -131,6 +136,9 @@ def load_12cu_excess(filters, zp, del_wave):
                 print '\n\n\n len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
 
 
+# return 1, 2
+
+# temporarly blocked.  12/5/14
         sn11fe = l.interpolate_spectra(phases, l.get_11fe())
 
         ##  This is to make it possible to run just one phase.  sn11fe normally is a list of tuple.
@@ -162,7 +170,7 @@ def load_12cu_excess(filters, zp, del_wave):
                 EXCESS[i] = phase_excesses
 
         
-        return EXCESS, phases
+        return EXCESS, phases, sn11fe, prefix
 
 
 ################################################################################
@@ -481,7 +489,7 @@ def get_12cu_best_ebv_rv(red_law, filters, zp):
 
 if __name__ == "__main__":
 
-    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
+    filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
     
     #        print 'filters_bucket', filters_bucket
     #        print 'zp_bucket', zp_bucket
