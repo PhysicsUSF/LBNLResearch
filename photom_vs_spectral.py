@@ -258,18 +258,49 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print 'args', args
     N_BUCKETS = args.N_BUCKETS
+    hi_wave = 9700.
+    lo_wave = 3300.
     
-    wave_lo = 3300.
-    wave_hi = 9700.
-    del_wave = (wave_hi - wave_lo)/N_BUCKETS
 
     ## Setting up tophat filters
-    filters_bucket, zp_bucket = l.generate_buckets(wave_lo, wave_hi, N_BUCKETS)  #, inverse_microns=True)
+    filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
     filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
 
+    del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
 
-    sn12cu_excess, phases = load_12cu_excess(filters_bucket, zp_bucket, del_wave)
+    sn12cu_excess, phases, sn11fe, prefix = load_12cu_excess(filters_bucket, zp_bucket, del_wave)
     #exit(1)
+
+
+    ref_wave = sn11fe[0][1].wave
+
+    for i, phase, sn11fe_phase in izip(xrange(1), phases, sn11fe):
+        print 'phase', phase
+        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp_bucket[f]) for f in filters_bucket}
+        sn11fe_only_mags = np.array([sn11fe_mags[f] for f in filters_bucket])
+        #sn11fe_1phase = sn11fe[i]
+        flux_11fe = sn11fe_phase[1].flux
+        mag_11fe = ABmag_nu(flux_11fe*ref_wave**2/c)
+
+# convert effective wavelengths to inverse microns then plot
+#eff_waves_inv = (10000./np.array(filter_eff_waves))
+    pmin, pmax = np.min(phases), np.max(phases)
+    mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
+    plt.figure()
+    plt.plot(filter_eff_waves, sn11fe_only_mags, 's', ms=8, mec='none')
+    plt.plot(ref_wave, mag_11fe, 'r.')
+    
+#    plt.figure()
+#    plt.plot(np.array(filter_eff_waves), sn12cu_only_mags, 's', ms=8, mec='none')
+#    plt.plot(ref_wave, mag_12cu, 'k.')
+#    
+    plt.show()
+
+    
+
+
+
+
 
     fig = plt.figure(figsize = (10, 8))
 
@@ -289,7 +320,7 @@ if __name__ == "__main__":
 
 
 
-#
+
 #    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
 #    
 #    #        print 'filters_bucket', filters_bucket
