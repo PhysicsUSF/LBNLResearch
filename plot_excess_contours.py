@@ -82,7 +82,7 @@ LEGEND_FONTSIZE = 15
 
 ################################################################################
 
-def load_12cu_excess(filters, zp, del_wave):
+def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
         prefix = zp['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
         
         print 'filters', filters
@@ -108,17 +108,24 @@ def load_12cu_excess(filters, zp, del_wave):
         
         
         print 'del_wave', del_wave
-        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for t in sn12cu]  # AS seems to be treating V band differently from the rest of the bands.  Need to understand what's going on here.  -XH 12/14/2014
+        if AB_nu:
+            sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]  # AS seems to be treating V band
+        else:
+            sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for t in sn12cu]  # AS seems to be treating V band differently from the rest of the bands.  Need to understand what's going on here.  -XH 12/14/2014
         #exit(1)
 
         sn12cu_colors = {i:{} for i in xrange(len(phases))}
-        
+
+
+## Does the following loops calcualates again V mags?  If so, then the sn12cu_vmags above is not necessary.  -XH  12/5/14
         for f in filters:
                 print '\n\n\n f in filters:', f
             #                print 'len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
                 print 'zp[f]', zp[f]
-                #exit(1)
-                band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for t in sn12cu]
+                if AB_nu:
+                    band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]
+                else:
+                    band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for t in sn12cu]
                 #print 'band_mags for different filters in for loop.'
                 #exit(1)
                 band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
@@ -148,7 +155,11 @@ def load_12cu_excess(filters, zp, del_wave):
 
         for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
             
-                sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for f in filters}
+
+                if AB_nu:
+                    sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for f in filters}
+                else:
+                    sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for f in filters}
 
                 sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters] ## Note: V-band magnitude for 11fe and 12cu are treated differently;
                                                                                    ## need to fix this.  -XH
@@ -170,7 +181,7 @@ def load_12cu_excess(filters, zp, del_wave):
                 EXCESS[i] = phase_excesses
 
         
-        return EXCESS, phases, sn11fe, prefix
+        return EXCESS, phases, sn11fe, sn12cu, prefix
 
 
 ################################################################################
