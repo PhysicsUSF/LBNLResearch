@@ -81,6 +81,7 @@ from scipy.stats import chisquare
 from scipy.interpolate import interp1d
 
 from plot_excess_contours import *
+from mag_spectrum_fitting import ABmag_nu
 
 
 
@@ -104,142 +105,7 @@ INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
 
-################################################################################
 
-
-def ABmag_nu(flux_per_Hz):
-    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.  Use 48.577 to perfectly match Vega, which has a V mag of 0.03.  But if AB mag is
-                                              ## consistently used by me for single-wavelength mag, and by sncosmo for synthetic photometry (check) then
-                                              ## using 48.6 is just fine.
-
-
-
-
-#def grid_fit():
-#    
-#    for j, EBV in enumerate(x):
-#        for k, RV in enumerate(y):
-#            
-#            ## unredden the reddened spectrum, convert to mag
-#            unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
-#            unred_mag_norm, unred_mag_avg_flux, unred_mag_single_V = flux2mag(unred_flux, ref_wave, norm_meth = 'AVG')
-#            ## I should implement a better way to use mask -- right now, there is a lot of reptition that is unnecessary.
-#                    
-#                    
-#            ## this is (unreddened 12cu mag - pristine 11fe mag)
-#            delta = unred_mag_norm[mask] - ref_mag_norm - dist # yes, unred_mag_norm and ref_mag_norm are treated slightly asym'ly -- something I
-#                        # should fix.  -XH
-#                        
-#                        # convert to vector from array and filter nan-values
-#                        delta = delta[nanmask]
-#                            
-#                            ## Remember if I ever want to things the matrix way, one needs to converst an array to a matrix:
-#                            ##   delta_array = np.squeeze(np.asarray(delta))  # converting 1D matrix to 1D array.
-#                            
-#                            
-#                            
-#                            CHI2[i, j, k] = np.sum(delta*delta/var)
-#            
-#            
-#                CHI2_dof = CHI2/dof
-#                CHI2_dof_min = np.min(CHI2_dof)
-#                log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
-#            delCHI2_dof = CHI2_dof - CHI2_dof_min
-
-
-
-
-def load_12cu_excess_X(filters, zp):
-
-
-    prefix = zp['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
-    
-    print 'filters', filters
-    print "zp['V']", zp['V']  # the bands are numbered except V band, which is labeled as 'V'.
-    
-    
-    EXCESS = {}
-
-
-    ## load spectra, interpolate 11fe to 12cu phases (only first 12)
-
-    # correct for Milky Way extinction
-    sn12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)
-    sn12cu = filter(lambda t: t[0]<28, sn12cu)   # here filter() is a python built-in function.
-    phases = [t[0] for t in sn12cu]
-    
-    #      print 'sn12cu[1]',
-    
-    ## the method bandflux() returns (bandflux, bandfluxerr), see spectral.py
-    ## Further need to understandhow bandflux and bandfluerr are calcuated in spectral.py.
-    ## It seems that there may be a conversion between photon flux and energy flux.
-    sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V')[0]/zp['V']) for t in sn12cu]
-
-    sn12cu_colors = {i:{} for i in xrange(len(phases))}
-    for f in filters:
-            band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f)[0]/zp[f]) for t in sn12cu]
-            band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
-            for i, color in enumerate(band_colors):
-                    sn12cu_colors[i][f] = color
-    
-
-#sn11fe = l.interpolate_spectra(phases, l.get_11fe())
-
-    sn11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-
-    ref_wave = sn11fe[0][1].wave
-
-
-    for i, phase, sn11fe_phase in izip(xrange(1), phases, sn11fe):
-        print 'phase', phase
-        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp[f]) for f in filters}
-        sn11fe_only_mags = np.array([sn11fe_mags[f] for f in filters])
-        #sn11fe_1phase = sn11fe[i]
-        flux = sn11fe_phase[1].flux
-        mag = ABmag_nu(flux*ref_wave**2/c)
-
-
-    for i, phase, sn12cu_phase in izip(xrange(1), phases, sn12cu):
-        print 'phase', phase
-        sn12cu_mags = {f : -2.5*np.log10(sn12cu_phase[1].bandflux(prefix+f)[0]/zp[f]) for f in filters}
-        sn12cu_only_mags = np.array([sn12cu_mags[f] for f in filters])
-        #sn12cu_1phase = sn12cu[i]
-        #flux_12cu = sn12cu_phase[1].flux
-        flux12cu_interp = interp1d(sn12cu_phase[1].wave, sn12cu_phase[1].flux)
-        mag_12cu = ABmag_nu(flux12cu_interp(ref_wave)*ref_wave**2/c)
-
-
-
-#    plt.figure()
-#plt.plot(ref_wave, flux, 'k.')
-#    plt.figure()
-#    plt.plot(ref_wave, mag, 'r.')
-#    plt.show()
-#    exit(1)
-    print 'sn11fe_only_mags', sn11fe_only_mags
-
-    
-    # convert effective wavelengths to inverse microns then plot
-    eff_waves_inv = (10000./np.array(filter_eff_waves))
-    pmin, pmax = np.min(phases), np.max(phases)
-    mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
-    plt.figure()
-    plt.plot(np.array(filter_eff_waves), sn11fe_only_mags, 's', ms=8, mec='none')
-    plt.plot(ref_wave, mag, 'r.')
-
-    plt.figure()
-    plt.plot(np.array(filter_eff_waves), sn12cu_only_mags, 's', ms=8, mec='none')
-    plt.plot(ref_wave, mag_12cu, 'k.')
-    
-    plt.show()
-
-
-    plt.show()
-
-
-
-    print 'sn11fe_mags', sn11fe_mags
-    return phases
 
 
 
@@ -268,7 +134,7 @@ if __name__ == "__main__":
 
     del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
 
-    sn12cu_excess, phases, sn11fe, prefix = load_12cu_excess(filters_bucket, zp_bucket, del_wave)
+    sn12cu_excess, phases, sn11fe, sn12cu, prefix = load_12cu_excess(filters_bucket, zp_bucket, del_wave, AB_nu = True)
     #exit(1)
 
 
@@ -276,11 +142,11 @@ if __name__ == "__main__":
 
     for i, phase, sn11fe_phase in izip(xrange(1), phases, sn11fe):
         print 'phase', phase
-        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp_bucket[f]) for f in filters_bucket}
+        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0]) - 48.6 for f in filters_bucket}
         sn11fe_only_mags = np.array([sn11fe_mags[f] for f in filters_bucket])
         #sn11fe_1phase = sn11fe[i]
         flux_11fe = sn11fe_phase[1].flux
-        mag_11fe = ABmag_nu(flux_11fe*ref_wave**2/c)
+        mag_11fe = ABmag_nu(flux_11fe, ref_wave)
 
 # convert effective wavelengths to inverse microns then plot
 #eff_waves_inv = (10000./np.array(filter_eff_waves))
@@ -295,10 +161,23 @@ if __name__ == "__main__":
 #    plt.plot(ref_wave, mag_12cu, 'k.')
 #    
     plt.show()
-
+#exit(1)
     
+    for i, phase, sn12cu_phase in izip(xrange(1), phases, sn12cu):
+        print 'phase', phase
+        sn12cu_mags = {f : -2.5*np.log10(sn12cu_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0]) - 48.6 for f in filters_bucket}
+        sn12cu_only_mags = np.array([sn12cu_mags[f] for f in filters_bucket])
+        #sn12cu_1phase = sn12cu[i]
+        #flux_12cu = sn12cu_phase[1].flux
+        flux12cu_interp = interp1d(sn12cu_phase[1].wave, sn12cu_phase[1].flux)
+        mag_12cu = ABmag_nu(flux12cu_interp(ref_wave), ref_wave)
 
 
+    plt.figure()
+    plt.plot(filter_eff_waves, sn12cu_only_mags, 's', ms=8, mec='none')
+    plt.plot(ref_wave, mag_12cu, 'k.')
+
+    plt.show()
 
 
 
