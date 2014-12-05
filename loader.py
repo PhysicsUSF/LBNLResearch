@@ -764,13 +764,15 @@ def generate_buckets(low, high, n, inverse_microns=False):
     idx = np.argmin((lo_diff,hi_diff))
     print 'idx', idx
     BW = (lo_bw,hi_bw)[idx]      # the lower of the two bandwidths is selected.  -XH
-    LOW = (low,low+lo_diff)[idx] # not sure what this accomplishes.  LOw ends up being 3300, which was the input, low.  -XH
-
+    LOW_wave = (low,low+lo_diff)[idx] # not sure what this accomplishes.  LOw ends up being 3300, which was the input, low.  -XH
+    HIGH_wave = LOW_wave + n*BW              # This is actual upper wavelength limit.
+    print 'HIGH_wave', HIGH_wave
+#exit(1)
 
     toregister = {}
     for i in xrange(n):
-        start = LOW+i*BW
-        end = LOW+(i+1)*BW  # will replace this with: end = start + BW.  -XH
+        start = LOW_wave+i*BW
+        end = LOW_wave+(i+1)*BW  # will replace this with: end = start + BW.  -XH
 
         wave = np.arange(start, end, STEP_SIZE)
         trans = np.ones(wave.shape[0])
@@ -797,7 +799,7 @@ def generate_buckets(low, high, n, inverse_microns=False):
     
     
     
-    return filters, zp_cache
+    return filters, zp_cache, LOW_wave, HIGH_wave
 
 
 
