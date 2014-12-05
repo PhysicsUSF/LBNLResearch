@@ -734,30 +734,43 @@ def generate_buckets(low, high, n, inverse_microns=False):
         temp = low
         low = 10000./high
         high = 10000./temp
-        STEP_SIZE = .01
+        STEP_SIZE = .01         # this number may be the reason why it's difficult to go to more than 80 bands. -XH
         prefix = 'bucket_invmicron_'
     else:
-        STEP_SIZE = 2
+        STEP_SIZE = 2      # becaues the finest wavelength resolution (for 11fe) is 2A.  -XH
         prefix = 'bucket_angstrom_'
 
     zp_cache = {'prefix':prefix}
 
     hi_cut, lo_cut = high-V_EFF, V_EFF-low
-    a = (n-1)/(1+(hi_cut/lo_cut))
-    A, B = np.round(a), np.round(n-1-a)
+    print 'hi_cut, lo_cut', hi_cut, lo_cut
+    a = (n-1)/(1+(hi_cut/lo_cut))   # this is to figure out the relative portion of the number of red bands vs. blue bands (boundaried on V_EFF).  -XH
+    print 'a, n', a, n
 
-    lo_bw, hi_bw = lo_cut/(A+0.5), hi_cut/(B+0.5)
+
+    A, B = np.round(a), np.round(n-1-a)  # A and B are the number of band for the blue and red parts of the spectrum (relative to V_eff), respectively.
+                                         # It's better to give them more descriptive names.  -XH
+
+    lo_bw, hi_bw = lo_cut/(A+0.5), hi_cut/(B+0.5)  # looks like bw stands for bandwidth.  They added 0.5, probably to make sure, one doesn't run out of room on either end of
+                                                   # the spectrum.  Note at this point, the bandwidths for the blue and red parts constructed this way are close to each
+                                                   # other, but not identical.   -XH
+
+    print 'lo_bw, hi_bw',lo_bw, hi_bw
+
+    ## The next few lines is to determine which of the two bw's is lower and that will be used as the bandwidth, BW.  -XH
     lo_diff = lo_cut-(A+0.5)*hi_bw
     hi_diff = hi_cut-(B+0.5)*lo_bw
 
     idx = np.argmin((lo_diff,hi_diff))
-    BW = (lo_bw,hi_bw)[idx]
-    LOW = (low,low+lo_diff)[idx]
+    print 'idx', idx
+    BW = (lo_bw,hi_bw)[idx]      # the lower of the two bandwidths is selected.  -XH
+    LOW = (low,low+lo_diff)[idx] # not sure what this accomplishes.  LOw ends up being 3300, which was the input, low.  -XH
+
 
     toregister = {}
     for i in xrange(n):
         start = LOW+i*BW
-        end = LOW+(i+1)*BW
+        end = LOW+(i+1)*BW  # will replace this with: end = start + BW.  -XH
 
         wave = np.arange(start, end, STEP_SIZE)
         trans = np.ones(wave.shape[0])
