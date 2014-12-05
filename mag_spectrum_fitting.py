@@ -18,6 +18,8 @@ import cStringIO
 
 
 import loader as l
+from plot_from_contours import *
+
 from copy import deepcopy
 from pprint import pprint
 
@@ -40,7 +42,8 @@ from scipy.interpolate import interp1d
 from sys import argv
 #from mag_spectrum_fitting import filter_features
 
-
+### CONST ###
+c = 3e18  # speed of light in A/sec.
 
 ## Configuration
 PLOTS_PER_ROW = 6
@@ -67,8 +70,14 @@ V_wave = 5413.5
 
 FrFlx2mag = 2.5/np.log(10)  #  =1.0857362
 
-def ABmag(flux_per_Hz):
-    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.
+#def ABmag(flux_per_Hz):
+#    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.
+
+def ABmag_nu(flux, wave):
+    flux_per_Hz = flux * wave**2/c
+    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.  Use 48.577 to perfectly match Vega, which has a V mag of 0.03.  But if AB mag is
+                                              ## consistently used by me for single-wavelength mag, and by sncosmo for synthetic photometry (check) then
+                                              ## using 48.6 is just fine.
 
 
 def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
@@ -132,11 +141,12 @@ def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
 def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
     mag_var = None
     
-    mag = ABmag(flux)
+    mag = ABmag_nu(flux, ref_wave)
     ## One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
     ## Also note it's not the avg mag but the mag of the avg flux.
-    mag_avg_flux = ABmag(np.average(flux))   # see Bessell & Murphy 2012 eq 2.
-    mag_single_V = ABmag(flux[np.argmin(np.abs(ref_wave - V_wave))])
+    avg_wave = np.mean(ref_wave)
+    mag_avg_flux = ABmag_nu(np.average(flux), avg_wave)   # see Bessell & Murphy 2012 eq 2.
+    mag_single_V = ABmag_nu(flux[np.argmin(np.abs(ref_wave - V_wave))], V_wave)
 
 
     if norm_meth == 'AVG':
@@ -497,6 +507,31 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         print 'in per_phase():', best_us, best_rvs, best_ebvs
 
         return snake_hi_1sigs, snake_lo_1sigs
+
+
+def plot_photom_excess():
+    filters_bucket, zp_bucket = l.generate_buckets(3300, 9700, N_BUCKETS, inverse_microns=True)
+    
+    fig = plt.figure(figsize = (20, 12))
+    
+    
+    plot_phase_excesses('SN2012CU', load_12cu_colors, RED_LAW, filters_bucket, zp_bucket)
+    
+    # format figure
+    fig.suptitle('SN2012CU: Color Excess Per Phase', fontsize=TITLE_FONTSIZE)
+    
+    fig.text(0.5, .05, 'Inverse Wavelength ($1 / \mu m$)',
+             fontsize=AXIS_LABEL_FONTSIZE, horizontalalignment='center')
+        
+    p1, = plt.plot(np.array([]), np.array([]), 'k--')
+    p2, = plt.plot(np.array([]), np.array([]), 'r-')
+    fig.legend([p1, p2], ['Fitzpatrick-Massa 1999*', 'Power-Law (Goobar 2008)'],
+            loc=1, bbox_to_anchor=(0, 0, .97, .99), ncol=2, prop={'size':LEGEND_FONTSIZE})
+
+    fig.subplots_adjust(left=0.06, bottom=0.1, right=0.94, top=0.90, wspace=0.2, hspace=0.2)
+    plt.show()
+
+
 
 
 
