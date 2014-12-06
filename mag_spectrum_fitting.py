@@ -197,7 +197,7 @@ def log(msg=""):
 
 
 
-def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False):
+def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False, norm_meth = 'AVG'):
     
 
         '''
@@ -315,14 +315,14 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                 mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
 
-                ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = 'AVG')
+                ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = norm_meth  )
 
 
                 log()
                 log( "Phase: {}".format(ref[0]) )
                 
                 ## 12cu or artificially reddened 11fe
-                obs_mag_norm, obs_mag_avg_flux, obs_mag_single_V, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = 'AVG')
+                obs_mag_norm, obs_mag_avg_flux, obs_mag_single_V, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = norm_meth)
 
 
                 ## estimated of distance modulus
@@ -374,7 +374,7 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
                                 
                                 ## unredden the reddened spectrum, convert to mag
                                 unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
-                                unred_mag_norm, unred_mag_avg_flux, unred_mag_single_V = flux2mag(unred_flux, ref_wave, norm_meth = 'AVG')
+                                unred_mag_norm, unred_mag_avg_flux, unred_mag_single_V = flux2mag(unred_flux, ref_wave, norm_meth = norm_meth)
                                 ## I should implement a better way to use mask -- right now, there is a lot of reptition that is unnecessary.
                               
                                 
@@ -535,11 +535,11 @@ def plot_photom_excess():
 
 
 
-def plot_excess(title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs):
+def plot_excess(phases, title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs):
     
     fig = plt.figure(figsize = (20, 12))
     
-    phases = [t[0] for t in obs_SN]
+    #phases = [t[0] for t in obs_SN]
     
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     pmin, pmax = np.min(phases), np.max(phases)
@@ -753,15 +753,15 @@ if __name__=="__main__":
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
 
-
+    phases_to_fit = phases[0:1]
 
     ## The following is a little hackish. i = 0 (unfilt = False) corresponds to the filtered case, and i = 1 (unfilt = True) corresponds to the unfiltered case.
     ## Also range(False) gives []; so I use range(unfilt + 1): range(False+1] gives [0], range[True+1] gives [0, 1].
     print 'unfilt', unfilt
     for i in range(unfilt+1):
-        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, unfilt = i)
+        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases_to_fit, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, norm_meth = 'AVG', unfilt = i)
         pkl_file = "spectra_mag_fit_results_FILTERED.pkl" if i == 0 else "spectra_mag_fit_results_UNFILTERED.pkl"
         info_dict = cPickle.load(open(pkl_file, 'rb'))
         save_name = "SN2012cu (Feature Filtered)" if i == 0 else "SN2012cu"
-        plot_excess(save_name, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
+        plot_excess(phases_to_fit, save_name, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
 
