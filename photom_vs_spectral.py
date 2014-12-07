@@ -106,6 +106,8 @@ LEGEND_FONTSIZE = 15
 
 PLOTS_PER_ROW = 6
 
+V_wave = 5413.5
+
 '''This function needs to be adapted for my way of doing things:
     
     1. pass sn11fe_colors (instead of recalculating it)
@@ -177,8 +179,10 @@ def plot_phase_excesses(name, sn11fe_colors, sn12cu_colors, filter_eff_waves, SN
         # convert effective wavelengths to inverse microns then plot
         #eff_waves_inv = 10000./filter_eff_waves
         mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))    
-        plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color,
-                 ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+            #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+
+        plt.plot(filter_eff_waves, phase_excesses, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
+
 #        print 'eff_waves_inv', eff_waves_inv
 #        print 'phase_excesses', phase_excesses
 #        plt.show()
@@ -197,7 +201,13 @@ def plot_phase_excesses(name, sn11fe_colors, sn12cu_colors, filter_eff_waves, SN
         rv_spect = 2.83
         red_curve_spect = red_law(x, np.zeros(x.shape), -ebv_spect, rv_spect, return_excess=True)
         plt.plot(x, red_curve_spect, 'r-')
-        
+
+        ## plot where V band is.   -XH
+        plt.plot([x.min(), x.max()], [0, 0] ,'--')
+        plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
+
+
+
         # TEST #####################
 #        dd = SN12CU_CHISQ_DATA_PL[i]
 #        test_red_curve = redden_pl2(x, np.zeros(x.shape), -dd['BEST_EBV'], dd['BEST_RV'], return_excess=True)
@@ -307,9 +317,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     print 'args', args
-    RV_STEPS = args.N_BUCKETS
-    EBV_STEPS = args.RV_STEPS
-    N_BUCKETS = args.EBV_STEPS
+    N_BUCKETS = args.N_BUCKETS
+    RV_STEPS = args.RV_STEPS
+    EBV_STEPS = args.EBV_STEPS
     
     hi_wave = 9700.
     lo_wave = 3300.
