@@ -94,59 +94,104 @@ def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
         # correct for Milky Way extinction
         sn12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)
         sn12cu = filter(lambda t: t[0]<28, sn12cu)   # here filter() is a python built-in function.
- 
-        # to just do the -6.5 phase.  12/4/2014.
-        sn12cu = filter(lambda t: t[0]<-5, sn12cu)   # here filter() is a python built-in function.
+        ## if I don't include the above statement, the sn11fe loading statement below will have errors.
+        phases_12cu = [t[0] for t in sn12cu]
+        sn11fe = l.interpolate_spectra(phases_12cu, l.get_11fe())
+
+
+
+        ## to just do the -6.5 phase.  12/4/2014.
+        select_phase = -5
+        sn12cu = filter(lambda t: t[0]<select_phase, sn12cu)   # here filter() is a python built-in function.
+        sn11fe = filter(lambda t: t[0]<select_phase, sn11fe)   # here filter() is a python built-in function.
+
+        print 'len(sn12cu)', len(sn12cu)
+        print 'sn12cu', sn12cu
+
 
         phases = [t[0] for t in sn12cu]
- 
+
+
+        print 'phases', phases
+
+#        sn11fe = l.interpolate_spectra(phases, l.get_11fe())
+        #sn11fe = filter(lambda t: t[0]<-5, sn11fe)   # here filter() is a python built-in function.
+        print 'len(sn11fe)', len(sn11fe)
+        print 'sn11fe', sn11fe
+
+
         #      print 'sn12cu[1]',
         
         ## the method bandflux() returns (bandflux, bandfluxerr), see spectral.py
         ## Further need to understandhow bandflux and bandfluerr are calcuated in spectral.py.
         ## It seems that there may be a conversion between photon flux and energy flux.
         
-        
+        ## Not sure if this step is necessary -- see the comment for the for loop below.
         print 'del_wave', del_wave
         if AB_nu:
             sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]  # AS seems to be treating V band
+            sn11fe_vmags = [-2.5*np.log10(s[1].bandflux(prefix+'V',  del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for s in sn11fe]
         else:
             sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for t in sn12cu]  # AS seems to be treating V band differently from the rest of the bands.  Need to understand what's going on here.  -XH 12/14/2014
-        #exit(1)
+            sn11fe_vmags = [-2.5*np.log10(s[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for s in sn11fe]
+
 
         sn12cu_colors = {i:{} for i in xrange(len(phases))}
+        sn11fe_colors = {i:{} for i in xrange(len(phases))}
 
 
-## Does the following loops calcualates again V mags?  If so, then the sn12cu_vmags above is not necessary.  -XH  12/5/14
+## Doesn't the following loops calcualates again V mags?  If so, then the sn12cu_vmags above is not necessary.  -XH  12/5/14
         for f in filters:
                 print '\n\n\n f in filters:', f
             #                print 'len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
                 print 'zp[f]', zp[f]
                 if AB_nu:
                     band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]
+                    ref_mags = [-2.5*np.log10(s[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for s in sn11fe]
                 else:
                     band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for t in sn12cu]
+                    ref_mags = [-2.5*np.log10(s[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for s in sn11fe]
+
                 #print 'band_mags for different filters in for loop.'
                 #exit(1)
                 band_colors = np.array(sn12cu_vmags)-np.array(band_mags)
+                ref_colors = np.array(sn11fe_vmags)-np.array(ref_mags)
                 print 'sn12cu_vmags', np.array(sn12cu_vmags)
                 print 'band_mags', np.array(band_mags)
                 #exit(1)
                 print len(band_colors)
                 print 'band_colors', band_colors
+                
+                                
+                                
+                ## I can probably combine the next two for loops into one with zip or izip
+                ## Note: i here represents phase
+                for i, color in enumerate(ref_colors):
+                    print '\n\n\n in for colors'
+                    print 'sn11fe_colors[i]:', sn11fe_colors[i]
+                    sn11fe_colors[i][f] = color
+                    print 'i, color, f', i, color, f
+                    print 'sn11fe_colors[i][f]:', sn11fe_colors[i][f]
                 for i, color in enumerate(band_colors):
-                        print '\n\n\n in for colors'
-                        print 'sn12cu_colors[i]:', sn12cu_colors[i]
-                        sn12cu_colors[i][f] = color
-                        print 'i, color, f', i, color, f
-                        print 'sn12cu_colors[i][f]:', sn12cu_colors[i][f]
+                    print '\n\n\n in for colors'
+                    print 'sn12cu_colors[i]:', sn12cu_colors[i]
+                    sn12cu_colors[i][f] = color
+                    print 'i, color, f', i, color, f
+                    print 'sn12cu_colors[i][f]:', sn12cu_colors[i][f]
                 print '\n\n\n len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
 
 
-# return 1, 2
 
-# temporarly blocked.  12/5/14
-        sn11fe = l.interpolate_spectra(phases, l.get_11fe())
+ 
+#        if AB_nu:
+#            sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for f in filters}
+#        else:
+#            sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for f in filters}
+#
+#        sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters] ## Note: V-band magnitude for 11fe and 12cu are treated differently;
+                                                                           ## need to fix this.  -XH
+
+
 
         ##  This is to make it possible to run just one phase.  sn11fe normally is a list of tuple.
         ##  With just one phase, I'm forcing it to be a list.
@@ -156,14 +201,10 @@ def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
         for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
             
 
-                if AB_nu:
-                    sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for f in filters}
-                else:
-                    sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for f in filters}
 
-                sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters] ## Note: V-band magnitude for 11fe and 12cu are treated differently;
-                                                                                   ## need to fix this.  -XH
-                ref_colors = [sn12cu_colors[i][f] for f in filters]
+                ## what is sn12cu_colors renamed as ref_colors?  It's at the very least a confusing name.  Change it.  -XH
+                band_colors = [sn12cu_colors[i][f] for f in filters]
+                ref_colors = [sn11fe_colors[i][f] for f in filters]
 
 
                 ## why are phases > 20 singled out??  -XH
@@ -176,12 +217,12 @@ def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
                         print "sn11fe colors:"
                         pprint( zip(filters, sn11fe_colors) )
                 
-                phase_excesses = np.array(ref_colors)-np.array(sn11fe_colors)
+                phase_excesses = np.array(band_colors)-np.array(ref_colors)
 
                 EXCESS[i] = phase_excesses
 
         
-        return EXCESS, phases, sn11fe, sn12cu, prefix
+        return EXCESS, phases, sn11fe, sn12cu, sn12cu_colors, sn11fe_colors, prefix
 
 
 ################################################################################
@@ -456,7 +497,9 @@ def get_all_phases_best_fit():
         
 
 ################################################################################
-        
+
+## This part is poorly written: this function is defined here but is never used.  Instead it's called in plot_from_contours.py.  -XH
+## A lot of this suite of program have to be re-written and re-organized in a massive way.
 def get_12cu_best_ebv_rv(red_law, filters, zp):
         filter_eff_waves = np.array([snc.get_bandpass(zp['prefix']+f).wave_eff
                                      for f in filters])
