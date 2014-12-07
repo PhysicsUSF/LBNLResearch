@@ -727,7 +727,9 @@ def generate_buckets(low, high, n, inverse_microns=False):
     range of [low, high] (given in Angrstroms), with one 'V' filter centered at
     the BESSEL-V filter's effective wavelength (5417.2 Angstroms).
     '''
-    V_EFF = 5417.2
+    #V_EFF = 5417.2
+    V_EFF = 5413.5  # To be consistent with mag_spect_fitting.py.
+
 
     if inverse_microns:
         V_EFF = 10000./V_EFF
