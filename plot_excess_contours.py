@@ -228,10 +228,21 @@ def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
 ################################################################################
 
 def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
-                 ebv, ebv_pad, rv, rv_pad, steps, ax=None):
+                 ebv, ebv_pad, rv, rv_pad, rv_steps, ebv_steps, ax=None):
+    
+    
+    
+        '''This is where chi2 is calculated. 
+            
+            I should separate the part that calculates chi2 and the part that plots.  
+            
+            -XH  12/6/14.
+            
+            
+        '''
                          
-        x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, steps)
-        y = np.linspace(rv-rv_pad, rv+rv_pad, steps)
+        x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, ebv_steps)
+        y = np.linspace(rv-rv_pad, rv+rv_pad, rv_steps)
         
         X, Y = np.meshgrid(x, y)
         Z = np.zeros( X.shape )
@@ -285,7 +296,7 @@ def plot_contour(subplot_index, phase, red_law, ref_excess, filter_eff_waves,
         
         CDF = 1 - np.exp((-(CHISQ-dof))/2)  # calculation cumulative distribution func
         
-        # find 1-sigma and 2-sigma errors based on confidence
+        ####**** ------------->     Here chi2 is beign calculated.   <---------------------- find 1-sigma and 2-sigma errors based on confidence
         maxebv_1sig, maxebv_2sig, minebv_1sig, minebv_2sig = x[mx], x[mx], x[mx], x[mx]
         maxrv_1sig, maxrv_2sig, minrv_1sig, minrv_2sig = y[my], y[my], y[my], y[my]
         for i, EBV in enumerate(x):
