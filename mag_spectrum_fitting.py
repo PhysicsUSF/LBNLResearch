@@ -197,7 +197,7 @@ def log(msg=""):
 
 
 
-def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False, norm_meth = 'AVG'):
+def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False, norm_meth = 'AVG'):
     
 
         '''
@@ -285,10 +285,13 @@ def grid_fit(phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, r
         V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 
 
-        for phase_index in xrange(len(phases)): # [0,]
+        for phase_index, phase in zip(select_phases, [phases[select_phases]]):
+            #        for phase_index in phases: # [0,]
             
             
                 print '\n\n\n Phase_index', phase_index, '\n\n\n'
+            
+            #exit(1)
             
                 ref = pristine_11fe[phase_index]
                 ## Note: I have determined that ref_wave is equally spaced at 2A.
@@ -535,7 +538,7 @@ def plot_photom_excess():
 
 
 
-def plot_excess(phases, title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs):
+def plot_excess(phases, select_phases, title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs):
     
     fig = plt.figure(figsize = (20, 12))
     
@@ -547,14 +550,17 @@ def plot_excess(phases, title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs,
 
     ref_wave = pristine_11fe[0][1].wave
 
-    for i, phase in enumerate(phases):
+    for i, phase_index, phase in izip(range(len(select_phases)), select_phases, [phases[select_phases]]):
         
         
         print "Plotting phase {} ...".format(phase)
-        ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
+        print 'i', i
+        #exit(1)
+        #        ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
+        ax = plt.subplot(111)
         
-        ref = pristine_11fe[i]
-        obs = obs_SN[i]
+        ref = pristine_11fe[phase_index]
+        obs = obs_SN[phase_index]
         
 
         color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
@@ -591,25 +597,25 @@ def plot_excess(phases, title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs,
         mfc_color = plt.cm.cool(5./11)
         
         ## plot excess (this is the data)
-        plt.plot(ref_wave_inv, excess, '.', color=mfc_color, ms=6, mec='none', mfc=mfc_color, alpha=0.8)
+        plt.plot(ref_wave, excess, '.', color=mfc_color, ms=6, mec='none', mfc=mfc_color, alpha=0.8)
 
 
 
         ## plot best-fit reddening curve
         fm_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
-        plt.plot(ref_wave_inv, fm_curve, 'k--')
+        plt.plot(ref_wave, fm_curve, 'k--')
 
 
         ## RV = 2.7, EBV = 1.02 reddenging curve.
         fm_curve27 = redden_fm(ref_wave, np.zeros(ref_wave.shape), -1.02*np.ones(best_ebv.shape), 2.7*np.ones(best_rv.shape), return_excess=True)
-        plt.plot(ref_wave_inv, fm_curve27, 'r-')
+        plt.plot(ref_wave, fm_curve27, 'r-')
 
         ## Plot uncertainty snake.
-        ax.fill_between(10000./ref_wave, snake_lo_1sigs[i], snake_hi_1sigs[i], facecolor='black', alpha=0.3)
+        ax.fill_between(ref_wave, snake_lo_1sigs[i], snake_hi_1sigs[i], facecolor='black', alpha=0.3)
 
         ## plot where V band is.   -XH
-        plt.plot([ref_wave_inv.min(), ref_wave_inv.max()], [0, 0] ,'--')
-        plt.plot([1e4/V_wave, 1e4/V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
+        plt.plot([ref_wave.min(), ref_wave.max()], [0, 0] ,'--')
+        plt.plot([V_wave, V_wave], [fm_curve.min(), fm_curve.max()] ,'--')
          
 
 
@@ -643,13 +649,13 @@ def plot_excess(phases, title, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs,
                                  best_rv, rv_uncert_upper, rv_uncert_lower
                                  )
             
-        ax.text(.95, .98, plttext, size=INPLOT_LEGEND_FONTSIZE,
+        ax.text(.95, .2, plttext, size=INPLOT_LEGEND_FONTSIZE,
                  horizontalalignment='right',
                  verticalalignment='top',
                  transform=ax.transAxes)
          
         ## format subplot
-        plt.xlim(1.0, 3.0)
+        plt.xlim(3000, 10000)
         plt.ylim(-3.0, 2.0)
 
         if i%PLOTS_PER_ROW == 0:
@@ -693,8 +699,7 @@ if __name__=="__main__":
     Example:
     
     
-    python mag_spectrum_fitting.py -obs_SN 'red_11fe' -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11
-    -unfilt
+    python mag_spectrum_fitting.py -obs_SN 'red_11fe' -select_phases 4 -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11 -unfilt
     
     Note: it is possible to to add FEATURES_ACTUAL at the command line too.  It takes a little finessing.  When I'm ready to implement, try one or both of the following:
     One could use nargs = '*':
@@ -710,6 +715,8 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-obs_SN', type = str)
+    parser.add_argument('-select_phases',  '--select_phases', nargs='+', type=int)  # this can take a tuple: -select_phases 0 4  but the rest of the program can't handle more than
+                                                                                    # one phases yet.  -XH 12/7/14
     parser.add_argument('-u_guess', type = float)
     parser.add_argument('-u_pad', type = float)
     parser.add_argument('-u_steps', type = int)
@@ -726,6 +733,7 @@ if __name__=="__main__":
     #parser.add_argument('params', nargs = '*', type = float)
     args = parser.parse_args()
     print 'args', args
+    
     obs_SN = args.obs_SN
     u_guess = args.u_guess
     u_pad = args.u_pad
@@ -736,6 +744,7 @@ if __name__=="__main__":
     ebv_guess = args.ebv_guess
     ebv_pad = args.ebv_pad
     ebv_steps = args.ebv_steps
+    select_phases = np.array(args.select_phases) ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
     unfilt = args.unfilt
     
     ## load spectra, interpolate 11fe to 12cu phases (only first 12)
@@ -752,16 +761,20 @@ if __name__=="__main__":
         obs_SN = art_reddened_11fe
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
+    
+    #select_phases = np.array(select_phases)
+#select_phases = np.array([0])
 
-    phases_to_fit = phases[0:1]
+#print phases_to_fit
+#exit(1)
 
     ## The following is a little hackish. i = 0 (unfilt = False) corresponds to the filtered case, and i = 1 (unfilt = True) corresponds to the unfiltered case.
     ## Also range(False) gives []; so I use range(unfilt + 1): range(False+1] gives [0], range[True+1] gives [0, 1].
     print 'unfilt', unfilt
     for i in range(unfilt+1):
-        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases_to_fit, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, norm_meth = 'AVG', unfilt = i)
+        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, norm_meth = 'AVG', unfilt = i)
         pkl_file = "spectra_mag_fit_results_FILTERED.pkl" if i == 0 else "spectra_mag_fit_results_UNFILTERED.pkl"
         info_dict = cPickle.load(open(pkl_file, 'rb'))
         save_name = "SN2012cu (Feature Filtered)" if i == 0 else "SN2012cu"
-        plot_excess(phases_to_fit, save_name, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
+        plot_excess(phases, select_phases, save_name, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
 
