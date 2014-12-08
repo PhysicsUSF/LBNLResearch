@@ -82,7 +82,7 @@ LEGEND_FONTSIZE = 15
 
 ################################################################################
 
-def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
+def load_12cu_excess(select_phases, filters, zp, del_wave, AB_nu = False):
         prefix = zp['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
         
         print 'filters', filters
@@ -101,23 +101,37 @@ def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
 
 
         ## to just do the -6.5 phase.  12/4/2014.
-        select_phase = -5
-        sn12cu = filter(lambda t: t[0]<select_phase, sn12cu)   # here filter() is a python built-in function.
-        sn11fe = filter(lambda t: t[0]<select_phase, sn11fe)   # here filter() is a python built-in function.
+#        select_phase = 30
+#        sn12cu = filter(lambda t: t[0]<select_phase, sn12cu)   # here filter() is a python built-in function.
+#        sn11fe = filter(lambda t: t[0]<select_phase, sn11fe)   # here filter() is a python built-in function.
+
+        sn12cu = sn12cu[select_phases]   # here filter() is a python built-in function.
+        sn11fe = sn11fe[select_phases]   # here filter() is a python built-in function.
+
+
+
+##  This is to make it possible to run just one phase.  sn11fe normally is a list of tuple.
+##  With just one phase, I'm forcing it to be a list.
+        if type(sn11fe) == tuple:
+            sn11fe = [sn11fe]
+
+        if type(sn12cu) == tuple:
+            sn12cu = [sn12cu]
+
 
         print 'len(sn12cu)', len(sn12cu)
         print 'sn12cu', sn12cu
 
 
-        phases = [t[0] for t in sn12cu]
-
-
-        print 'phases', phases
-
 #        sn11fe = l.interpolate_spectra(phases, l.get_11fe())
-        #sn11fe = filter(lambda t: t[0]<-5, sn11fe)   # here filter() is a python built-in function.
+#sn11fe = filter(lambda t: t[0]<-5, sn11fe)   # here filter() is a python built-in function.
         print 'len(sn11fe)', len(sn11fe)
         print 'sn11fe', sn11fe
+
+
+        phases = [t[0] for t in sn12cu]
+
+        print 'phases', phases
 
 
         #      print 'sn12cu[1]',
@@ -192,11 +206,6 @@ def load_12cu_excess(filters, zp, del_wave, AB_nu = False):
                                                                            ## need to fix this.  -XH
 
 
-
-        ##  This is to make it possible to run just one phase.  sn11fe normally is a list of tuple.
-        ##  With just one phase, I'm forcing it to be a list.
-        if type(sn11fe) == tuple:
-            sn11fe = [sn11fe]
 
         for i, phase, sn11fe_phase in izip(xrange(len(phases)), phases, sn11fe):
             
