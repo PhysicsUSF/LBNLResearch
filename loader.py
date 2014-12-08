@@ -780,7 +780,7 @@ def generate_buckets(low, high, n, inverse_microns=False):
         trans = np.ones(wave.shape[0])
         trans[0]=trans[-1]=0
 
-        index = (str(i),'V')[ abs(V_EFF-(start+end)/2) < 1e-5 ]
+        index = (str(i),'V')[ abs(V_EFF-(start+end)/2) < 1e-5 ]   # This selects either i or V for index.  -XH
 
         if inverse_microns:
             wave = sorted(10000./wave)
