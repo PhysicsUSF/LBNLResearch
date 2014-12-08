@@ -121,7 +121,7 @@ V_wave = 5413.5
 
 
 #def plot_phase_excesses(name, loader, SN12CU_CHISQ_DATA, red_law, filters, zp):
-def plot_phase_excesses(name, sn11fe_colors, sn12cu_colors, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, pmin, pmax):
+def plot_phase_excesses(name, sn11fe_colors, sn12cu_colors, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, pmin, pmax, rv_spect, ebv_spect):
     
     
     print "Plotting excesses of",name," with best fit from contour..."
@@ -197,8 +197,8 @@ def plot_phase_excesses(name, sn11fe_colors, sn12cu_colors, filter_eff_waves, SN
         plt.plot(x, red_curve, 'k'+linestyle)
         slo, shi = plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
 
-        ebv_spect = 1.0
-        rv_spect = 2.83
+#        ebv_spect = 1.01
+#        rv_spect = 2.85
         red_curve_spect = red_law(x, np.zeros(x.shape), -ebv_spect, rv_spect, return_excess=True)
         plt.plot(x, red_curve_spect, 'r-')
 
@@ -303,7 +303,7 @@ if __name__ == "__main__":
 
     '''
     
-    python photom_vs_spectral.py -N_BUCKETS 20 -RV_STEPS 41 -EBV_STEPS 41
+    python photom_vs_spectral.py -select_phases 1 -N_BUCKETS 20 -RV_STEPS 41 -EBV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8
     
     
     '''
@@ -312,7 +312,10 @@ if __name__ == "__main__":
     parser.add_argument('-N_BUCKETS', type = int)
     parser.add_argument('-RV_STEPS', type = int)
     parser.add_argument('-EBV_STEPS', type = int)
-
+    parser.add_argument('-select_phases',  '--select_phases', nargs='+', type=int)  # this can take a tuple: -select_phases 0 4  but the rest of the program can't handle more than
+                                                                                    # one phases yet.  -XH 12/7/14
+    _ = parser.add_argument('-ebv_spect', type = float)  # just another way to add an argument to the list.
+    _ = parser.add_argument('-rv_spect', type = float)  # just another way to add an argument to the list.
 
 
     args = parser.parse_args()
@@ -320,7 +323,10 @@ if __name__ == "__main__":
     N_BUCKETS = args.N_BUCKETS
     RV_STEPS = args.RV_STEPS
     EBV_STEPS = args.EBV_STEPS
-    
+    select_phases = np.array(args.select_phases) ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
+    ebv_spect = args.ebv_spect
+    rv_spect = args.rv_spect
+
     hi_wave = 9700.
     lo_wave = 3300.
     
@@ -331,11 +337,37 @@ if __name__ == "__main__":
 
     del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
 
-    sn12cu_excess, phases, sn11fe, sn12cu,  sn12cu_colors, sn11fe_colors, prefix = load_12cu_excess(filters_bucket, zp_bucket, del_wave, AB_nu = True)
-    #exit(1)
+
+#select_phases = np.array([1])
+    sn12cu_excess, phases, sn11fe, sn12cu,  sn12cu_colors, sn11fe_colors, prefix = load_12cu_excess(select_phases, filters_bucket, zp_bucket, del_wave, AB_nu = True)
 
 
     ref_wave = sn11fe[0][1].wave
+
+
+    
+#    for phase_index in select_phases:
+#        print 'phase_index', phase_index
+#
+#    print phases
+#    exit(1)
+#    print phases[select_phases]
+#    print [phases[select_phases]]
+#
+#    exit(1)
+
+
+#    for phase in [phases[select_phases]]:
+#        print 'phase', phase
+#
+#    exit(1)
+    #for phase, sn11fe_phase in izip(select_phases, sn11fe[select_phases]):
+
+#eventually want to use the same for loop for 11fe and 12cu -- turn it into a function that returns mag's.  Use SN = sn11fe or sn12cu in the function call.
+#    for phase_index, phase in zip(select_phases, [phases[select_phases]]):
+#        
+#        print '\n\n\n Phase_index', phase_index, '\n\n\n'
+#        sn11fe_phase = sn11fe[phase_index]
 
     for i, phase, sn11fe_phase in izip(xrange(1), phases, sn11fe):
         print 'phase', phase
@@ -352,6 +384,7 @@ if __name__ == "__main__":
     plt.figure()
     plt.plot(filter_eff_waves, sn11fe_only_mags, 's', ms=8, mec='none')
     plt.plot(ref_wave, mag_11fe, 'r.')
+
     
 #    plt.figure()
 #    plt.plot(np.array(filter_eff_waves), sn12cu_only_mags, 's', ms=8, mec='none')
@@ -359,7 +392,7 @@ if __name__ == "__main__":
 #    
 
 #exit(1)
-    
+
     for i, phase, sn12cu_phase in izip(xrange(1), phases, sn12cu):
         print 'phase', phase
         sn12cu_mags = {f : -2.5*np.log10(sn12cu_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0]) - 48.6 for f in filters_bucket}
@@ -377,10 +410,9 @@ if __name__ == "__main__":
 
 
 
-
     fig = plt.figure(figsize = (10, 8))
     SN12CU_CHISQ_DATA = []
-    for i, phase in enumerate(['-6.5']):  # enumerate(phases)
+    for i, phase in enumerate(select_phases):  # enumerate(phases)
         print "Plotting phase {} ...".format(phase)
         
         ax = plt.subplot(111)  # ax = plt.subplot(2,6,i+1)
@@ -425,7 +457,7 @@ if __name__ == "__main__":
     fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
     fig = plt.figure(figsize = (20, 12))
-    plot_phase_excesses('SN2012CU', sn11fe_colors, sn12cu_colors, filter_eff_waves, SN12CU_CHISQ_DATA, filters_bucket, redden_fm, phases, pmin, pmax)
+    plot_phase_excesses('SN2012CU', sn11fe_colors, sn12cu_colors, filter_eff_waves, SN12CU_CHISQ_DATA, filters_bucket, redden_fm, phases, pmin, pmax, rv_spect, ebv_spect)
 
     plt.show()
 
