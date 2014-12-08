@@ -699,7 +699,7 @@ if __name__=="__main__":
     Example:
     
     
-    python mag_spectrum_fitting.py -obs_SN 'red_11fe' -select_phases 4 -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11 -unfilt
+    python RV_EBV_fitting.py -obs_SN 'red_11fe' -select_phases 4 -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11 -unfilt
     
     Note: it is possible to to add FEATURES_ACTUAL at the command line too.  It takes a little finessing.  When I'm ready to implement, try one or both of the following:
     One could use nargs = '*':
@@ -747,20 +747,149 @@ if __name__=="__main__":
     select_phases = np.array(args.select_phases) ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
     unfilt = args.unfilt
     
-    ## load spectra, interpolate 11fe to 12cu phases (only first 12)
+    ## *******************   SECTION 1: load spectra, interpolate 11fe to 12cu phases (only first 12)  ********************
     obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in obs_12cu]
         
         
     pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
     art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, del_mu=0.5, noiz=0.0, loadmast=False, loadptf=False))
+
+
+    ## Extrapolate to 11fe wavelengths.
+
+    ## Note: I have determined that ref_wave is equally spaced at 2A.
+    ref_wave = pristine_11fe[0][1].wave
+    wave_12cu = obs_12cu[0][1].wave
     
+    flux_11fe = {}
+    flux_reddened_11fe = {}
+    var_11fe = {}
+    flux_12cu = {}
+    var_12cu = {}
+    
+    
+    for phase_index, phase in zip(select_phases, [phases[select_phases]]):
+        print '\n\n\n Phase_index', phase_index, '\n\n\n'
+    
+        flux_11fe[phase] = pristine_11fe[phase_index][1].flux
+        var_11fe[phase] = pristine_11fe[phase_index][1].error
         
+        flux_reddened_11fe[phase] = art_reddened_11fe[phase_index][1].flux
+
+        flux_12cu[phase] = interp1d(wave_12cu, obs_12cu[phase_index][1].flux)(ref_wave)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
+                                                                                  # think of the two arrays supplied as the "training set".  So flux_interp() is a function.
+        var_12cu[phase] = interp1d(wave_12cu, obs_12cu[phase_index][1].error)(ref_wave)
+
+
+    ##  *******************   SECTION 2: Binning ***************************************************
+
+    hi_wave = 9700.
+    lo_wave = 3300.
+
+
+    filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
+    filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
+    
+    del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
+    
+
+    prefix = zp['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
+    
+    print 'filters', filters
+    print "zp['V']", zp['V']  # the bands are numbered except V band, which is labeled as 'V'.
+    
+            ## the method bandflux() returns (bandflux, bandfluxerr), see spectral.py
+        ## Further need to understandhow bandflux and bandfluerr are calcuated in spectral.py.
+        ## It seems that there may be a conversion between photon flux and energy flux.
+        
+    ## Not sure if this step is necessary -- see the comment for the for loop below.
+    print 'del_wave', del_wave
+    if AB_nu:
+        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]  # AS seems to be treating V band
+        sn11fe_vmags = [-2.5*np.log10(s[1].bandflux(prefix+'V',  del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for s in sn11fe]
+    else:
+        sn12cu_vmags = [-2.5*np.log10(t[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for t in sn12cu]  # AS seems to be treating V band differently from the rest of the bands.  Need to understand what's going on here.  -XH 12/14/2014
+        sn11fe_vmags = [-2.5*np.log10(s[1].bandflux(prefix+'V',  del_wave = del_wave)[0]/zp['V']) for s in sn11fe]
+
+
+    sn12cu_mags = {i:{} for i in xrange(len(phases))}
+    sn11fe_mags = {i:{} for i in xrange(len(phases))}
+    sn11fe_reddened_mags = {i:{} for i in xrange(len(phases))}
+
+
+## Doesn't the following loops calcualates again V mags?  If so, then the sn12cu_vmags above is not necessary.  -XH  12/5/14
+    for f in filters:
+        print '\n\n\n f in filters:', f
+    #                print 'len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
+        print 'zp[f]', zp[f]
+        if AB_nu:
+            sn12cu_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]
+            sn11fe_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for t in sn12cu]
+            ref_mags = [-2.5*np.log10(s[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0]) - 48.6 for s in sn11fe]
+        else:
+            band_mags = [-2.5*np.log10(t[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for t in sn12cu]
+
+
+
+        #print 'band_mags for different filters in for loop.'
+        #exit(1)
+        band_mags = np.array(sn12cu_vmags)-np.array(band_mags)
+        ref_colors = np.array(sn11fe_vmags)-np.array(ref_mags)
+        print 'sn12cu_vmags', np.array(sn12cu_vmags)
+        print 'band_mags', np.array(band_mags)
+        #exit(1)
+        print len(band_colors)
+        print 'band_colors', band_colors
+        
+                        
+                        
+        ## I can probably combine the next two for loops into one with zip or izip
+        ## Note: i here represents phase
+        for i, color in enumerate(ref_colors):
+            print '\n\n\n in for colors'
+            print 'sn11fe_colors[i]:', sn11fe_colors[i]
+            sn11fe_colors[i][f] = color
+            print 'i, color, f', i, color, f
+            print 'sn11fe_colors[i][f]:', sn11fe_colors[i][f]
+        for i, color in enumerate(band_colors):
+            print '\n\n\n in for colors'
+            print 'sn12cu_colors[i]:', sn12cu_colors[i]
+            sn12cu_colors[i][f] = color
+            print 'i, color, f', i, color, f
+            print 'sn12cu_colors[i][f]:', sn12cu_colors[i][f]
+        print '\n\n\n len, type of sn12cu_colors, sn12cu_colors:', len(sn12cu_colors), type(sn12cu_colors), sn12cu_colors
+
+ref_mags = [-2.5*np.log10(s[1].bandflux(prefix+f, del_wave = del_wave)[0]/zp[f]) for s in sn11fe]
+
+
+
+## turn this part into a nonzero mask.
+    if (SN_flux <= 0).any():
+        print "In extract_wave_flux_var():"
+        print "some flux values are not positive:", SN_flux[np.where(SN_flux <= 0)]
+        print "These values will be rejected below as nan for the log."
+        print "(But it's better to deal with the non-pos values before taking the log (even before interpolation).  Something to deal with later.)"
+        print "\n\n\n"
+
+
+
+
+
+## mask for spectral features not included in fit
+    mask = filter_features(FEATURES_ACTUAL, ref_wave)
+
+
+
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
     if obs_SN == 'red_11fe':
         obs_SN = art_reddened_11fe
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
+
+    '''should be able to choose no binning or any arbitrary binning'''
+    
+    
     
     #select_phases = np.array(select_phases)
 #select_phases = np.array([0])
