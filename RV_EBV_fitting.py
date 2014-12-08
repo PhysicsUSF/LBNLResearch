@@ -70,15 +70,17 @@ V_wave = 5413.5
 
 FrFlx2mag = 2.5/np.log(10)  #  =1.0857362
 
+#def ABmag(flux_per_Hz):
+#    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.
 
-def ABmag_nu(flux_per_Hz):
-    #flux_per_Hz = flux * wave**2/c
+def ABmag_nu(flux, wave):
+    flux_per_Hz = flux * wave**2/c
     return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.  Use 48.577 to perfectly match Vega, which has a V mag of 0.03.  But if AB mag is
                                               ## consistently used by me for single-wavelength mag, and by sncosmo for synthetic photometry (check) then
                                               ## using 48.6 is just fine.
 
 
-def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth = 'AVG'):
+def extract_wave_flux_var(ref_wave, SN, mask = None, norm_meth = 'AVG'):
 
     '''
     Added Nov 25, 2014.
@@ -108,10 +110,8 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
     ## This is flux per frequency -- in order to calculate the AB magnitude -- see Bessell & Murphy eq 2 and eq A1; O'Donnell Astro 511 Lec 14.
     ## It doesn't seem to make any difference in terms of determining RV but it is the right way of doing things.  Magnitudes and colors calculated
     ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
-    ## Does F99 assume a certain magnitude system?  Is that why Amanullah 2014 used Vega?  (Did they use Vega?  I think they did.
+    ## Does F99 assume a certain magnitude system?
     flux = flux_interp(ref_wave)#*(ref_wave**2)
-    flux_per_Hz = flux * (ref_wave**2/c)
-    mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
     #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
     var = interp1d(SN[1].wave, var)(ref_wave)
@@ -119,47 +119,10 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
     calib_err_mag = SN[2]
 
     ## convert flux, variance, and calibration error to magnitude space
-    if N_BUCKETS == 1e10:
-        mag_norm, mag_var, mag_avg_flux, mag_V = flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var, norm_meth = norm_meth)
-    else:
- 
-        lo_wave = 3300.
-        hi_wave = 9700.
-        filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
-        filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
 
-        prefix = zp_bucket['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
-        print 'filters_bucket', filters_bucket
-
-        del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
-        
-        band_flux = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0] for f in filters_bucket])  ## the element 1 give error, or it should be variance.  But check!  Since variance and
-                                                                                                                        ## error for a band would be very different!
-        SN_mags = {f:ABmag_nu(band_flux[i]) for i, f in enumerate(filters_bucket)}
-
-        if norm_meth == 'AVG':
-            mag_zp = mag_avg_flux
-        elif norm_meth == 'V_band':
-            mag_V =  SN_mags['V']
-            mag_zp = mag_V
-        elif norm_meth == None:
-            mag_zp = 0.
-
-## THIS VERY EXPRESSION MAKES IT CLEAR WHY USING V BAND TO NORMALIZE IS A BAD IEAD: THE UNCERTAINTY OF MAG_NORM WILL THEN BE THE UNCERTAINTY OF SN_mag[f] and SN_mag['V'] (BOTH MEASUREMENT AND INTRINSIC
-## DISPERSION, WHICH IS DIFFICULT TO ESTIMATE) ADDED IN QUARATRURE.  WHEREAS IF ONE USES mag_avg_flux, THE UNCERTAINTY WILL BE MUCH SMALLER -- IT IS IN FACT THE FLXERROR IN THE HEADER, ABOUT 0.02 MAG.
-
-        mag_norm = -(np.array([SN_mags[f] for f in filters]) - mag_zp) ## the problem with doing things this way is using vs. not using norm_meth, the sign of SN_mag will be flipped.
-                                                                       ## the minus sign is because we will plot E(V-X)
-
-        flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[1] for f in filters_bucket])
-
-        ## calculate magnitude uncertainty
-        ## note the extra factor of lambda*2/c actually gets canceled.
-        fr_err = np.sqrt(flux_var)/band_flux
-        mag_var = (FrFlx2mag*fr_err)**2
-
-
-## Ignore the following line for now.  I'm NOT blocking any features.  12/7/14
+    mag_norm, mag_var, mag_avg_flux, mag_single_V = flux2mag(flux, ref_wave, var, norm_meth = norm_meth)
+    
+    
     if mask != None:
         mag_norm = mag_norm[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
                                    # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
@@ -172,43 +135,38 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, mag_avg_flux, mag_V, mag_var, calib_err_mag, nanmask, flux
+    return mag_norm, mag_avg_flux, mag_single_V, mag_var, calib_err_mag, nanmask, flux
 
 
-def flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
+def flux2mag(flux, ref_wave, var=None, norm_meth = 'AVG'):
     mag_var = None
     
-    mag = ABmag_nu(flux_per_Hz)
+    mag = ABmag_nu(flux, ref_wave)
     ## One shouldn't use the photon noise as the weight to find the average flux - see NB 11/22/14.
     ## Also note it's not the avg mag but the mag of the avg flux.
-
-    ## The following two lines are a crude way of calculating the AB mag of the average flux.
-    ##avg_wave = np.mean(ref_wave)
-    ##mag_avg_flux = ABmag_nu(np.average(flux), avg_wave)   # see Bessell & Murphy 2012 eq 2.
-
-    mag_single_V = ABmag_nu(flux_per_Hz[np.argmin(np.abs(ref_wave - V_wave))])
+    avg_wave = np.mean(ref_wave)
+    mag_avg_flux = ABmag_nu(np.average(flux), avg_wave)   # see Bessell & Murphy 2012 eq 2.
+    mag_single_V = ABmag_nu(flux[np.argmin(np.abs(ref_wave - V_wave))], V_wave)
 
 
     if norm_meth == 'AVG':
         mag_zp = mag_avg_flux
-    elif norm_meth == 'V_band':
+    
+    elif norm_meth == 'single_V':
         mag_zp = mag_single_V
-    elif norm_meth == None:
-        mag_zp = 0.
 
     mag_norm = -(mag - mag_zp)  # the minus sign is because we will plot E(V-X)
 
     ## calculate magnitude uncertainty
-    ## note the extra factor of lambda*2/c gets canceled.
     if type(var)!=type(None):
         fr_err = np.sqrt(var)/flux
         mag_var = (FrFlx2mag*fr_err)**2
 
 
     if type(var)!=type(None):
-        results = (mag_norm, mag_var, mag_single_V)
+        results = (mag_norm, mag_var, mag_avg_flux, mag_single_V)
     else:
-        results = (mag_norm, mag_single_V)
+        results = (mag_norm, mag_avg_flux, mag_single_V)
                               
 
     return results
@@ -360,10 +318,7 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
                 mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
 
-                ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = 1e10, mask = None, norm_meth = 'AVG')
-                exit(1)
-
-#extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = norm_meth  )
+                ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = norm_meth  )
 
 
                 log()
