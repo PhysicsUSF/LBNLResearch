@@ -71,14 +71,18 @@ V_wave = 5413.5
 FrFlx2mag = 2.5/np.log(10)  #  =1.0857362
 
 
-def ABmag_nu(flux_per_Hz):
-    #flux_per_Hz = flux * wave**2/c
-    return -2.5*np.log10(flux_per_Hz) - 48.6  ## Bessell & Murphy 2012.  Use 48.577 to perfectly match Vega, which has a V mag of 0.03.  But if AB mag is
+def ABmag_nu(flux, wave = None):
+    
+    '''The flux used here should be in per Hz.  If not, it's converted to flux per Hz.  See BM12'''
+    if wave != None:
+        flux = flux * wave**2/c
+
+    return -2.5*np.log10(flux) - 48.6  ## Bessell & Murphy 2012.  Use 48.577 to perfectly match Vega, which has a V mag of 0.03.  But if AB mag is
                                               ## consistently used by me for single-wavelength mag, and by sncosmo for synthetic photometry (check) then
                                               ## using 48.6 is just fine.
 
 
-def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth = 'AVG'):
+def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG', ebv = None, rv = None):
 
     '''
     Added Nov 25, 2014.
@@ -88,10 +92,19 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
     
     '''
 
+    calib_err_mag = SN_obs[2]
 
-    SN_flux = SN[1].flux
+    ## if de-reddening is needed:
+    if ebv != None:
+        SN = snc.Spectrum(SN_obs[1].wave, redden_fm(SN_obs[1].wave, SN_obs[1].flux, ebv, rv), SN_obs[1].error)
+    else:
+        SN = SN_obs[1]
 
-    var = SN[1].error
+    SN_flux = SN.flux
+
+    var = SN.error
+
+
 
     if (SN_flux <= 0).any():
         print "In extract_wave_flux_var():"
@@ -102,7 +115,7 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
 
 
 
-    flux_interp = interp1d(SN[1].wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
+    flux_interp = interp1d(SN.wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
                                                  # think of the two arrays supplied as the "training set".  So flux_interp() is a function.
 
     ## This is flux per frequency -- in order to calculate the AB magnitude -- see Bessell & Murphy eq 2 and eq A1; O'Donnell Astro 511 Lec 14.
@@ -114,33 +127,40 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
     mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
     #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
-    var = interp1d(SN[1].wave, var)(ref_wave)
+    var = interp1d(SN.wave, var)(ref_wave)
 
-    calib_err_mag = SN[2]
+
 
     ## convert flux, variance, and calibration error to magnitude space
-    if N_BUCKETS == 1e10:
-        mag_norm, mag_var, mag_avg_flux, mag_V = flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var, norm_meth = norm_meth)
+    if N_BUCKETS < 0:
+        mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var, norm_meth = norm_meth)
+        return_wave = ref_wave
+        return_flux = SN_flux
+        mag_V_var = interp1d(ref_wave, mag_var)(V_wave)
     else:
  
         lo_wave = 3300.
         hi_wave = 9700.
         filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
         filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
+        
+        return_wave = filter_eff_waves
 
         prefix = zp_bucket['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
         print 'filters_bucket', filters_bucket
 
         del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
         
-        band_flux = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[0] for f in filters_bucket])  ## the element 1 give error, or it should be variance.  But check!  Since variance and
-                                                                                                                        ## error for a band would be very different!
+        band_flux = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0] for f in filters_bucket])  ## the element 1 give error, or it should be variance.  But check!  Since variance
+                                                                                                                     ## and error for a band would be very different!
+        return_flux = band_flux
         SN_mags = {f:ABmag_nu(band_flux[i]) for i, f in enumerate(filters_bucket)}
-
+        
+        mag_V =  SN_mags['V']
+        
         if norm_meth == 'AVG':
             mag_zp = mag_avg_flux
         elif norm_meth == 'V_band':
-            mag_V =  SN_mags['V']
             mag_zp = mag_V
         elif norm_meth == None:
             mag_zp = 0.
@@ -148,16 +168,20 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
 ## THIS VERY EXPRESSION MAKES IT CLEAR WHY USING V BAND TO NORMALIZE IS A BAD IEAD: THE UNCERTAINTY OF MAG_NORM WILL THEN BE THE UNCERTAINTY OF SN_mag[f] and SN_mag['V'] (BOTH MEASUREMENT AND INTRINSIC
 ## DISPERSION, WHICH IS DIFFICULT TO ESTIMATE) ADDED IN QUARATRURE.  WHEREAS IF ONE USES mag_avg_flux, THE UNCERTAINTY WILL BE MUCH SMALLER -- IT IS IN FACT THE FLXERROR IN THE HEADER, ABOUT 0.02 MAG.
 
-        mag_norm = -(np.array([SN_mags[f] for f in filters]) - mag_zp) ## the problem with doing things this way is using vs. not using norm_meth, the sign of SN_mag will be flipped.
+        mag_norm = -(np.array([SN_mags[f] for f in filters_bucket]) - mag_zp) ## the problem with doing things this way is using vs. not using norm_meth, the sign of SN_mag will be flipped.
                                                                        ## the minus sign is because we will plot E(V-X)
 
-        flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = AB_nu)[1] for f in filters_bucket])
+        flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[1] for f in filters_bucket])
 
         ## calculate magnitude uncertainty
         ## note the extra factor of lambda*2/c actually gets canceled.
         fr_err = np.sqrt(flux_var)/band_flux
         mag_var = (FrFlx2mag*fr_err)**2
 
+        ## To get variance for V band.  I'm sure there is a pythonic, list comprehension with a lambda function way of doing this.
+        for i, f in enumerate(filters_bucket):
+            if f == 'V':
+                mag_V_var = mag_var[i]
 
 ## Ignore the following line for now.  I'm NOT blocking any features.  12/7/14
     if mask != None:
@@ -172,7 +196,7 @@ def extract_wave_flux_var(ref_wave, SN, N_BUCKETS = 1e10, mask = None, norm_meth
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, mag_avg_flux, mag_V, mag_var, calib_err_mag, nanmask, flux
+    return mag_norm, return_wave, return_flux, mag_avg_flux, mag_V, mag_var, mag_V_var, calib_err_mag, nanmask, flux
 
 
 def flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
@@ -239,7 +263,7 @@ def log(msg=""):
 
 
 
-def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False, norm_meth = 'AVG'):
+def grid_fit(phases, select_phases, pristine_11fe, obs_SN, N_BUCKETS = -1, u_guess=0., u_pad=0.15, u_steps=3, rv_guess=2.8, rv_pad=0.5, rv_steps=11, ebv_guess=1.0, ebv_pad=0.2, ebv_steps = 11, unfilt = False, norm_meth = 'AVG'):
     
 
         '''
@@ -339,48 +363,43 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
                 ## Note: I have determined that ref_wave is equally spaced at 2A.
                 ref_wave = ref[1].wave  # it is inefficient to define ref_wave in the for loop.  Should take it outside.  12/7/14.
 
-
-## The following few lines determine ref_wave are equally spaced at 2A.
-#                ref_wave_R = ref_wave[1:]
-#                ref_wave_L = ref_wave[:-1]
-#                ref_wave_del = ref_wave_R - ref_wave_L
-#                print ref_wave_R
-#                print ref_wave_L
-#                print np.max(ref_wave_del), np.min(ref_wave_del), np.mean(ref_wave_del)
-#                plt.plot(ref_wave_L, ref_wave_del, 'k.')
-#                #plt.ylim([-1., 5.])
-#                plt.show()
-#                exit(1)
-
-
                 obs = obs_SN[phase_index]
 
 
                 ## mask for spectral features not included in fit
                 mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
+                print 'pristine_11fe type', type(pristine_11fe)
+                print 'ref type', type(ref)
+                print 'ref len', len(ref)
+                print 'type ref[0]', type(ref[0])
+                print 'type ref[1]', type(ref[1])
+                print 'type ref[2]', type(ref[2])
+                #exit(1)
 
-                ref_mag_norm, ref_mag_avg_flux, ref_mag_single_V, ref_mag_var, ref_calib_err, nanmask_ref, _ = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = 1e10, mask = None, norm_meth = 'AVG')
-                exit(1)
-
-#extract_wave_flux_var(ref_wave, ref, mask = mask, norm_meth = norm_meth  )
-
+                ref_mag_norm, return_wave, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_calib_err, nanmask_ref, _ \
+                            = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = None, norm_meth = 'AVG')
+                #exit(1)
 
                 log()
                 log( "Phase: {}".format(ref[0]) )
                 
                 ## 12cu or artificially reddened 11fe
-                obs_mag_norm, obs_mag_avg_flux, obs_mag_single_V, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux = extract_wave_flux_var(ref_wave, obs, mask = mask, norm_meth = norm_meth)
+                obs_mag_norm, _, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux \
+                            = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = None, norm_meth = norm_meth)
 
 
                 ## estimated of distance modulus
+## ---> THIS CAN BE USED TO SHOW THAT V MAG DIFFERENCE IS A POOR INDICATOR FOR DISTANCE.  THIS MEANS TO USE V MAG NORMALIZATION TO TAKE OUT DISTANCE DIFFERENCE (AS FOLEY 2014 HAS DONE) IS NOT
+## AN EFFECTIVE WAY. BUT THE MAG OF THE AVERAGE FLUX IS A CONSISTENT INDICATOR OF DISTANCE AND THAT'S WHY WE USE THIS AS THE NORMALIZATION TO TAKE OUT DISTANCE DIFFERENCE.
                 del_mag_avg = obs_mag_avg_flux - ref_mag_avg_flux
-                del_single_V_mag = obs_mag_single_V - ref_mag_single_V
+                del_V_mag = obs_V_mag - ref_V_mag
                 print '\n\n\n difference in magnitudes of average flux:', del_mag_avg
-                print ' difference in single-wavelength V magnitudes:', del_single_V_mag, '\n\n\n'
+                print ' difference in V magnitudes:', del_V_mag, '\n\n\n'
 
                 ## Total Variance.
-                var = ref_mag_var[mask] + obs_mag_var[mask]
+                var = ref_mag_var + obs_mag_var  # NOT DEALING WITH BLOCKING FEATURES NOW 12/8/14
+                #var = ref_mag_var[mask] + obs_mag_var[mask]
                 
                 ## hack thrown together to filter nan-values (which arrise from negative fluxes)
                 ## find any rows with nan-values in C_inv matrix (there shouldn't be any)
@@ -390,7 +409,7 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
                 log( "num. points with negative flux discarded: {}".format(np.sum(~nanmask)) )
                 
                 ## remove nan values from var
-                var = var[nanmask]
+                #var = var[nanmask]
 
 
                 ## Determine whether 2D or 3D fit.
@@ -406,7 +425,8 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
 
 
                 ##  dof for CHI2
-                dof = np.sum(nanmask) - param_num  # (num. data points)-(num. parameters)
+                dof = len(obs_mag_norm) - param_num
+                ## blocked b/c I don't deal with any masks now  -- though the nanmask may be OK.     dof = np.sum(nanmask) - param_num  # (num. data points)-(num. parameters)
                 log( "dof: {}".format(dof) )
 
 
@@ -421,32 +441,59 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
                         for k, RV in enumerate(y):
                                 
                                 ## unredden the reddened spectrum, convert to mag
-                                unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
-                                unred_mag_norm, unred_mag_avg_flux, unred_mag_single_V = flux2mag(unred_flux, ref_wave, norm_meth = norm_meth)
+                                if N_BUCKETS < 1:
+                                    unred_mag_norm = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = None, norm_meth = 'AVG', ebv = EBV, rv = RV)[0]
+                                else:
+                                    mag_avg_flux = unred_mag_norm = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = None, norm_meth = 'AVG', ebv = EBV, rv = RV)[2]
+                                    redden_fm(return_wave, SN_obs[1].flux, ebv, rv)
+
+
+
+
+                                plt.figure()
+                                plt.plot(return_wave, ref_mag_norm, 'k.')
+                                plt.plot(return_wave, unred_mag_norm, 'r.')
+
+
+                                
+#                                unred_flux = redden_fm(ref_wave, obs_flux, EBV, RV)
+#                                unred_flux_per_Hz = unred_flux * (ref_wave**2/c)
+#                                unred_mag_avg_flux = ABmag_nu(np.mean(unred_flux_per_Hz))
+
+#unred_mag_norm, unred_mag_single_V = flux2mag(unred_flux_per_Hz, unred_flux, ref_wave, unred_mag_avg_flux, norm_meth = norm_meth)
                                 ## I should implement a better way to use mask -- right now, there is a lot of reptition that is unnecessary.
                               
                                 
                                 ## this is (unreddened 12cu mag - pristine 11fe mag)
-                                delta = unred_mag_norm[mask] - ref_mag_norm - dist # yes, unred_mag_norm and ref_mag_norm are treated slightly asym'ly -- something I
+                                ## blocked b/c I don't deal with masks now delta = unred_mag_norm[mask] - ref_mag_norm - dist # yes, unred_mag_norm and ref_mag_norm are treated slightly asym'ly -- something I
                                                                                    # should fix.  -XH
-                                
+
+
+
+                                delta = unred_mag_norm - ref_mag_norm - dist # yes, unred_mag_norm and ref_mag_norm are treated slightly asym'ly -- something I
+                                                                                   # should fix.  -XH
+               
                                 # convert to vector from array and filter nan-values
-                                delta = delta[nanmask]
+                                # blocked b/c I don't deal with mask now.  delta = delta[nanmask]
                                 
                                 ## Remember if I ever want to things the matrix way, one needs to converst an array to a matrix:
                                 ##   delta_array = np.squeeze(np.asarray(delta))  # converting 1D matrix to 1D array.
-                            
-                               
+                        
                                
                                 CHI2[i, j, k] = np.sum(delta*delta/var)
+
+#print 'RV, EBV, CHI2', RV, EBV, CHI2[i, j, k]
+
 
 
                 CHI2_dof = CHI2/dof
                 CHI2_dof_min = np.min(CHI2_dof)
                 log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
                 delCHI2_dof = CHI2_dof - CHI2_dof_min
-                
-                
+
+                plt.show()
+                exit(1)
+
                 ## plot power law reddening curve
                 ##  pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
                 ##  plt.plot(ref_wave_inv, pl_red_curve, 'r-')
@@ -468,7 +515,7 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
                 ## estimate of distance modulus
                 best_av = best_rv*best_ebv
 
-                print 'delCHI2_dof', delCHI2_dof
+#print 'delCHI2_dof', delCHI2_dof
 
 
                 best_fit_curve = redden_fm(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
@@ -511,7 +558,7 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=0., u_pad=0.1
                 print 'ebv_uncert_upper, ebv_uncert_lower', ebv_uncert_upper, ebv_uncert_lower
                 print 'rv_uncert_upper, rv_uncert_lower', rv_uncert_upper, rv_uncert_upper
                 
-                print '\n\n\n rough estimate of distance modulus:', del_single_V_mag - best_av, '\n\n\n'
+                print '\n\n\n rough estimate of distance modulus:', del_V_mag - best_av, '\n\n\n'
 
                 log( "\t {}".format(mindex) )
                 log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
@@ -608,8 +655,8 @@ def plot_excess(phases, select_phases, title, info_dict, pristine_11fe, obs_SN, 
         obs = obs_SN[phase_index]
         
 
-        color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'single_V')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
-        color_obs = extract_wave_flux_var(ref_wave, obs, norm_meth = 'single_V')[0]
+        color_ref = extract_wave_flux_var(ref_wave, ref, norm_meth = 'V_band')[0]  #[0]: keep the 0th output.  Much more elegant than color_ref, _, _, _, _ = ...
+        color_obs = extract_wave_flux_var(ref_wave, obs, norm_meth = 'V_band')[0]
 
         excess = color_obs - color_ref
 
@@ -744,7 +791,7 @@ if __name__=="__main__":
     Example:
     
     
-    python mag_spectrum_fitting.py -obs_SN 'red_11fe' -select_phases 4 -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11 -unfilt
+    python mag_spectrum_fitting.py -obs_SN 'red_11fe' -N_bands -1 -select_phases 4 -u_guess 0. -u_pad 0.1 -u_steps 3 -rv_guess 2.8 -rv_pad 1.0 -rv_steps 11 -ebv_guess 1.0 -ebv_pad 0.2 -ebv_steps 11 -unfilt
     
     Note: it is possible to to add FEATURES_ACTUAL at the command line too.  It takes a little finessing.  When I'm ready to implement, try one or both of the following:
     One could use nargs = '*':
@@ -762,6 +809,7 @@ if __name__=="__main__":
     parser.add_argument('-obs_SN', type = str)
     parser.add_argument('-select_phases',  '--select_phases', nargs='+', type=int)  # this can take a tuple: -select_phases 0 4  but the rest of the program can't handle more than
                                                                                     # one phases yet.  -XH 12/7/14
+    parser.add_argument('-N_bands', type = int)
     parser.add_argument('-u_guess', type = float)
     parser.add_argument('-u_pad', type = float)
     parser.add_argument('-u_steps', type = int)
@@ -780,6 +828,7 @@ if __name__=="__main__":
     print 'args', args
     
     obs_SN = args.obs_SN
+    N_bands = args.N_bands
     u_guess = args.u_guess
     u_pad = args.u_pad
     u_steps = args.u_steps
@@ -816,10 +865,10 @@ if __name__=="__main__":
     ## The following is a little hackish. i = 0 (unfilt = False) corresponds to the filtered case, and i = 1 (unfilt = True) corresponds to the unfiltered case.
     ## Also range(False) gives []; so I use range(unfilt + 1): range(False+1] gives [0], range[True+1] gives [0, 1].
     print 'unfilt', unfilt
-    for i in range(unfilt+1):
-        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, select_phases, pristine_11fe, obs_SN, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, norm_meth = 'AVG', unfilt = i)
+    for i in [1]:  #range(unfilt+1):   right now, I only deal with the unfiltered case.  -XH 12/7/14
+        snake_hi_1sigs, snake_lo_1sigs = grid_fit(phases, select_phases, pristine_11fe, obs_SN, N_BUCKETS = N_bands, u_guess=u_guess, u_pad=u_pad, u_steps=u_steps, rv_guess=rv_guess, rv_pad=rv_pad, rv_steps=rv_steps, ebv_guess=ebv_guess, ebv_pad=ebv_pad, ebv_steps=ebv_steps, norm_meth = 'AVG', unfilt = i)
         pkl_file = "spectra_mag_fit_results_FILTERED.pkl" if i == 0 else "spectra_mag_fit_results_UNFILTERED.pkl"
         info_dict = cPickle.load(open(pkl_file, 'rb'))
         save_name = "SN2012cu (Feature Filtered)" if i == 0 else "SN2012cu"
         plot_excess(phases, select_phases, save_name, info_dict, pristine_11fe, obs_SN, snake_hi_1sigs, snake_lo_1sigs)
-
+    plt.show()
