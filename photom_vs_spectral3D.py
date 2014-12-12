@@ -92,10 +92,10 @@ c = 3e18  # speed of light in A/sec.
 
 
 
-EBV_GUESS = 1.1
-EBV_PAD = .3
-RV_GUESS = 2.75
-RV_PAD = .75
+#EBV_GUESS = 1.1
+#EBV_PAD = .3
+#RV_GUESS = 2.75
+#RV_PAD = .75
 
 
 TITLE_FONTSIZE = 28
@@ -239,7 +239,7 @@ def plot_confidence_contours(ax, xdata, ydata, P, scatter=False, **kwargs):
 
 
 def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
-                 ebv, ebv_pad, rv, rv_pad, u_steps, rv_steps, ebv_steps, ax=None):
+                 ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps, ax=None):
     
     
     
@@ -258,8 +258,8 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         X, Y = np.meshgrid(x, y)  ## <-------------- This part needs to be changed so that the steps for RV and EBV don't have to be the same: see how it's done in mag_spectrum_fitting.py
 
 
-        u_guess = 0
-        u_pad = 0.2
+#        u_guess = 0
+#        u_pad = 0.2
         ## Determine whether 2D or 3D fit.
         if u_steps > 1:
             ## 3D case
@@ -308,7 +308,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         log("dof: {}".format(dof))
         log( "min CHI2: {}".format(np.min(CHI2)) )
         log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
-#exit(1)
+
         delCHI2_dof = CHI2_dof - CHI2_dof_min
 
         mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
@@ -326,6 +326,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         ## estimate of distance modulus
         best_av = best_rv*best_ebv
 
+        exit(1)
 
 
         ####**** find 1-sigma and 2-sigma errors based on confidence
@@ -649,12 +650,24 @@ def plot_snake(ax, wave, init, red_law, x, y, CDF, plot2sig=False):
     return interp1d(wave, snake_lo_1sig), interp1d(wave, snake_hi_1sig)
 
 
+def simulate_11fe(phases, no_var = True, art_fr_flx_err = 1e-30, ebv = -1.0, rv = 2.8, del_mu = 0.0):
+
+    '''
+    simulate reddened 11fe, with its original variances removed and articial variances (initially, uniform) added.
+    Also for pristine_11fe its variances are removed (at least initially).
+    '''
+
+    pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
+    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=ebv, rv=rv, art_fr_flx_err=art_fr_flx_err, loadmast=False, loadptf=False))
+
+    return pristine_11fe, art_reddened_11fe
+
 
 if __name__ == "__main__":
 
     '''
     
-    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_STEPS 21 -RV_STEPS 41 -EBV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
+    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
     
     
     '''
@@ -662,9 +675,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-N_BUCKETS', type = int)
     parser.add_argument('-obs_SN', type = str)
+    parser.add_argument('-RV_GUESS', type = float)
+    parser.add_argument('-RV_PAD', type = float)
     parser.add_argument('-RV_STEPS', type = int)
+    parser.add_argument('-EBV_GUESS', type = float)
+    parser.add_argument('-EBV_PAD', type = float)
     parser.add_argument('-EBV_STEPS', type = int)
-    parser.add_argument('-u_STEPS', type = int)
+    parser.add_argument('-u_guess', type = float)
+    parser.add_argument('-u_pad', type = float)
+    parser.add_argument('-u_steps', type = int)
+    
+    
     parser.add_argument('-select_phases',  '--select_phases', nargs='+', type=int)  # this can take a tuple: -select_phases 0 4  but the rest of the program can't handle more than
                                                                                     # one phases yet.  -XH 12/7/14
     _ = parser.add_argument('-ebv_spect', type = float)  # just another way to add an argument to the list.
@@ -676,9 +697,15 @@ if __name__ == "__main__":
     print 'args', args
     obs_SN = args.obs_SN
     N_BUCKETS = args.N_BUCKETS
+    RV_GUESS = args.RV_GUESS
+    RV_PAD = args.RV_PAD
     RV_STEPS = args.RV_STEPS
+    EBV_GUESS = args.EBV_GUESS
+    EBV_PAD = args.EBV_PAD
     EBV_STEPS = args.EBV_STEPS
-    u_STEPS = args.u_STEPS
+    u_guess = args.u_guess
+    u_pad = args.u_pad
+    u_steps = args.u_steps
     select_phases = np.array(args.select_phases) ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
     ebv_spect = args.ebv_spect
     rv_spect = args.rv_spect
@@ -693,14 +720,20 @@ if __name__ == "__main__":
     ## load spectra, interpolate 11fe to 12cu phases (only first 12)
     obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
     phases = [t[0] for t in obs_12cu]
-        
-        
-    pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
-    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, del_mu=0.5, noiz=0.0, loadmast=False, loadptf=False))
-    
+ 
+ 
+    ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
+    if obs_SN == 'red_11fe':
+        pristine_11fe, obs_SN = simulate_11fe(phases, no_var = True, art_fr_flx_err = 1e-3, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = 0.0)
+    elif obs_SN == '12cu':
+        obs_SN = obs_12cu
+        pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
+
+
+
     ref_wave = pristine_11fe[0][1].wave   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
 
- 
+
     if unfilt == True:
         FEATURES_ACTUAL = []
     else:
@@ -712,13 +745,6 @@ if __name__ == "__main__":
 
     ref_wave = ref_wave[mask]   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
 
- 
- 
-    ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
-    if obs_SN == 'red_11fe':
-        obs_SN = art_reddened_11fe
-    elif obs_SN == '12cu':
-        obs_SN = obs_12cu
 
 
     ## Setting up tophat filters
@@ -761,7 +787,7 @@ if __name__ == "__main__":
             rv_1sig, rv_2sig, \
             av_1sig, av_2sig = plot_contour3D(phase_index, phase, redden_fm, EXCESS[phase_index], EXCESS_VAR[phase_index],
                                             wave, EBV_GUESS,
-                                            EBV_PAD, RV_GUESS, RV_PAD, u_STEPS, RV_STEPS, EBV_STEPS, contour_ax
+                                            EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps, contour_ax
                                             )
         
         SN12CU_CHISQ_DATA.append({'phase'   : phase,
