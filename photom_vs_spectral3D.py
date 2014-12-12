@@ -142,15 +142,18 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                 ## mask for spectral features not included in fit
 
 
-                ref_mag_norm, return_wave, return_flux, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
+                ref_mag_norm, return_wave, ref_return_flux, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
                             = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = 'V_band')
 
 
 
 
                 ## 12cu or artificially reddened 11fe
-                obs_mag_norm, _, _, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
+                obs_mag_norm, _, obs_return_flux, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
                             = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
+                
+                
+                
 
 ## Keep the following block for a bit longer; it's effective in diagnostics.  12/10/14
 #                plt.figure()
@@ -322,7 +325,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         print 'mindex', mindex
         print 'mu, mx, my', mu, mx, my
         best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
-        print 'best_u, best_rv, best_ebv', best_u, best_rv, best_ebv
+        print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
         ## estimate of distance modulus
         best_av = best_rv*best_ebv
 
@@ -650,7 +653,7 @@ def plot_snake(ax, wave, init, red_law, x, y, CDF, plot2sig=False):
     return interp1d(wave, snake_lo_1sig), interp1d(wave, snake_hi_1sig)
 
 
-def simulate_11fe(phases, no_var = True, art_fr_flx_err = 1e-30, ebv = -1.0, rv = 2.8, del_mu = 0.0):
+def simulate_11fe(phases, no_var = True, art_var = 1e-60, ebv = -1.0, rv = 2.8, del_mu = 0.0):
 
     '''
     simulate reddened 11fe, with its original variances removed and articial variances (initially, uniform) added.
@@ -658,7 +661,7 @@ def simulate_11fe(phases, no_var = True, art_fr_flx_err = 1e-30, ebv = -1.0, rv 
     '''
 
     pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
-    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=ebv, rv=rv, art_fr_flx_err=art_fr_flx_err, loadmast=False, loadptf=False))
+    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
 
     return pristine_11fe, art_reddened_11fe
 
@@ -666,8 +669,9 @@ def simulate_11fe(phases, no_var = True, art_fr_flx_err = 1e-30, ebv = -1.0, rv 
 if __name__ == "__main__":
 
     '''
+        
     
-    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
+    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 0.01 -unfilt
     
     
     '''
@@ -684,6 +688,7 @@ if __name__ == "__main__":
     parser.add_argument('-u_guess', type = float)
     parser.add_argument('-u_pad', type = float)
     parser.add_argument('-u_steps', type = int)
+    parser.add_argument('-art_var', type = float)
     
     
     parser.add_argument('-select_phases',  '--select_phases', nargs='+', type=int)  # this can take a tuple: -select_phases 0 4  but the rest of the program can't handle more than
@@ -709,6 +714,7 @@ if __name__ == "__main__":
     select_phases = np.array(args.select_phases) ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
     ebv_spect = args.ebv_spect
     rv_spect = args.rv_spect
+    art_var = args.art_var
     unfilt = args.unfilt
 
     hi_wave = 9700.
@@ -724,7 +730,7 @@ if __name__ == "__main__":
  
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
     if obs_SN == 'red_11fe':
-        pristine_11fe, obs_SN = simulate_11fe(phases, no_var = True, art_fr_flx_err = 1e-3, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = 0.0)
+        pristine_11fe, obs_SN = simulate_11fe(phases, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = 0.0)
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
         pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
