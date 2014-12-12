@@ -102,7 +102,7 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
 
     SN_flux = SN.flux
 
-    var = SN.error
+    var = SN.error  # it's called error because that's one of the attributes defined in sncosmo
 
 
 
@@ -123,20 +123,33 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
     ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
     ## Does F99 assume a certain magnitude system?  Is that why Amanullah 2014 used Vega?  (Did they use Vega?  I think they did.
     flux = flux_interp(ref_wave)#*(ref_wave**2)
+    var = interp1d(SN.wave, var)(ref_wave)
+
+    if mask != None:
+        flux = flux[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
+                                   # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
+                                   # be blocked, the operation mag_norm[mask] does just that.  One can think of mask as providing a truth table that tells python
+                                   # which of the elements in mag_norm to keep and which to discard.  Yes, it doesn't make sense at first sight since mask doesn't
+                                   # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
+        ref_wave = ref_wave[mask]
+        var = var[mask]
+
+
     flux_per_Hz = flux * (ref_wave**2/c)
     mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
     #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
-    var = interp1d(SN.wave, var)(ref_wave)
 
 
 
     ## convert flux, variance, and calibration error to magnitude space
+    ## The spectral case:
     if N_BUCKETS < 0:
         mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var, norm_meth = norm_meth)
         return_wave = ref_wave
         return_flux = SN_flux
         mag_V_var = interp1d(ref_wave, mag_var)(V_wave)
+    ## The photometry case -- note here I don't block features, since that is not generally possible (or physical) to do.
     else:
  
         lo_wave = 3300.
@@ -173,23 +186,31 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
 
         flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[1] for f in filters_bucket])
 
+
+
         ## calculate magnitude uncertainty
         ## note the extra factor of lambda*2/c actually gets canceled.
         fr_err = np.sqrt(flux_var)/band_flux
+
+
+
         mag_var = (FrFlx2mag*fr_err)**2
 
         ## To get variance for V band.  I'm sure there is a pythonic, list comprehension with a lambda function way of doing this.
         for i, f in enumerate(filters_bucket):
             if f == 'V':
                 mag_V_var = mag_var[i]
+                print 'V band fr_err', fr_err[i]  ## fractional uncertainty should improve as the number of bands decrease (but still above 5 bands.)
+                print 'mag_V_var', mag_V_var
+                    #                exit(1)
 
 ## Ignore the following line for now.  I'm NOT blocking any features.  12/7/14
-    if mask != None:
-        mag_norm = mag_norm[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
-                                   # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
-                                   # be blocked, the operation mag_norm[mask] does just that.  One can think of mask as providing a truth table that tells python
-                                   # which of the elements in mag_norm to keep and which to discard.  Yes, it doesn't make sense at first sight since mask doesn't
-                                   # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
+#    if mask != None:
+#        mag_norm = mag_norm[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
+#                                   # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
+#                                   # be blocked, the operation mag_norm[mask] does just that.  One can think of mask as providing a truth table that tells python
+#                                   # which of the elements in mag_norm to keep and which to discard.  Yes, it doesn't make sense at first sight since mask doesn't
+#                                   # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
 
 
     ## get mask for nan-values
