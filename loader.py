@@ -365,7 +365,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
 ##### LOAD SN2011FE SPECTRA ####################################################
 
 
-def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_var = False, art_fr_flx_err = 0,loadptf=False, loadsnf=True, loadmast=False):
+def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_var = False, art_var = 0,loadptf=False, loadsnf=True, loadmast=False):
     '''
     ::IMPORTANT NOTE::
     Not fixed yet: ptf and possibly mast give error and not variance, need to determine
@@ -384,7 +384,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
         PLreddened_2011fe = loader.get_11fe('pl', av=1.85, p=-2.1)
     '''
     
-    if no_var and art_fr_flx_err != 0:
+    if no_var and art_var != 0:
         raise CompatibilityError("no_var and art_vars are incompatible.")
 
 
@@ -414,9 +414,11 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
             flux = pf[0].data
             
             if no_var:  # assuming 11fe is absolutely perfectly measured.
-                var = (1e-16*flux)**2
-            elif art_fr_flx_err != 0:  # so that for the artificially reddened 11fe I can control how much variance to put in.
-                var = (art_fr_flx_err*flux)**2
+                var = 1e-60*np.ones(flux.shape[0])
+            elif art_var > 0:  # so that for the artificially reddened 11fe I can control how much variance to put in.
+                var = art_var*np.ones(flux.shape[0])
+                print 'var', var
+            #exit(1)
             else:
                 var  = pf[1].data
             
@@ -431,100 +433,100 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
                             'set'  : 'SNF'
                             })
 
-
-    ## LOAD MAST SN2011FE SPECTRA ##
-            
-    if loadmast:
-        workingdir = dirname + '/data/sn2011fe_mast/'
-        files = sorted(os.listdir(workingdir))
-
-        # find proper phase buckets
-        phase_buckets = {}
-        for F in files:
-            header = pyfits.getheader(workingdir+F)
-            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
-
-            actual_phase = ((float(header['TEXPEND' ])+float(header['TEXPSTRT']))/2)-55814.51
-
-            if phase_buckets.has_key(phase):
-                phase_buckets[phase].append(actual_phase)
-            else:
-                phase_buckets[phase] = []
-
-        phase_buckets = {key:round(np.average(values), 2) for key, values in phase_buckets.items()}
-
-        PHASES = {}
-        for F in files:
-            header = pyfits.getheader(workingdir+F)
-            CENTRWV = 100*(int(header['CENTRWV'])/100)
-            ### SN2011FE BMAX: 55814.5
-            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
-            phase = phase_buckets[phase]
-            
-            if not PHASES.has_key(phase):
-                PHASES[phase] = {}
-            if not PHASES[phase].has_key(CENTRWV):
-                PHASES[phase][CENTRWV] = []
-                
-            D = pyfits.getdata(workingdir+F)
-            wave = D.field('WAVELENGTH')[0]
-            flux = D.field('FLUX')[0]
-            err  = D.field('ERROR')[0]
-            
-            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux, 'err': err})
-            
-        for i, p in enumerate(sorted(PHASES.keys())):   
-            SPECTRUM_DICT_LIST = PHASES[p]
-            wave_concat = np.array([])
-            flux_concat = np.array([])
-            err_concat  = np.array([])
-            
-            for LIST in SPECTRUM_DICT_LIST.values():
-                n = len(LIST)
-                wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
-                flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
-                err_concat  = np.concatenate( (err_concat,  (1.0/n)*sum([D['err' ] for D in LIST])) )
-                
-            I = wave_concat.argsort()
-            wave_concat = wave_concat[I]
-            flux_concat = flux_concat[I]
-            err_concat  = err_concat[I]
-
-            SN2011FE.append({
-                            'phase': p,
-                            'wave' : wave_concat,
-                            'flux' : flux_concat,
-                            'err'  : err_concat,
-                            'cerr' : 0.02,  # CANNOT FIND FLXERROR IN FITS HEADER!!!
-                            'set'  : 'MAST'
-                            })
-
-        del PHASES
-
-    ## LOAD PTF11KLY SPECTRA ##
-        
-    if loadptf:
-        workingdir = dirname + '/data/ptf11kly/'
-        files = sorted(os.listdir(workingdir))
-
-        for F in files:
-            A = np.genfromtxt(workingdir + F, autostrip=True)
-
-            mjd = float(F[9:15])/10  # get mjd from filename
-            phase = round(mjd-55814.51, 2)
-            
-            
-            wave, flux, err = A[:,0], A[:,1], A[:,2]
-
-            SN2011FE.append({
-                            'phase': phase,
-                            'wave' : wave,
-                            'flux' : flux,
-                            'err'  : err,
-                            'cerr' : 0.02, # CANNOT FIND FLXERROR IN FITS HEADER!!!
-                            'set'  : 'PTF11KLY'
-                            })
-                
+## Below is only useful for checking things against 2014J.
+#    ## LOAD MAST SN2011FE SPECTRA ##
+#            
+#    if loadmast:
+#        workingdir = dirname + '/data/sn2011fe_mast/'
+#        files = sorted(os.listdir(workingdir))
+#
+#        # find proper phase buckets
+#        phase_buckets = {}
+#        for F in files:
+#            header = pyfits.getheader(workingdir+F)
+#            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+#
+#            actual_phase = ((float(header['TEXPEND' ])+float(header['TEXPSTRT']))/2)-55814.51
+#
+#            if phase_buckets.has_key(phase):
+#                phase_buckets[phase].append(actual_phase)
+#            else:
+#                phase_buckets[phase] = []
+#
+#        phase_buckets = {key:round(np.average(values), 2) for key, values in phase_buckets.items()}
+#
+#        PHASES = {}
+#        for F in files:
+#            header = pyfits.getheader(workingdir+F)
+#            CENTRWV = 100*(int(header['CENTRWV'])/100)
+#            ### SN2011FE BMAX: 55814.5
+#            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+#            phase = phase_buckets[phase]
+#            
+#            if not PHASES.has_key(phase):
+#                PHASES[phase] = {}
+#            if not PHASES[phase].has_key(CENTRWV):
+#                PHASES[phase][CENTRWV] = []
+#                
+#            D = pyfits.getdata(workingdir+F)
+#            wave = D.field('WAVELENGTH')[0]
+#            flux = D.field('FLUX')[0]
+#            err  = D.field('ERROR')[0]
+#            
+#            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux, 'err': err})
+#            
+#        for i, p in enumerate(sorted(PHASES.keys())):   
+#            SPECTRUM_DICT_LIST = PHASES[p]
+#            wave_concat = np.array([])
+#            flux_concat = np.array([])
+#            err_concat  = np.array([])
+#            
+#            for LIST in SPECTRUM_DICT_LIST.values():
+#                n = len(LIST)
+#                wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
+#                flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
+#                err_concat  = np.concatenate( (err_concat,  (1.0/n)*sum([D['err' ] for D in LIST])) )
+#                
+#            I = wave_concat.argsort()
+#            wave_concat = wave_concat[I]
+#            flux_concat = flux_concat[I]
+#            err_concat  = err_concat[I]
+#
+#            SN2011FE.append({
+#                            'phase': p,
+#                            'wave' : wave_concat,
+#                            'flux' : flux_concat,
+#                            'err'  : err_concat,
+#                            'cerr' : 0.02,  # CANNOT FIND FLXERROR IN FITS HEADER!!!
+#                            'set'  : 'MAST'
+#                            })
+#
+#        del PHASES
+#
+#    ## LOAD PTF11KLY SPECTRA ##
+#        
+#    if loadptf:
+#        workingdir = dirname + '/data/ptf11kly/'
+#        files = sorted(os.listdir(workingdir))
+#
+#        for F in files:
+#            A = np.genfromtxt(workingdir + F, autostrip=True)
+#
+#            mjd = float(F[9:15])/10  # get mjd from filename
+#            phase = round(mjd-55814.51, 2)
+#            
+#            
+#            wave, flux, err = A[:,0], A[:,1], A[:,2]
+#
+#            SN2011FE.append({
+#                            'phase': phase,
+#                            'wave' : wave,
+#                            'flux' : flux,
+#                            'err'  : err,
+#                            'cerr' : 0.02, # CANNOT FIND FLXERROR IN FITS HEADER!!!
+#                            'set'  : 'PTF11KLY'
+#                            })
+#                
 
     # sort list of dictionaries by phase
     SN2011FE = sorted([e for e in SN2011FE], key=lambda e: e['phase'])
@@ -535,16 +537,16 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
 
     ## NOTE: below I have added artificial distance modulus to the flux.
     
-
-    noise_dist_fac = (1 + art_fr_flx_err*np.random.randn(SN2011FE[0]['flux'].shape[0])) * 10**(-0.4*del_mu)
+    ## Yes, I'm only selecting the 0th phase, but I'm only using its shape.
+    dist_fac = 10**(-0.4*del_mu)
 
     if redtype==None:
-        return [(D['phase'], snc.Spectrum(D['wave'], D['flux']*noise_dist_fac, D['var']), D['cerr'], D['set']) for D in SN2011FE]
+        return [(D['phase'], snc.Spectrum(D['wave'], D['flux'], D['var']), D['cerr'], D['set']) for D in SN2011FE]
+#return [(D['phase'], snc.Spectrum(D['wave'], D['flux'], D['var']), D['cerr'], D['set']) for D in SN2011FE]
         
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*noise_dist_fac, D['var']), D['cerr'], D['set'])
-                    for D in SN2011FE]
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(SN2011FE[0]['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
