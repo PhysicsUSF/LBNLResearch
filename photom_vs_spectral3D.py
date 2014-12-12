@@ -81,7 +81,7 @@ from scipy.stats import chisquare
 from scipy.interpolate import interp1d
 
 from plot_excess_contours import *  ## I may want to comment out this line, just make sure load_12cu_excess is the only function I use (which is now copies here.)
-from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log
+from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log, filter_features
 
 
 
@@ -108,22 +108,9 @@ PLOTS_PER_ROW = 6
 
 V_wave = 5413.5
 
-'''This function needs to be adapted for my way of doing things:
+
+def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'V_band'):
     
-    1. pass sn11fe_colors (instead of recalculating it)
-    2. pass sn12cu_colors (note: there is no need to de-redden)
-    3. Do we need zp??
-
-'''
-
-def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, N_BUCKETS = -1, unfilt = False, norm_meth = 'V_band'):
-    
-
-#        if unfilt == True:
-#            FEATURES_ACTUAL = []
-#        else:
-#            FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),\
-#                              (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
 
         
 
@@ -144,7 +131,6 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, N_BUCKETS 
             
                 print '\n\n\n Phase_index', phase_index, '\n\n\n'
             
-            #exit(1)
             
                 ref = pristine_11fe[phase_index]
                 ## Note: I have determined that ref_wave is equally spaced at 2A.
@@ -154,18 +140,19 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, N_BUCKETS 
 
 
                 ## mask for spectral features not included in fit
-                # mask = filter_features(FEATURES_ACTUAL, ref_wave)
+
 
                 ref_mag_norm, return_wave, return_flux, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
-                            = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = None, norm_meth = 'V_band')
+                            = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = 'V_band')
 
 
 
 
                 ## 12cu or artificially reddened 11fe
                 obs_mag_norm, _, _, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
-                            = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = None, norm_meth = norm_meth)
-#
+                            = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
+
+## Keep the following block for a bit longer; it's effective in diagnostics.  12/10/14
 #                plt.figure()
 #                plt.plot(return_wave, ref_mag_norm, 'k.')
 #                plt.plot(return_wave, obs_mag_norm, 'r.')
@@ -207,6 +194,49 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, N_BUCKETS 
             return EXCESS, EXCESS_VAR, return_wave
 
 
+def compute_sigma_level(L):
+    """Adopted from: 
+        
+        https://jakevdp.github.io/blog/2014/06/14/frequentism-and-bayesianism-4-bayesian-in-python/
+    """
+
+    L[L == 0] = 1E-16  # this line redefines all 0 elements to be a small number.  It's pretty cool that the np.where()function is not really necessary.  The statment L==0 will generate the
+                       # the needed indices.  Although I don't see how this statement is useful.
+    logL = np.log(L)   # not sure the utility of this line.  may delete it soon.
+    
+    shape = L.shape
+    L = L.ravel()   # this flattens the array.
+    
+    # obtain the indices to sort and unsort the flattened array
+    i_sort = np.argsort(L)[::-1]
+    i_unsort = np.argsort(i_sort)
+    
+    L_cumsum = L[i_sort].cumsum()
+    L_cumsum /= L_cumsum[-1]
+    
+    
+    return L_cumsum[i_unsort].reshape(shape)
+
+
+def plot_confidence_contours(ax, xdata, ydata, P, scatter=False, **kwargs):
+    """Plot contours
+        
+        Adopted from:
+            
+            https://jakevdp.github.io/blog/2014/06/14/frequentism-and-bayesianism-4-bayesian-in-python/
+        
+        He also have a function for plotting the best-fit, with error snake, against data, plot_MCMC_model(ax, xdata, ydata, trace) -- I should look into and see if I can adopt it.
+    
+        
+    """
+    sigma = compute_sigma_level(P)
+    ax.contour(xdata, ydata, sigma.T, levels=[0.683, 0.955], **kwargs)
+
+    ax.set_xlabel(r'$\alpha$')
+    ax.set_ylabel(r'$\beta$')
+
+    return sigma # it's really the CDF
+
 
 def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                  ebv, ebv_pad, rv, rv_pad, u_steps, rv_steps, ebv_steps, ax=None):
@@ -225,8 +255,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, ebv_steps)
         y = np.linspace(rv-rv_pad, rv+rv_pad, rv_steps)
         
-        X, Y = np.meshgrid(x, y)
-#Z = np.zeros( X.shape )
+        X, Y = np.meshgrid(x, y)  ## <-------------- This part needs to be changed so that the steps for RV and EBV don't have to be the same: see how it's done in mag_spectrum_fitting.py
 
 
         u_guess = 0
@@ -240,9 +269,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             ## 2D case: only use the central value of u
             u = np.array([u_guess,])
             param_num = 2
-
-#        print 'excess', excess
-#        print  'excess_var', excess_var
 
 
         CHI2 = np.zeros((len(u), len(x), len(y)))
@@ -263,7 +289,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                     
                     CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
                     
-#print 'RV, EBV, CHI2', RV, EBV, CHI2[i, j, k]
 
         if np.sum(nanvals):
             print '\n\n\nWARNING. WARNGING. WARNTING.'
@@ -271,22 +296,27 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             print 'WARNING. WARNGING. WARNTING.\n\n\n'
 
                     
+        print 'len(excess)', len(excess)
 
-
+        
         dof = len(excess) - 1 - param_num  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
 
         CHI2_dof = CHI2/dof
+
+        print 'CHI2_dof', CHI2_dof
         CHI2_dof_min = np.min(CHI2_dof)
+        log("dof: {}".format(dof))
+        log( "min CHI2: {}".format(np.min(CHI2)) )
         log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
+#exit(1)
         delCHI2_dof = CHI2_dof - CHI2_dof_min
 
         mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
         print 'mindex', mindex
 
 
+        ####**** best fit values
 
-
-        ## find minimum ssr
         ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
         mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
         print 'mindex', mindex
@@ -298,9 +328,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 
 
-        ####**** ------------->     Here chi2 is beign calculated.   <---------------------- find 1-sigma and 2-sigma errors based on confidence
-#        maxebv_1sig, maxebv_2sig, minebv_1sig, minebv_2sig = x[mx], x[mx], x[mx], x[mx]
-#        maxrv_1sig, maxrv_2sig, minrv_1sig, minrv_2sig = y[my], y[my], y[my], y[my]
+        ####**** find 1-sigma and 2-sigma errors based on confidence
 
 
         best_fit_curve = redden_fm(wave, np.zeros(wave.shape), -best_ebv, best_rv, return_excess=True)
@@ -353,11 +381,11 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         print 'ebv_uncert_upper, ebv_uncert_lower', ebv_uncert_upper, ebv_uncert_lower
         print 'rv_uncert_upper, rv_uncert_lower', rv_uncert_upper, rv_uncert_upper
         
-#print '\n\n\n rough estimate of distance modulus:', del_V_mag - best_av, '\n\n\n'
 
         log( "\t {}".format(mindex) )
         log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
-        
+
+## May need the following.
 #        chi2dofs.append(CHI2_dof)
 #        #chi2_reductions.append(CHI2_dof)
 #        min_chi2s.append(CHI2_dof_min)
@@ -377,27 +405,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 
 
-
-## old code.
-
-#        for i, dist in enumerate(u):
-#            for j, EBV in enumerate(x):
-#                for k, RV in enumerate(y):
-#                        #conf = CDF[j,i]
-#                        _chisq = CHISQ[i, j, k]-chisq_min
-#                        #if conf<0.683:
-#                        if _chisq<1.00:
-#                                maxebv_1sig = np.maximum(maxebv_1sig, EBV)
-#                                minebv_1sig = np.minimum(minebv_1sig, EBV)
-#                                maxrv_1sig = np.maximum(maxrv_1sig, RV)
-#                                minrv_1sig = np.minimum(minrv_1sig, RV)
-#                        #elif conf<0.955:
-#                        elif _chisq<4.00:
-#                                maxebv_2sig = np.maximum(maxebv_2sig, EBV)
-#                                minebv_2sig = np.minimum(minebv_2sig, EBV)
-#                                maxrv_2sig = np.maximum(maxrv_2sig, RV)
-#                                minrv_2sig = np.minimum(minrv_2sig, RV)
-
         # get best AV and calculate error in quadrature   # This is NOT the correct way. though the correct probably would give similar AV error since RV error dominates  -XH 12/2/14
         best_av = x[mx]*y[my]
         av_1sig = (best_av-np.sqrt((minebv_1sig-x[mx])**2 + (minrv_1sig-y[my])**2),
@@ -414,9 +421,13 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 
 
-        CDF = 1 - np.exp(-delCHI2_dof/2)
-        CDF = np.sum(CDF, axis = 0)  ## collapsing it along the u axis.
-
+        P = np.sum(np.exp(-delCHI2_dof/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
+        ax = plt.subplot(111)
+        CDF = plot_confidence_contours(ax, X, Y, P)
+        print 'P > 1e-15:', P[P > 1e-15]
+        print 'P > 0.1:', P[P > 0.1]
+#plt.show()
+#exit(1)
 
 ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
 #        if ax != None:
@@ -511,80 +522,35 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                                                  av_2sig
 
 
-#def plot_phase_excesses(name, loader, SN12CU_CHISQ_DATA, red_law, filters, zp):
 def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, rv_spect, ebv_spect):
     
     
     print "Plotting excesses of",name," with best fit from contour..."
     
-    #    prefix = zp['prefix']
-    #   phases = [d['phase'] for d in SN12CU_CHISQ_DATA]
-    #   ref = loader(phases, filters, zp)
-    #filter_eff_waves = [snc.get_bandpass(prefix+f).wave_eff for f in filters]
-
-    # get 11fe synthetic photometry at BMAX, get ref sn color excesses at BMAX
-    #sn11fe = l.interpolate_spectra(phases, l.get_11fe())
-    
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
-    #pmin, pmax = np.min(phases), np.max(phases)
+    ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
     
     #    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
     for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[select_phases]], SN12CU_CHISQ_DATA):
 
-#    for i, d, phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, phases):
-        #phase = d['phase']
-        
+
         print "Plotting phase {} ...".format(phase)
-        #exit(1)
+        
             
-            
-            #ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
+        ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         ax = plt.subplot(111)
-            
-        # calculate sn11fe band magnitudes.  Note since the method bandflux() returns the mag and the error, I have added [0] to select the total flux.  -XH
-        #        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f)[0]/zp[f])
-        #               for f in filters}
-#        print 'len(sn11fe_mags)', len(sn11fe_mags)
-#        print 'sn11fe_mags', sn11fe_mags
-
-
-
-
-        # calculate V-X colors for sn11fe
-        #        sn11fe_colors = [sn11fe_mags['V']-sn11fe_mags[f] for f in filters]
-        
-        # make list of colors of reference supernova for given phase index i.  Again each ref[i][f] is an array of two number: mag and flux error converted to mag (via -2.5*log(flux error), which is not the right way); I use [0] to select the mag for now.  -XH
-#        print 'sn11fe_colors', sn11fe_colors
-#        print 'sn11fe_colors[0]', sn11fe_colors[0]
-
-
-        
-#        ref_colors = [sn11fe_colors[i][f] for f in filters]
-#        SN_colors = [sn12cu_colors[i][f] for f in filters]
-#
-##        print 'ref_colors', ref_colors
-##        exit(1)
-#
-#        # get colors excess of reference supernova compared for sn11fe
-#        phase_excesses = np.array(SN_colors)-np.array(ref_colors)
 
 
         phase_excesses = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
 
-
-        # convert effective wavelengths to inverse microns then plot
-        #eff_waves_inv = 10000./filter_eff_waves
+        ## Keep the following two line in case I want to plot the symbols with different colors for different phases.  12/10/14
         #mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
-            #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+        #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
 
         plt.plot(filter_eff_waves, phase_excesses - best_u, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
 
-#        print 'eff_waves_inv', eff_waves_inv
-#        print 'phase_excesses', phase_excesses
-#        plt.show()
-#        exit(1)
 
-        # reddening law vars
+        ## reddening law vars
         linestyle = '--'
         
         x = np.arange(3000,10000,10)
@@ -593,8 +559,6 @@ def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filte
         plt.plot(x, red_curve, 'k'+linestyle)
         slo, shi = plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
 
-#        ebv_spect = 1.01
-#        rv_spect = 2.85
         red_curve_spect = red_law(x, np.zeros(x.shape), -ebv_spect, rv_spect, return_excess=True)
         plt.plot(x, red_curve_spect, 'r-')
 
@@ -616,7 +580,7 @@ def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filte
                #)
         
         
-        # print data on subplot
+        ## print data on subplot
         plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
@@ -638,7 +602,7 @@ def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filte
                 verticalalignment='top',
                 transform=ax.transAxes)
         
-        # format subplot
+        ## format subplot
         if i%PLOTS_PER_ROW == 0:
             ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
             plt.ylabel('$E(V-X)$', fontsize=AXIS_LABEL_FONTSIZE)
@@ -658,10 +622,6 @@ def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filte
         
         plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
         plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
-
-
-
-
 
 
 def plot_snake(ax, wave, init, red_law, x, y, CDF, plot2sig=False):
@@ -727,10 +687,8 @@ if __name__ == "__main__":
     hi_wave = 9700.
     lo_wave = 3300.
     
-    
-    
-    
-    
+
+
     
     ## load spectra, interpolate 11fe to 12cu phases (only first 12)
     obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
@@ -740,7 +698,22 @@ if __name__ == "__main__":
     pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
     art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=-1.0, rv=2.8, del_mu=0.5, noiz=0.0, loadmast=False, loadptf=False))
     
-        
+    ref_wave = pristine_11fe[0][1].wave   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
+
+ 
+    if unfilt == True:
+        FEATURES_ACTUAL = []
+    else:
+        FEATURES_ACTUAL = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),\
+                          (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+
+
+    mask = filter_features(FEATURES_ACTUAL, ref_wave)
+
+    ref_wave = ref_wave[mask]   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
+
+ 
+ 
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
     if obs_SN == 'red_11fe':
         obs_SN = art_reddened_11fe
@@ -755,11 +728,6 @@ if __name__ == "__main__":
     del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
 
 
-#select_phases = np.array([1])
-#sn12cu_excess, phases, sn11fe, sn12cu,  sn12cu_colors, sn11fe_colors, prefix = load_12cu_excess(select_phases, filters_bucket, zp_bucket, del_wave, AB_nu = True)
-
-
-    ref_wave = pristine_11fe[0][1].wave
 
     if N_BUCKETS > 0:
         filters = filters_bucket
@@ -772,55 +740,7 @@ if __name__ == "__main__":
                 filters.append(i)
 
 
-    EXCESS, EXCESS_VAR, wave = get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, N_BUCKETS = N_BUCKETS, unfilt = False, norm_meth = 'V_band')
-
-
-## The next block seems to be about plotting and checking, which I can do inside get_excess().
-
-##eventually want to use the same for loop for 11fe and 12cu -- turn it into a function that returns mag's.  Use SN = sn11fe or sn12cu in the function call.
-##    for phase_index, phase in zip(select_phases, [phases[select_phases]]):
-##        
-##        print '\n\n\n Phase_index', phase_index, '\n\n\n'
-##        sn11fe_phase = sn11fe[phase_index]
-#
-#    for i, phase, sn11fe_phase in izip(xrange(1), phases, sn11fe):
-#        print 'phase', phase
-#        sn11fe_mags = {f : -2.5*np.log10(sn11fe_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0]) - 48.6 for f in filters_bucket}
-#        sn11fe_only_mags = np.array([sn11fe_mags[f] for f in filters_bucket])
-#        #sn11fe_1phase = sn11fe[i]
-#        flux_11fe = sn11fe_phase[1].flux
-#        mag_11fe = ABmag_nu(flux_11fe, ref_wave)
-#
-## convert effective wavelengths to inverse microns then plot
-##eff_waves_inv = (10000./np.array(filter_eff_waves))
-#    pmin, pmax = np.min(phases), np.max(phases)
-#    mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
-#    plt.figure()
-#    plt.plot(filter_eff_waves, sn11fe_only_mags, 's', ms=8, mec='none')
-#    plt.plot(ref_wave, mag_11fe, 'r.')
-#
-#    
-##    plt.figure()
-##    plt.plot(np.array(filter_eff_waves), sn12cu_only_mags, 's', ms=8, mec='none')
-##    plt.plot(ref_wave, mag_12cu, 'k.')
-##    
-#
-##exit(1)
-#
-#    for i, phase, sn12cu_phase in izip(xrange(1), phases, sn12cu):
-#        print 'phase', phase
-#        sn12cu_mags = {f : -2.5*np.log10(sn12cu_phase[1].bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0]) - 48.6 for f in filters_bucket}
-#        sn12cu_only_mags = np.array([sn12cu_mags[f] for f in filters_bucket])
-#        #sn12cu_1phase = sn12cu[i]
-#        #flux_12cu = sn12cu_phase[1].flux
-#        flux12cu_interp = interp1d(sn12cu_phase[1].wave, sn12cu_phase[1].flux)
-#        mag_12cu = ABmag_nu(flux12cu_interp(ref_wave), ref_wave)
-#
-#
-#    plt.figure()
-#    plt.plot(filter_eff_waves, sn12cu_only_mags, 's', ms=8, mec='none')
-#    plt.plot(ref_wave, mag_12cu, 'k.')
-
+    EXCESS, EXCESS_VAR, wave = get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
 
 
@@ -833,12 +753,8 @@ if __name__ == "__main__":
         contour_ax = plt.subplot(111)  # ax = plt.subplot(2,6,i+1)
         
         
-        ## plot_contour() is where chi2 is calculated.
-        # plot_contour(i, phase, redden_fm, sn12cu_excess[i], filter_eff_waves,
-        #EBV_GUESS, EBV_PAD, RV_GUESS, RV_PAD, RV_STEPS, EBV_STEPS, ax)   ## this doesn't seem to be necessary -- can delete soon.  12/8/14.
-
-
-
+        ## plot_contour3D() is where chi2 is calculated.
+ 
         x, y, u, CDF, \
         best_ebv, best_rv, best_u, best_av, \
             ebv_1sig, ebv_2sig, \
