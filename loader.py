@@ -32,7 +32,11 @@ import sncosmo as snc
 from pprint import pprint
 dirname = os.getcwd()
 
-
+class CompatibilityError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 ################################################################################
 ##### LOAD UBVRi FILTERS #######################################################
@@ -361,7 +365,7 @@ def get_12cu(redtype=None, ebv=None, rv=None, av=None, p=None):
 ##### LOAD SN2011FE SPECTRA ####################################################
 
 
-def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, noiz=0.0,loadptf=False, loadsnf=True, loadmast=False):
+def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_var = False, art_fr_flx_err = 0,loadptf=False, loadsnf=True, loadmast=False):
     '''
     ::IMPORTANT NOTE::
     Not fixed yet: ptf and possibly mast give error and not variance, need to determine
@@ -379,6 +383,12 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, noiz=
         FMreddened_2011fe = loader.get_11fe('fm', ebv=-1.37, rv=1.4)
         PLreddened_2011fe = loader.get_11fe('pl', av=1.85, p=-2.1)
     '''
+    
+    if no_var and art_fr_flx_err != 0:
+        raise CompatibilityError("no_var and art_vars are incompatible.")
+
+
+
     SN2011FE = []  # list of info dictionaries
 
 
@@ -402,7 +412,14 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, noiz=
             phase = float(TMAX)
         
             flux = pf[0].data
-            var  = pf[1].data
+            
+            if no_var:  # assuming 11fe is absolutely perfectly measured.
+                var = (1e-16*flux)**2
+            elif art_fr_flx_err != 0:  # so that for the artificially reddened 11fe I can control how much variance to put in.
+                var = (art_fr_flx_err*flux)**2
+            else:
+                var  = pf[1].data
+            
             wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
             
             SN2011FE.append({
@@ -518,8 +535,8 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, noiz=
 
     ## NOTE: below I have added artificial distance modulus to the flux.
     
-    
-    noise_dist_fac = (1 + noiz*np.random.randn(SN2011FE[0]['flux'].shape[0])) * 10**(-0.4*del_mu)
+
+    noise_dist_fac = (1 + art_fr_flx_err*np.random.randn(SN2011FE[0]['flux'].shape[0])) * 10**(-0.4*del_mu)
 
     if redtype==None:
         return [(D['phase'], snc.Spectrum(D['wave'], D['flux']*noise_dist_fac, D['var']), D['cerr'], D['set']) for D in SN2011FE]
