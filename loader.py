@@ -28,6 +28,7 @@ import numpy as np
 import os
 import pyfits
 import sncosmo as snc
+import matplotlib.pyplot as plt
 
 from pprint import pprint
 dirname = os.getcwd()
@@ -413,12 +414,20 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
         
             flux = pf[0].data
             
+            
             if no_var:  # assuming 11fe is absolutely perfectly measured.
                 var = 1e-60*np.ones(flux.shape[0])
             elif art_var > 0:  # so that for the artificially reddened 11fe I can control how much variance to put in.
                 var = art_var*np.ones(flux.shape[0])
                 print 'var', var
-            #exit(1)
+                flux_noizy = flux + np.sqrt(art_var)*np.random.randn(flux.shape[0])
+                
+                print 'flux_noizy - flux', flux_noizy - flux
+                
+                print 'flux var estimated:', np.var(flux_noizy - flux)
+                print 'art_var', art_var
+ 
+ #exit(1)
             else:
                 var  = pf[1].data
             
@@ -433,100 +442,100 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
                             'set'  : 'SNF'
                             })
 
-## Below is only useful for checking things against 2014J.
-#    ## LOAD MAST SN2011FE SPECTRA ##
-#            
-#    if loadmast:
-#        workingdir = dirname + '/data/sn2011fe_mast/'
-#        files = sorted(os.listdir(workingdir))
-#
-#        # find proper phase buckets
-#        phase_buckets = {}
-#        for F in files:
-#            header = pyfits.getheader(workingdir+F)
-#            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
-#
-#            actual_phase = ((float(header['TEXPEND' ])+float(header['TEXPSTRT']))/2)-55814.51
-#
-#            if phase_buckets.has_key(phase):
-#                phase_buckets[phase].append(actual_phase)
-#            else:
-#                phase_buckets[phase] = []
-#
-#        phase_buckets = {key:round(np.average(values), 2) for key, values in phase_buckets.items()}
-#
-#        PHASES = {}
-#        for F in files:
-#            header = pyfits.getheader(workingdir+F)
-#            CENTRWV = 100*(int(header['CENTRWV'])/100)
-#            ### SN2011FE BMAX: 55814.5
-#            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
-#            phase = phase_buckets[phase]
-#            
-#            if not PHASES.has_key(phase):
-#                PHASES[phase] = {}
-#            if not PHASES[phase].has_key(CENTRWV):
-#                PHASES[phase][CENTRWV] = []
-#                
-#            D = pyfits.getdata(workingdir+F)
-#            wave = D.field('WAVELENGTH')[0]
-#            flux = D.field('FLUX')[0]
-#            err  = D.field('ERROR')[0]
-#            
-#            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux, 'err': err})
-#            
-#        for i, p in enumerate(sorted(PHASES.keys())):   
-#            SPECTRUM_DICT_LIST = PHASES[p]
-#            wave_concat = np.array([])
-#            flux_concat = np.array([])
-#            err_concat  = np.array([])
-#            
-#            for LIST in SPECTRUM_DICT_LIST.values():
-#                n = len(LIST)
-#                wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
-#                flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
-#                err_concat  = np.concatenate( (err_concat,  (1.0/n)*sum([D['err' ] for D in LIST])) )
-#                
-#            I = wave_concat.argsort()
-#            wave_concat = wave_concat[I]
-#            flux_concat = flux_concat[I]
-#            err_concat  = err_concat[I]
-#
-#            SN2011FE.append({
-#                            'phase': p,
-#                            'wave' : wave_concat,
-#                            'flux' : flux_concat,
-#                            'err'  : err_concat,
-#                            'cerr' : 0.02,  # CANNOT FIND FLXERROR IN FITS HEADER!!!
-#                            'set'  : 'MAST'
-#                            })
-#
-#        del PHASES
-#
-#    ## LOAD PTF11KLY SPECTRA ##
-#        
-#    if loadptf:
-#        workingdir = dirname + '/data/ptf11kly/'
-#        files = sorted(os.listdir(workingdir))
-#
-#        for F in files:
-#            A = np.genfromtxt(workingdir + F, autostrip=True)
-#
-#            mjd = float(F[9:15])/10  # get mjd from filename
-#            phase = round(mjd-55814.51, 2)
-#            
-#            
-#            wave, flux, err = A[:,0], A[:,1], A[:,2]
-#
-#            SN2011FE.append({
-#                            'phase': phase,
-#                            'wave' : wave,
-#                            'flux' : flux,
-#                            'err'  : err,
-#                            'cerr' : 0.02, # CANNOT FIND FLXERROR IN FITS HEADER!!!
-#                            'set'  : 'PTF11KLY'
-#                            })
-#                
+# Below is only useful for checking things against 2014J.
+    ## LOAD MAST SN2011FE SPECTRA ##
+            
+    if loadmast:
+        workingdir = dirname + '/data/sn2011fe_mast/'
+        files = sorted(os.listdir(workingdir))
+
+        # find proper phase buckets
+        phase_buckets = {}
+        for F in files:
+            header = pyfits.getheader(workingdir+F)
+            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+
+            actual_phase = ((float(header['TEXPEND' ])+float(header['TEXPSTRT']))/2)-55814.51
+
+            if phase_buckets.has_key(phase):
+                phase_buckets[phase].append(actual_phase)
+            else:
+                phase_buckets[phase] = []
+
+        phase_buckets = {key:round(np.average(values), 2) for key, values in phase_buckets.items()}
+
+        PHASES = {}
+        for F in files:
+            header = pyfits.getheader(workingdir+F)
+            CENTRWV = 100*(int(header['CENTRWV'])/100)
+            ### SN2011FE BMAX: 55814.5
+            phase = ((int(header['TEXPEND' ])+int(header['TEXPSTRT']))/2)-55814.5
+            phase = phase_buckets[phase]
+            
+            if not PHASES.has_key(phase):
+                PHASES[phase] = {}
+            if not PHASES[phase].has_key(CENTRWV):
+                PHASES[phase][CENTRWV] = []
+                
+            D = pyfits.getdata(workingdir+F)
+            wave = D.field('WAVELENGTH')[0]
+            flux = D.field('FLUX')[0]
+            err  = D.field('ERROR')[0]
+            
+            PHASES[phase][CENTRWV].append({'wave': wave, 'flux': flux, 'err': err})
+            
+        for i, p in enumerate(sorted(PHASES.keys())):   
+            SPECTRUM_DICT_LIST = PHASES[p]
+            wave_concat = np.array([])
+            flux_concat = np.array([])
+            err_concat  = np.array([])
+            
+            for LIST in SPECTRUM_DICT_LIST.values():
+                n = len(LIST)
+                wave_concat = np.concatenate( (wave_concat, (1.0/n)*sum([D['wave'] for D in LIST])) )
+                flux_concat = np.concatenate( (flux_concat, (1.0/n)*sum([D['flux'] for D in LIST])) )
+                err_concat  = np.concatenate( (err_concat,  (1.0/n)*sum([D['err' ] for D in LIST])) )
+                
+            I = wave_concat.argsort()
+            wave_concat = wave_concat[I]
+            flux_concat = flux_concat[I]
+            err_concat  = err_concat[I]
+
+            SN2011FE.append({
+                            'phase': p,
+                            'wave' : wave_concat,
+                            'flux' : flux_concat,
+                            'var'  : err_concat,
+                            'cerr' : 0.02,  # CANNOT FIND FLXERROR IN FITS HEADER!!!
+                            'set'  : 'MAST'
+                            })
+
+        del PHASES
+
+    ## LOAD PTF11KLY SPECTRA ##
+        
+    if loadptf:
+        workingdir = dirname + '/data/ptf11kly/'
+        files = sorted(os.listdir(workingdir))
+
+        for F in files:
+            A = np.genfromtxt(workingdir + F, autostrip=True)
+
+            mjd = float(F[9:15])/10  # get mjd from filename
+            phase = round(mjd-55814.51, 2)
+            
+            
+            wave, flux, err = A[:,0], A[:,1], A[:,2]
+
+            SN2011FE.append({
+                            'phase': phase,
+                            'wave' : wave,
+                            'flux' : flux,
+                            'var'  : err,
+                            'cerr' : 0.02, # CANNOT FIND FLXERROR IN FITS HEADER!!!
+                            'set'  : 'PTF11KLY'
+                            })
+                
 
     # sort list of dictionaries by phase
     SN2011FE = sorted([e for e in SN2011FE], key=lambda e: e['phase'])
@@ -546,7 +555,32 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
         
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(SN2011FE[0]['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
+            
+            
+            print 'printing.....................................................'
+            flux = SN2011FE[0]['flux']
+            wave = SN2011FE[0]['wave']
+            
+            flux_noizy2 = redden_fm(wave, flux, ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(flux.shape[0])
+            print 'flux var estimated (2)', np.var(flux_noizy2 - flux)
+            print 'dist_fac', dist_fac
+            print "var of np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]", np.var(np.sqrt(art_var)*np.random.randn(SN2011FE[0]['flux'].shape[0]))
+            #exit(1)
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
+            
+            #            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
+            #print 'var est (2.5)', [np.var((D['flux'] + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]) - D['fllux']) for D in SN2011FE]
+#            return_lst = []
+#            for D in SN2011FE:
+#                flux = D['flux']
+#                flux_noizy = D['flux'] + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0])
+#                print '(2.8)', np.var(flux_noizy - flux)
+#                #exit(1)
+#                                                                    
+#                #return_lst = [(D['phase'], snc.Spectrum(D['wave'], flux_noizy, D['var']), D['cerr'], D['set']) ]
+#            
+#            return flux_noizy, flux
+                                                                          
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
@@ -647,7 +681,7 @@ def get_14j():
 def interpolate_spectra(phase_array, spectra):
     '''
     Function to linearly interpolate a spectrum at a specific phase or array of phases, given
-    a list of spectra and their respectrive phases; i.e. [spectra] must be in the form:
+    a list of spectra and their respective phases; i.e. [spectra] must be in the form:
 
         [(phase0, sncosmo.Spectrum), (phase1, sncosmo.Spectrum), ... ]
 
@@ -690,36 +724,101 @@ def interpolate_spectra(phase_array, spectra):
             phase_array = np.array([float(phase_array)])
         except:
             return None
-    
+    #### **** --------------> This is again a function defined in a function -- should change this!  -XH  <---------------------------
     def interpolate(phase, start=0):
         if phase < phases[0]:
             return (None, 0)
 
         LIM = len(phases)-1
         i = start
+        print 'in l.interpolate, just BEFORE while.'
+
         while i < LIM:
             if phase < phases[i+1]:
-                p1, p2 = float(phases[i]), float(phases[i+1])
+                print 'In loader.interpolate(): i = ', i
+                p1, p2 = float(phases[i]), float(phases[i+1])   ## how does one know that the ith and (i+1)th elements in phases stradle phase?
+                                                                ## perhaps before 11fe is densely sampled?
+                p = float(phase)
                 W1, W2 = spectra[i].wave, spectra[i+1].wave
                 
+
                 S1flux = interp1d(W1, spectra[i].flux)
                 S2flux = interp1d(W2, spectra[i+1].flux)
+
+                print 'spectra[%d].error' % (i), spectra[i].error
+                print 'spectra[%d].error' % (i+1), spectra[i+1].error
                 
+                #exit(1)
+
+
                 S1err  = interp1d(W1, spectra[i].error)
                 S2err  = interp1d(W2, spectra[i+1].error)
-                
+
+                print 'After wavelength interpolation:'
+                print 'S1err', S1err(5000)
+                print 'S2err', S2err(5000)
+
+
+
                 # average calibration errors
                 cal_err_interp = 0.5*(cal_err[i] + cal_err[i+1])
                 
                 # get range of overlap between two spectra
-                RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ), 2)
+                RNG = np.arange( max( np.min(W1), np.min(W2) ), min( np.max(W1), np.max(W2) ), 2)  # this array has an interval of 2A. 
 
-                # compute linear interpolation
-                S_interp_flux = S1flux(RNG) + ((S2flux(RNG)-S1flux(RNG))/(p2-p1))*(float(phase)-p1)
-                S_interp_err  = S1err(RNG)  + ((S2err(RNG) -S2err(RNG) )/(p2-p1))*(float(phase)-p1)
+                print 'p1, p2, p', p1, p2, p
+                #print 'RNG', RNG    
+                #exit(1)
+                        
+    
+## Did they whether the two spectra being used to interpolate are within one day of each other?
+## I should print out the phases. -XH 12/12/14
+                ## compute linear interpolation
                 
-                return (snc.Spectrum(RNG, S_interp_flux, S_interp_err), cal_err_interp, i)
+                
+                #exit(1)
+####  --------------------------->  This is the line that messed up the variances.  -XH 12/12/14  <-----------------------------------------
+
+#                f1 = S1flux(RNG)/S1flux(RNG).mean()
+#                f2 = S2flux(RNG)/S2flux(RNG).mean()
+#        
+#                S_interp_flux = f1*wt1 + f2*wt2
+                #S_interp_err  = wt1**2*S1err(RNG) + wt2**2*S2err(RNG)   ## Bevington eq 3.20
+
+               
+                wt1 = (p2 - p)/(p2-p1)
+                wt2 = (p - p1)/(p2-p1)
+#                S_interp_flux = S1flux(RNG)*wt1 + S2flux(RNG)*wt2
+                
+#                f1 = spectra[i].flux
+#                f2 = spectra[i+1].flux
+
+
+
+                var1 = spectra[i].error
+                var2 = spectra[i+1].error
+                
+#                wt1 = 0.5
+#                wt2 = 0.5
+                
+                S_interp_flux = f1*wt1 + f2*wt2
+                S_interp_err  = wt1**2*var1 + wt2**2*var2   ## Bevington eq 3.20
+                              
+               
+               
+                print 'After wavelength interpolation:'
+                print 'variance 1', var1.mean()
+                print 'variance 2', var2.mean()
+                print 'S_interp_err', S_interp_err.mean()
+                #exit(1)
+                
+                return (snc.Spectrum(W1, S_interp_flux, S_interp_err), cal_err_interp, i)
+
+
+                #return (snc.Spectrum(RNG, S_interp_flux, S_interp_err), cal_err_interp, i)
             i += 1
+            print 'in l.interpolate, just after while.'
+            #exit(1)
 
         return (None, 0)
 
@@ -727,13 +826,132 @@ def interpolate_spectra(phase_array, spectra):
     search_index = 0  # keep track of current place in phases array in order to speed up interpolation
     for i in xrange(LIM):
         S_interp, cal_err_interp, search_index = interpolate(phase_array[i], search_index)
+        print 'Outside interpolate() but inside interpolate_spectra, interpolated error:', S_interp.error
+        #exit(1)
         # rounded phase below because of weird numpy float rounding errors when converting phase_array to
         # a numpy array
         interpolated.append((round(phase_array[i], 1), S_interp, cal_err_interp))  
 
+    print 'len(interpolated) =', len(interpolated)
+    #exit(1)
     if len(interpolated) == 1:
+        print "in 'if len(interpolated) == 1', interpolated error:", interpolated[1].error
+        exit(1)
+
         return interpolated[0]  # return only the tuple if only interpolating for one phase
     return interpolated
+
+
+
+def nearest_spectra(phase_array, spectra):
+    '''
+    Function to linearly interpolate a spectrum at a specific phase or array of phases, given
+    a list of spectra and their respective phases; i.e. [spectra] must be in the form:
+
+        [(phase0, sncosmo.Spectrum), (phase1, sncosmo.Spectrum), ... ]
+
+    This is the same form as the output of get_12cu() or get_11fe().  Example usage:
+
+        interpolated_spectra = loader.interpolate_spectra( [0.0, 12.0, 24.0], loader.get_12cu() )
+
+    The output is also going to be in the for as the input for spectra, with an interpolated
+    spectrum in a tuple with each phase in phase_array.  However, there will be a None value
+    in place of the spectrum if either the phase is out of the phase range for the given spectra
+    or the wavelength arrays do not match, e.g.:
+
+        [(-6.5, <sncosmo.spectral.Spectrum object at 0x3480f10>),
+         (-3.5, <sncosmo.spectral.Spectrum object at 0x3480890>),
+         ...
+         (46.5, <sncosmo.spectral.Spectrum object at 0x3414cd0>),
+         (188.8, None),
+         (201.8, None)]
+
+    Tuples in the list with None values can be filtered out like this;
+
+        filtered_spectra = filter(lambda t: t[1]!=None, spectra)
+    
+    **NOTE: This function assumes that the wavelength array is the same for each spectrum in the
+            the given list.  It will return None when trying to interpolate between two spectra
+            with different wavelength arrays.
+        
+    '''
+    from scipy.interpolate import interp1d
+    
+    nearest = []
+    phases  = [t[0] for t in spectra]
+    cal_err = [t[2] for t in spectra]
+    spectra = [t[1] for t in spectra]
+    
+
+
+    if type(phase_array) == type([]):
+        phase_array = np.array(phase_array)
+    elif type(phase_array) != type(np.array([])):
+        try:
+            phase_array = np.array([float(phase_array)])
+        except:
+            return None
+    #### **** --------------> This is again a function defined in a function -- should change this!  -XH  <---------------------------
+    def interpolate(phase, start=0):
+        if phase < phases[0]:
+            return (None, 0)
+
+        LIM = len(phases)-1
+        i = start
+
+        while i < LIM:
+            if phase < phases[i+1]:
+
+                p1, p2 = float(phases[i]), float(phases[i+1])   ## how does one know that the ith and (i+1)th elements in phases stradle phase?
+                                                                ## perhaps before 11fe is densely sampled?
+                phase = float(phase)
+                
+                wt1 = (p2 - phase)/(p2-p1)
+                wt2 = (phase - p1)/(p2-p1)
+                
+                 
+                if wt1 > wt2:
+                    p = p1
+                    W = spectra[i].wave
+                    flux = spectra[i].flux
+                    vars = spectra[i].error
+                    calib_err = cal_err[i]
+                else:
+                    p = p2
+                    W = spectra[i+1].wave
+                    flux = spectra[i+1].flux
+                    vars = spectra[i+1].error
+                    calib_err = cal_err[i+1]
+
+ 
+
+                
+                return (p, snc.Spectrum(W, flux, vars), calib_err, i)
+
+
+                #return (snc.Spectrum(RNG, S_interp_flux, S_interp_err), cal_err_interp, i)
+            i += 1
+
+        return (None, 0)
+
+    LIM = phase_array.shape[0]
+    search_index = 0  # keep track of current place in phases array in order to speed up interpolation
+    for i in xrange(LIM):
+        phase_11fe, S, calib_err, search_index = interpolate(phase_array[i], search_index)
+        #print 'Outside interpolate() but inside interpolate_spectra, interpolated error:', S_interp.error
+        #exit(1)
+        # rounded phase below because of weird numpy float rounding errors when converting phase_array to
+        # a numpy array
+        nearest.append((phase_11fe, S, calib_err))  
+
+    print 'len(nearest) =', len(nearest)
+    #exit(1)
+    if len(nearest) == 1:
+        print "in 'if len(nearest) == 1', nearest error:", nearest[1].error
+
+        return nearest[0]  # return only the tuple if only interpolating for one phase
+    return nearest
+
 
 
     
