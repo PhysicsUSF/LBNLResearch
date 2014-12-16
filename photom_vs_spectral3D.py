@@ -203,7 +203,8 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                     DEL_MAG[phase_index] = obs_mag_norm - ref_mag_norm
                     DEL_MAG_VAR[phase_index] = var
                 elif norm_meth == 'V_band':
-                    var = ref_mag_var + obs_mag_var # + obs_mag_V_var + ref_mag_V_var
+                    var = ref_mag_var + obs_mag_var # + obs_mag_V_var + ref_mag_V_var -- apparently to get chi2/dof being 1, I don't need to add
+                                                    # obs_mag_V_var and ref_mag_V_var.  In fact if I do, I get chi2/dof ~0.5.  Need to think this thru.
 
                     V_mag_diff = obs_V_mag - ref_V_mag
                     print 'V_mag_diff', V_mag_diff
