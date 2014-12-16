@@ -173,12 +173,18 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
         
         mag_V =  SN_mags['V']
         
+        print 'norm_meth', norm_meth    
+        
         if norm_meth == 'AVG':
             mag_zp = mag_avg_flux
         elif norm_meth == 'V_band':
             mag_zp = mag_V
         elif norm_meth == None:
             mag_zp = 0.
+
+
+        print 'mag_zp, mag_V, mag_avg_flux', mag_zp, mag_V, mag_avg_flux    
+
 
 ## THIS VERY EXPRESSION MAKES IT CLEAR WHY USING V BAND TO NORMALIZE IS A BAD IEAD: THE UNCERTAINTY OF MAG_NORM WILL THEN BE THE UNCERTAINTY OF SN_mag[f] and SN_mag['V'] (BOTH MEASUREMENT AND INTRINSIC
 ## DISPERSION, WHICH IS DIFFICULT TO ESTIMATE) ADDED IN QUARATRURE.  WHEREAS IF ONE USES mag_avg_flux, THE UNCERTAINTY WILL BE MUCH SMALLER -- IT IS IN FACT THE FLXERROR IN THE HEADER, ABOUT 0.02 MAG.
