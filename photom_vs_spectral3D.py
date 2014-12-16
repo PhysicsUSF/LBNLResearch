@@ -171,6 +171,9 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 
                 plt.plot(return_wave, ref_mag_norm, 'k.')
                 plt.plot(return_wave, obs_mag_norm, 'r.')
+                plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
+                plt.plot([V_wave, V_wave], [obs_mag_norm.min(), obs_mag_norm.max()] ,'--')
+
                 plt.show()
 
                 #exit(1)
@@ -200,17 +203,30 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                     DEL_MAG[phase_index] = obs_mag_norm - ref_mag_norm
                     DEL_MAG_VAR[phase_index] = var
                 elif norm_meth == 'V_band':
-                    var = ref_mag_var + obs_mag_var + obs_mag_V_var + ref_mag_V_var
+                    var = ref_mag_var + obs_mag_var # + obs_mag_V_var + ref_mag_V_var
 
+                    V_mag_diff = obs_V_mag - ref_V_mag
+                    print 'V_mag_diff', V_mag_diff
+                    #exit(1)
+                    
                     phase_excess = []
                     phase_var = []
                     for j, f in enumerate(filters):
-                        phase_excess.append((obs_mag_norm - ref_mag_norm)[j])
+                        phase_excess.append( (obs_mag_norm - ref_mag_norm)[j])  # Note since the mag's are normalized to V band, there's no need to subtract
+                                                                                # off (obs_V_mag - ref_V_mag).
                         phase_var.append(var[j])
                     
                     EXCESS[phase_index] = phase_excess
                     EXCESS_VAR[phase_index] = phase_var
-                        
+
+                print 'type phase_excess', type(phase_excess)
+                plt.plot(return_wave, np.array(phase_excess), 'r.')
+                plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
+                plt.plot([V_wave, V_wave], [np.array(phase_excess).min(), np.array(phase_excess).max()] ,'--')
+
+                plt.show()
+                #exit(1)
+
         if norm_meth == 'AVG':
             return DEL_MAG, DEL_MAG_VAR, return_wave
         elif norm_meth == 'V_band':
@@ -274,6 +290,8 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             
             
         '''
+        
+
                          
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, ebv_steps)
         y = np.linspace(rv-rv_pad, rv+rv_pad, rv_steps)
@@ -313,8 +331,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                     print "12cu color excess:", excess - dist
                     
                     
-                    plt.plot(wave, ftz_curve, 'g.')
-                    plt.plot(wave, excess + 0.02, 'r.')
+                    #plt.plot(wave, ftz_curve, 'g.')
                     
                         
                     nanvals = np.isnan(excess)
@@ -362,8 +379,9 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         ## estimate of distance modulus
         best_av = best_rv*best_ebv
 
-        plt.show()
-        exit(1)
+        #plt.plot(wave, excess, 'r.')
+        #plt.show()
+        #exit(1)
 
 
         ####**** find 1-sigma and 2-sigma errors based on confidence
@@ -836,7 +854,7 @@ if __name__ == "__main__":
                 filters.append(i)
 
 
-    EXCESS, EXCESS_VAR, wave = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = N_BUCKETS, norm_meth = 'AVG')
+    EXCESS, EXCESS_VAR, wave = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
 
 
@@ -882,7 +900,7 @@ if __name__ == "__main__":
     fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
     fig = plt.figure(figsize = (20, 12))
-    plot_phase_excesses('SN2012CU', EXCESS, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases, rv_spect, ebv_spect)
+    plot_phase_excesses('SN2012CU', EXCESS, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, rv_spect, ebv_spect)
 
     plt.show()
 
