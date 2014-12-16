@@ -123,7 +123,7 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
     ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
     ## Does F99 assume a certain magnitude system?  Is that why Amanullah 2014 used Vega?  (Did they use Vega?  I think they did.
     flux = flux_interp(ref_wave)#*(ref_wave**2)
-    var = interp1d(SN.wave, var)(ref_wave)
+    var = interp1d(SN.wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
 
     if mask != None:
         flux = flux[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
@@ -154,6 +154,8 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
  
         lo_wave = 3300.
         hi_wave = 9700.
+        
+        ## The following two statements are redundant: they are already in main() of photom_vs_spectral.py.
         filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
         filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
         
