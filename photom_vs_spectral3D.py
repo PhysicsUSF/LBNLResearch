@@ -134,16 +134,25 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
             
                 ref = pristine_11fe[phase_index]
                 ## Note: I have determined that ref_wave is equally spaced at 2A.
+                
+                ## Even though ref_wave is defined here and is fed into extract_wave_flux_var(), it's not used for N-band fitting.
                 ref_wave = ref[1].wave  # it is inefficient to define ref_wave in the for loop.  Should take it outside.  12/7/14.
 
                 obs = obs_SN[phase_index]
+
+
+                ref_flux = ref[1].flux
+                obs_flux = obs[1].flux
+                print 'obs_flux var estimated', np.var(obs_flux - ref_flux)
+                #exit(1)
+
 
 
                 ## mask for spectral features not included in fit
 
 
                 ref_mag_norm, return_wave, ref_return_flux, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
-                            = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = 'V_band')
+                            = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
 
 
 
@@ -151,9 +160,20 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                 ## 12cu or artificially reddened 11fe
                 obs_mag_norm, _, obs_return_flux, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
                             = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
-                
-                
-                
+
+                print 'flux var estimated:', np.var(obs_return_flux - ref_return_flux)
+                print 'art_var', art_var
+       
+                print 'mag var estimated:', np.var(obs_mag_norm - ref_mag_norm)
+                print 'avg obs_mag_var: %.3e' % (obs_mag_var.mean())
+                print 'ref_mag_var', ref_mag_var.mean()
+                print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/obs_mag_var)/(len(obs_mag_norm) - 2)
+
+                plt.plot(return_wave, ref_mag_norm, 'k.')
+                plt.plot(return_wave, obs_mag_norm, 'r.')
+                plt.show()
+
+                #exit(1)
 
 ## Keep the following block for a bit longer; it's effective in diagnostics.  12/10/14
 #                plt.figure()
@@ -273,25 +293,38 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             u = np.array([u_guess,])
             param_num = 2
 
+        if ebv_steps == 1:
+            x = np.array([ebv,])
+
 
         CHI2 = np.zeros((len(u), len(x), len(y)))
 
+        #plt.figure()
         log( "Scanning CHI2 grid..." )
         for i, dist in enumerate(u):
             for j, EBV in enumerate(x):
                 for k, RV in enumerate(y):
                     
                     ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
-                    if i==0 and j==0:
-                            print "reddening excess:", ftz_curve
-                            print "12cu color excess:", excess
-            
+
+                    print 'i, j, k', i, j, k
+                    print 'dist, EBV, RV', dist, EBV, RV
+                    print "reddening excess:", ftz_curve
+                    print "12cu color excess:", excess - dist
+                    
+                    
+                    plt.plot(wave, ftz_curve, 'g.')
+                    plt.plot(wave, excess + 0.02, 'r.')
+                    
+                        
                     nanvals = np.isnan(excess)
                     nanmask = ~nanvals
                     #excess_var = excess_var[nanmask]
                     
                     CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
-                    
+         
+        print 'CHI2: ', CHI2
+        
 
         if np.sum(nanvals):
             print '\n\n\nWARNING. WARNGING. WARNTING.'
@@ -329,6 +362,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         ## estimate of distance modulus
         best_av = best_rv*best_ebv
 
+        plt.show()
         exit(1)
 
 
@@ -412,11 +446,10 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         # get best AV and calculate error in quadrature   # This is NOT the correct way. though the correct probably would give similar AV error since RV error dominates  -XH 12/2/14
         best_av = x[mx]*y[my]
         av_1sig = (best_av-np.sqrt((minebv_1sig-x[mx])**2 + (minrv_1sig-y[my])**2),
-                   best_av+np.sqrt((maxebv_1sig-x[mx])**2 + (maxrv_1sig-y[my])**2)
-                   )
+                   best_av+np.sqrt((maxebv_1sig-x[mx])**2 + (maxrv_1sig-y[my])**2))
+                   
         av_2sig = (best_av-np.sqrt((minebv_2sig-x[mx])**2 + (minrv_2sig-y[my])**2),
-                   best_av+np.sqrt((maxebv_2sig-x[mx])**2 + (maxrv_2sig-y[my])**2)
-                   )
+                   best_av+np.sqrt((maxebv_2sig-x[mx])**2 + (maxrv_2sig-y[my])**2))
         
 
 
@@ -653,15 +686,44 @@ def plot_snake(ax, wave, init, red_law, x, y, CDF, plot2sig=False):
     return interp1d(wave, snake_lo_1sig), interp1d(wave, snake_hi_1sig)
 
 
-def simulate_11fe(phases, no_var = True, art_var = 1e-60, ebv = -1.0, rv = 2.8, del_mu = 0.0):
+def simulate_11fe(phases_12cu, no_var = True, art_var = 1e-60, ebv = -1.0, rv = 2.8, del_mu = 0.0):
 
     '''
     simulate reddened 11fe, with its original variances removed and articial variances (initially, uniform) added.
     Also for pristine_11fe its variances are removed (at least initially).
     '''
 
-    pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
-    art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
+#    pristine_11fe = l.get_11fe(loadmast=False, loadptf=False)
+#    art_reddened_11fe = l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False)
+
+
+
+    #print 'phases in simulate_11fe', phases
+    #exit(1)
+    #pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
+    #art_reddened_11fe = l.interpolate_spectra(phases, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
+    #exit(1)
+
+#    print 'var_th', art_reddened_11fe[0][1].error.mean()
+#    
+#    ref_flux = pristine_11fe[0][1].flux
+#    obs_flux = art_reddened_11fe[0][1].flux
+#    print 'var est (3)', np.var(obs_flux - ref_flux)
+#    exit(1)
+
+    phases_12cu = np.array(phases_12cu)
+    pristine_11fe = l.nearest_spectra(phases_12cu, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
+    #pristine_11fe = l.get_11fe_nearest_phase(phases_12cu, redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_var = no_var, art_var = 0, loadsnf=True)
+    #pristine_11fe = l.get_11fe(no_var = no_var, loadmast=False, loadptf=False)
+    print 'artificially redden 11fe with ebv, rv = ', ebv, rv
+    #exit(1)
+    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
+
+    phases_11fe = [t[0] for t in pristine_11fe]
+    phases_reddened_11fe = [t[0] for t in art_reddened_11fe]
+
+    print 'Fetched 11fe phases:', phases_11fe
+    print 'Reddened 11fe phases:', phases_reddened_11fe
 
     return pristine_11fe, art_reddened_11fe
 
@@ -671,7 +733,7 @@ if __name__ == "__main__":
     '''
         
     
-    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 0.01 -unfilt
+    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 1e-31 -unfilt
     
     
     '''
@@ -723,17 +785,19 @@ if __name__ == "__main__":
 
 
     
-    ## load spectra, interpolate 11fe to 12cu phases (only first 12)
-    obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:12]
-    phases = [t[0] for t in obs_12cu]
+    ## load spectra, interpolate 11fe to 12cu phases (only first 11)
+    obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:11]
+    phases_12cu = [t[0] for t in obs_12cu]
+    print 'Available 12cu phases', phases_12cu
+    #exit(1)
  
  
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
     if obs_SN == 'red_11fe':
-        pristine_11fe, obs_SN = simulate_11fe(phases, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = 0.0)
+        pristine_11fe, obs_SN = simulate_11fe(phases_12cu, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = 0.0)
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
-        pristine_11fe = l.interpolate_spectra(phases, l.get_11fe(loadmast=False, loadptf=False))
+        pristine_11fe = l.interpolate_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
 
 
 
@@ -772,13 +836,13 @@ if __name__ == "__main__":
                 filters.append(i)
 
 
-    EXCESS, EXCESS_VAR, wave = get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
+    EXCESS, EXCESS_VAR, wave = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = N_BUCKETS, norm_meth = 'AVG')
 
 
 
     fig = plt.figure(figsize = (10, 8))
     SN12CU_CHISQ_DATA = []
-    for phase_index, phase in zip(select_phases, [phases[select_phases]]):
+    for phase_index, phase in zip(select_phases, [phases_12cu[select_phases]]):
 
         print "Plotting phase {} ...".format(phase)
         
