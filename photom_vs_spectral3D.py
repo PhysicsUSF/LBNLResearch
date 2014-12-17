@@ -151,14 +151,14 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                 ## mask for spectral features not included in fit
 
 
-                ref_mag_norm, return_wave, ref_return_flux, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
+                ref_mag_norm, return_wave, ref_return_flux, ref_return_flux_var, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
                             = extract_wave_flux_var(ref_wave, ref, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
 
 
 
 
                 ## 12cu or artificially reddened 11fe
-                obs_mag_norm, _, obs_return_flux, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
+                obs_mag_norm, _, obs_return_flux, obs_return_flux_var, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
                             = extract_wave_flux_var(ref_wave, obs, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
 
                 print 'flux var estimated:', np.var(obs_return_flux - ref_return_flux)
@@ -169,11 +169,18 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                 print 'ref_mag_var', ref_mag_var.mean()
                 print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/obs_mag_var)/(len(obs_mag_norm) - 2)
 
+
+                plt.plot(return_wave, ref_return_flux, 'k.')
+                plt.errorbar(return_wave, obs_return_flux, np.sqrt(obs_return_flux_var), fmt='r.')
+                plt.title('Spectrum in flux space')
+        
+                plt.figure()
                 plt.plot(return_wave, ref_mag_norm, 'k.')
-                plt.plot(return_wave, obs_mag_norm, 'r.')
+                plt.errorbar(return_wave, obs_mag_norm, np.sqrt(obs_mag_var), fmt='r.')
                 plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
                 plt.plot([V_wave, V_wave], [obs_mag_norm.min(), obs_mag_norm.max()] ,'--')
-
+                plt.title('Spectrum in mag space')
+                
                 plt.show()
 
                 #exit(1)
@@ -221,12 +228,14 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                     EXCESS_VAR[phase_index] = phase_var
 
                 print 'type phase_excess', type(phase_excess)
-                plt.plot(return_wave, np.array(phase_excess), 'r.')
+                #plt.plot(return_wave, np.array(phase_excess), 'r.')
+                plt.errorbar(return_wave, np.array(phase_excess), np.array(phase_var), fmt='r.', label=u'excess (w/o u)') #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
+
                 plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
                 plt.plot([V_wave, V_wave], [np.array(phase_excess).min(), np.array(phase_excess).max()] ,'--')
+                plt.title('Color Excess')
 
                 plt.show()
-                #exit(1)
 
         if norm_meth == 'AVG':
             return DEL_MAG, DEL_MAG_VAR, return_wave
@@ -486,6 +495,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 #exit(1)
 
 ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
+## Don't delete below yet.  There is useful code below about the plotting styles. 
 #        if ax != None:
 #                # plot contours
 #                contour_levels = [0.0, 0.683, 0.955, 1.0]
@@ -578,7 +588,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                                                  av_2sig
 
 
-def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, rv_spect, ebv_spect):
+def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, rv_spect, ebv_spect):
     
     
     print "Plotting excesses of",name," with best fit from contour..."
@@ -597,14 +607,21 @@ def plot_phase_excesses(name, EXCESS, filter_eff_waves, SN12CU_CHISQ_DATA, filte
         ax = plt.subplot(111)
 
 
-        phase_excesses = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
+        phase_excess = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
+        phase_excess_var = np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
+
+
 
         ## Keep the following two line in case I want to plot the symbols with different colors for different phases.  12/10/14
         #mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
         #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
 
-        plt.plot(filter_eff_waves, phase_excesses - best_u, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
 
+
+        plt.errorbar(filter_eff_waves, phase_excess - best_u, np.sqrt(phase_excess_var), fmt='k.', ms = 8, label=u'excess') #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
+        #plt.errorbar(filter_eff_waves, phase_excess - best_u, phase_excess_var, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
+
+#pl.errorbar(X.ravel(), y, dy, fmt='r.', markersize=10, label=u'Observations')
 
         ## reddening law vars
         linestyle = '--'
@@ -751,8 +768,16 @@ if __name__ == "__main__":
 
     '''
         
+    To use artificially reddened 11fe as testing case:
     
-    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 20 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 1e-31 -unfilt
+    python photom_vs_spectral3D.py -obs_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -unfilt
+    
+    
+    
+    To run 12cu:
+    
+    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
+    
     
     
     '''
@@ -901,7 +926,7 @@ if __name__ == "__main__":
     fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
     fig = plt.figure(figsize = (20, 12))
-    plot_phase_excesses('SN2012CU', EXCESS, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, rv_spect, ebv_spect)
+    plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, rv_spect, ebv_spect)
 
     plt.show()
 
