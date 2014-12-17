@@ -123,7 +123,7 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
     ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
     ## Does F99 assume a certain magnitude system?  Is that why Amanullah 2014 used Vega?  (Did they use Vega?  I think they did.
     flux = flux_interp(ref_wave)#*(ref_wave**2)
-    var = interp1d(SN.wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
+    #var = interp1d(SN.wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
 
     if mask != None:
         flux = flux[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
@@ -148,6 +148,7 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
         mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var, norm_meth = norm_meth)
         return_wave = ref_wave
         return_flux = SN_flux
+        return_flux_var = var
         mag_V_var = interp1d(ref_wave, mag_var)(V_wave)
     ## The photometry case -- note here I don't block features, since that is not generally possible (or physical) to do.
     else:
@@ -192,13 +193,13 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
         mag_norm = -(np.array([SN_mags[f] for f in filters_bucket]) - mag_zp) ## the problem with doing things this way is using vs. not using norm_meth, the sign of SN_mag will be flipped.
                                                                        ## the minus sign is because we will plot E(V-X)
 
-        flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[1] for f in filters_bucket])
+        return_flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[1] for f in filters_bucket])
 
 
 
         ## calculate magnitude uncertainty
         ## note the extra factor of lambda*2/c actually gets canceled.
-        fr_err = np.sqrt(flux_var)/band_flux
+        fr_err = np.sqrt(return_flux_var)/band_flux
 
 
 
@@ -225,7 +226,7 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, return_wave, return_flux, mag_avg_flux, mag_V, mag_var, mag_V_var, calib_err_mag, nanmask, flux
+    return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, mag_V_var, calib_err_mag, nanmask, flux
 
 
 def flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
