@@ -143,7 +143,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 
         ref_flux = ref[1].flux
         obs_flux = obs[1].flux
-        print 'obs_flux var estimated', np.var(obs_flux - ref_flux)
+        #print 'obs_flux var estimated', np.var(obs_flux - ref_flux)
         #exit(1)
 
 
@@ -167,7 +167,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         print 'mag var estimated:', np.var(obs_mag_norm - ref_mag_norm)
         print 'avg obs_mag_var: %.3e' % (obs_mag_var.mean())
         print 'ref_mag_var', ref_mag_var.mean()
-        print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/obs_mag_var)/(len(obs_mag_norm) - 2)
+        print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/(ref_mag_var + obs_mag_var))/(len(obs_mag_norm) - 2)
 
 
         plt.plot(return_wave, ref_return_flux, 'k.')
@@ -880,7 +880,8 @@ if __name__ == "__main__":
         pristine_11fe, obs_SN = simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = del_mu)
     elif obs_SN == '12cu':
         obs_SN = obs_12cu
-        pristine_11fe = l.interpolate_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
+        pristine_11fe = l.nearest_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
+        #pristine_11fe = l.interpolate_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
 
 
 
