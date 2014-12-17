@@ -82,7 +82,7 @@ def ABmag_nu(flux, wave = None):
                                               ## using 48.6 is just fine.
 
 
-def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG', ebv = None, rv = None):
+def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG', ebv = None, rv = None):
 
     '''
     Added Nov 25, 2014.
@@ -115,14 +115,14 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
 
 
 
-    flux_interp = interp1d(SN.wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
+    #flux_interp = interp1d(SN.wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
                                                  # think of the two arrays supplied as the "training set".  So flux_interp() is a function.
 
     ## This is flux per frequency -- in order to calculate the AB magnitude -- see Bessell & Murphy eq 2 and eq A1; O'Donnell Astro 511 Lec 14.
     ## It doesn't seem to make any difference in terms of determining RV but it is the right way of doing things.  Magnitudes and colors calculated
     ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
     ## Does F99 assume a certain magnitude system?  Is that why Amanullah 2014 used Vega?  (Did they use Vega?  I think they did.
-    flux = flux_interp(ref_wave)#*(ref_wave**2)
+    #flux = flux_interp(ref_wave)#*(ref_wave**2)
     #var = interp1d(SN.wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
 
     if mask != None:
@@ -134,8 +134,8 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
         ref_wave = ref_wave[mask]
         var = var[mask]
 
-
-    flux_per_Hz = flux * (ref_wave**2/c)
+    flux = SN_flux
+    flux_per_Hz = flux * (SN.wave**2/c)
     mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
     #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
@@ -145,11 +145,11 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
     ## convert flux, variance, and calibration error to magnitude space
     ## The spectral case:
     if N_BUCKETS < 0:
-        mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var, norm_meth = norm_meth)
-        return_wave = ref_wave
+        mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, SN.wave, mag_avg_flux, var, norm_meth = norm_meth)
+        return_wave = SN.wave
         return_flux = SN_flux
         return_flux_var = var
-        mag_V_var = interp1d(ref_wave, mag_var)(V_wave)
+        mag_V_var = interp1d(SN.wave, mag_var)(V_wave)  # This is obviously not correct -- though I don't think mag_V_var is used anywhere.
     ## The photometry case -- note here I don't block features, since that is not generally possible (or physical) to do.
     else:
  
@@ -229,7 +229,7 @@ def extract_wave_flux_var(ref_wave, SN_obs, N_BUCKETS = -1, mask = None, norm_me
     return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, mag_V_var, calib_err_mag, nanmask, flux
 
 
-def flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
+def flux2mag(flux_per_Hz, flux, SN_wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
     mag_var = None
     
     mag = ABmag_nu(flux_per_Hz)
@@ -240,7 +240,7 @@ def flux2mag(flux_per_Hz, flux, ref_wave, mag_avg_flux, var=None, norm_meth = 'A
     ##avg_wave = np.mean(ref_wave)
     ##mag_avg_flux = ABmag_nu(np.average(flux), avg_wave)   # see Bessell & Murphy 2012 eq 2.
 
-    mag_single_V = ABmag_nu(flux_per_Hz[np.argmin(np.abs(ref_wave - V_wave))])
+    mag_single_V = ABmag_nu(flux_per_Hz[np.argmin(np.abs(SN_wave - V_wave))])
 
 
     if norm_meth == 'AVG':
