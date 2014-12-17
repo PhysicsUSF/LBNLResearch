@@ -417,7 +417,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
             
             if no_var:  # assuming 11fe is absolutely perfectly measured.
                 var = 1e-60*np.ones(flux.shape[0])
-            elif art_var > 0:  # so that for the artificially reddened 11fe I can control how much variance to put in.
+            elif art_var > 0 and type(art_var) == float:  # so that for the artificially reddened 11fe I can control how much variance to put in.
                 var = art_var*np.ones(flux.shape[0])
                 print 'var', var
                 flux_noizy = flux + np.sqrt(art_var)*np.random.randn(flux.shape[0])
@@ -561,13 +561,18 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
             flux = SN2011FE[0]['flux']
             wave = SN2011FE[0]['wave']
             
-            flux_noizy2 = redden_fm(wave, flux, ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(flux.shape[0])
-            print 'flux var estimated (2)', np.var(flux_noizy2 - flux)
-            print 'dist_fac', dist_fac
-            print "var of np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]", np.var(np.sqrt(art_var)*np.random.randn(SN2011FE[0]['flux'].shape[0]))
-            #exit(1)
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
             
+#            flux_noizy2 = redden_fm(wave, flux, ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(flux.shape[0])
+#            print 'flux var estimated (2)', np.var(flux_noizy2 - flux)
+#            print 'dist_fac', dist_fac
+#            print "var of np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]", np.var(np.sqrt(art_var)*np.random.randn(SN2011FE[0]['flux'].shape[0]))
+            #exit(1)
+            if type(art_var) == float:
+                return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
+            if type(art_var) == list:
+                return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + np.sqrt(art_var[i])*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D, i in zip(SN2011FE[:14], range(len(SN2011FE[:14])))]  # this is NOT true strictly speaking, since we'll skip one of the first 11 of the 11fe phases.
+
+
             #            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
             #print 'var est (2.5)', [np.var((D['flux'] + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]) - D['fllux']) for D in SN2011FE]
 #            return_lst = []
