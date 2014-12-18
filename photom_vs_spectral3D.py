@@ -4,7 +4,8 @@ Xiaosheng Huang
 (based on Andrew's plot_excess_contour.py)
 
 
-Date: 12/8/14
+Original Date: 12/8/14
+Last Updated: 12/17/14
 Purpose: calculate effective AB mag for narrow bands equally spaced in inverse wavelength and compare that with the single-wavelength AB_nu (see below).  Also allow F99 to shift vertically.
 
 
@@ -52,17 +53,23 @@ using 48.6 is just fine.)
 
 - I have changed 'vega' to 'ab' in loader.py.  1) to make easier comparison between photometric fit and spectral fit.  2) I ran into an error with 'vega' -- it seems that it can't retrieve data from a ftp site.  It really ought to be changed here and on the command line.
 
-- Even with AB mag, I have recovered low RV values.  The last phase still looks different from other phases.
+- Even with AB mag, I have recovered low RV values.  The last phase still looks different from other phases -- this is now understood: the last phase of 12cu at day 26.5 was being matched by the 11fe phase of 23.7 and 74.x, which of course makes doing linear interpolation ridiculous.  We had realized this problem in the summer and it was solved after we incorporated other data sets (downloaded from mast and ptf), one of which has a phase much closer to 26.5.  -Dec 17, 2014
 
 - At 40 bins or above, one need to remove nan to make it work.  - Dec 2. 2014
 
+
+- I have now realized the error that linearly interpolating variance is not the right thing to do.  When one adds two quantities to get a third quantity (what interpolation does), there are well-understood rules governing the variance of the third quantity based on the variances of the first two (Bevington eq (3.20)).  However when one interpolates and calculates the variance according to Bevington, if the new set of points interlace with the original set of points, then obviously the uncertainties of the new set of points are correlated.  This is why it's a tricky problem.  Standard packages (pysynphot, e.g.) can interpolate fluxes but don't deal with variances!  One way to get around that may be Gaussian Process: http://scikit-learn.org/stable/auto_examples/gaussian_process/plot_gp_regression.html.
+
+   But I won't try a complicated tool like that for now.  Instead I will bin 12cu and 11fe spectral data into 1000 common bins.  There should be no ambiguity as to how the variance of each bin should be calculated.
+   
+   And I avoid interpolate between phases by choosing the phases of 11fe that match 12cu phases the closest.   Dec 17, 2014
 
 
 ::Description::
 This program will fit RV based on color excess of 2012cu
 
 ::Last Modified::
-08/01/2014
+12/17/2014
 
 '''
 import argparse
@@ -80,7 +87,6 @@ from pprint import pprint
 from scipy.stats import chisquare
 from scipy.interpolate import interp1d
 
-from plot_excess_contours import *  ## I may want to comment out this line, just make sure load_12cu_excess is the only function I use (which is now copies here.)
 from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log, filter_features
 
 
@@ -106,13 +112,11 @@ LEGEND_FONTSIZE = 15
 
 PLOTS_PER_ROW = 6
 
-V_wave = 5413.5
+V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
 
 def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'V_band'):
-    
-
-        
+            
 
     del_lamb = 1.
     band_steps = 1200
@@ -125,9 +129,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
     DEL_MAG = {}
     DEL_MAG_VAR = {}
 
-    for phase_index, phase in zip(select_phases, [phases[select_phases]]):
-        #        for phase_index in phases: # [0,]
-        
+    for phase_index, phase in zip(select_phases, [phases[select_phases]]):        
         
         print '\n\n\n Phase_index', phase_index, '\n\n\n'
     
@@ -911,6 +913,7 @@ if __name__ == "__main__":
 
     if N_BUCKETS > 0:
         filters = filters_bucket
+    ## this really only applies to the case of simulated 11fe, for the purpose of checking spectral fit vs. 1000 band fit.
     else:
         filters = []
         for i, wave in enumerate(ref_wave):
