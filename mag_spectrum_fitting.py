@@ -163,7 +163,7 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
         return_wave = filter_eff_waves
 
         prefix = zp_bucket['prefix']  # This specifies units as inverse micron or angstrom; specified in the function call to l.generate_buckets().
-        print 'filters_bucket', filters_bucket
+        #print 'filters_bucket', filters_bucket
 
         del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
         
@@ -174,7 +174,7 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
         
         mag_V =  SN_mags['V']
         
-        print 'norm_meth', norm_meth    
+        print 'norm_meth in extract_wave_flux_var():', norm_meth    
         
         if norm_meth == 'AVG':
             mag_zp = mag_avg_flux
