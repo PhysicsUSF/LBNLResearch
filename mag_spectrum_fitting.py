@@ -100,22 +100,22 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
     else:
         SN = SN_obs[1]
 
-    SN_flux = SN.flux
-
+    wave = SN.wave
+    flux = SN.flux
     var = SN.error  # it's called error because that's one of the attributes defined in sncosmo
 
 
 
-    if (SN_flux <= 0).any():
+    if (flux <= 0).any():
         print "In extract_wave_flux_var():"
-        print "some flux values are not positive:", SN_flux[np.where(SN_flux <= 0)]
+        print "some flux values are not positive:", flux[np.where(flux <= 0)]
         print "These values will be rejected below as nan for the log."
         print "(But it's better to deal with the non-pos values before taking the log (even before interpolation).  Something to deal with later.)"
         print "\n\n\n"
 
 
 
-    #flux_interp = interp1d(SN.wave, SN_flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
+    #flux_interp = interp1d(wave, flux)  # interp1d returns a function, which can be evaluated at any wavelength one would want.
                                                  # think of the two arrays supplied as the "training set".  So flux_interp() is a function.
 
     ## This is flux per frequency -- in order to calculate the AB magnitude -- see Bessell & Murphy eq 2 and eq A1; O'Donnell Astro 511 Lec 14.
@@ -123,7 +123,7 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
     ## from these flux values should be directly comparable to AB mag's for broad bands, if that's what Andrew calculated for synthetic photometry.
     ## Does F99 assume a certain magnitude system?  Is that why Amanullah 2014 used Vega?  (Did they use Vega?  I think they did.
     #flux = flux_interp(ref_wave)#*(ref_wave**2)
-    #var = interp1d(SN.wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
+    #var = interp1d(wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
 
     if mask != None:
         flux = flux[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
@@ -134,8 +134,7 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
         ref_wave = ref_wave[mask]
         var = var[mask]
 
-    flux = SN_flux
-    flux_per_Hz = flux * (SN.wave**2/c)
+    flux_per_Hz = flux * (wave**2/c)
     mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
     #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
@@ -145,11 +144,12 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
     ## convert flux, variance, and calibration error to magnitude space
     ## The spectral case:
     if N_BUCKETS < 0:
-        mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, SN.wave, mag_avg_flux, var, norm_meth = norm_meth)
-        return_wave = SN.wave
-        return_flux = SN_flux
+        mag_norm, mag_var, mag_V = flux2mag(flux_per_Hz, flux, wave, mag_avg_flux, var, norm_meth = norm_meth)
+        return_wave = wave
+        return_flux = flux
         return_flux_var = var
-        mag_V_var = interp1d(SN.wave, mag_var)(V_wave)  # This is obviously not correct -- though I don't think mag_V_var is used anywhere.
+    ##    mag_V_var = interp1d(wave, mag_var)(V_wave)  # This is obviously not correct -- though I don't think mag_V_var is used anywhere.
+                                                       # if I really want it, I can use the variance of the nearest wavelength, which is what I did in flux2mag().
     ## The photometry case -- note here I don't block features, since that is not generally possible (or physical) to do.
     else:
  
@@ -205,13 +205,14 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
 
         mag_var = (FrFlx2mag*fr_err)**2
 
-        ## To get variance for V band.  I'm sure there is a pythonic, list comprehension with a lambda function way of doing this.
-        for i, f in enumerate(filters_bucket):
-            if f == 'V':
-                mag_V_var = mag_var[i]
-                print 'V band fr_err', fr_err[i]  ## fractional uncertainty should improve as the number of bands decrease (but still above 5 bands.)
-                print 'mag_V_var', mag_V_var
-                    #                exit(1)
+        ## To get variance for V band.  I'm sure there is a pythonic, list comprehension with a lambda function way of doing this.  
+        ## Blocked for now since I don't think I really need to calculate it. 
+#        for i, f in enumerate(filters_bucket):
+#            if f == 'V':
+#                mag_V_var = mag_var[i]
+#                print 'V band fr_err', fr_err[i]  ## fractional uncertainty should improve as the number of bands decrease (but still above 5 bands.)
+#                print 'mag_V_var', mag_V_var
+#                    #                exit(1)
 
 ## Ignore the following line for now.  I'm NOT blocking any features.  12/7/14
 #    if mask != None:
@@ -226,10 +227,10 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, mag_V_var, calib_err_mag, nanmask, flux
+    return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, calib_err_mag, nanmask, flux
 
 
-def flux2mag(flux_per_Hz, flux, SN_wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
+def flux2mag(flux_per_Hz, flux, wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
     mag_var = None
     
     mag = ABmag_nu(flux_per_Hz)
@@ -240,7 +241,7 @@ def flux2mag(flux_per_Hz, flux, SN_wave, mag_avg_flux, var=None, norm_meth = 'AV
     ##avg_wave = np.mean(ref_wave)
     ##mag_avg_flux = ABmag_nu(np.average(flux), avg_wave)   # see Bessell & Murphy 2012 eq 2.
 
-    mag_single_V = ABmag_nu(flux_per_Hz[np.argmin(np.abs(SN_wave - V_wave))])
+    mag_single_V = ABmag_nu(flux_per_Hz[np.argmin(np.abs(wave - V_wave))])
 
 
     if norm_meth == 'AVG':
