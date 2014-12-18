@@ -311,8 +311,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         X, Y = np.meshgrid(x, y)  
 
 
-#        u_guess = 0
-#        u_pad = 0.2
         ## Determine whether 2D or 3D fit.
         if u_steps > 1:
             ## 3D case
@@ -329,7 +327,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
         CHI2 = np.zeros((len(u), len(x), len(y)))
 
-        #plt.figure()
+
         log( "Scanning CHI2 grid..." )
         for i, dist in enumerate(u):
             for j, EBV in enumerate(x):
@@ -337,18 +335,14 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                     
                     ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
 
-                    print 'i, j, k', i, j, k
-                    print 'dist, EBV, RV', dist, EBV, RV
-                    print "reddening excess:", ftz_curve
-                    print "12cu color excess:", excess - dist
-                    
-                    
-                    #plt.plot(wave, ftz_curve, 'g.')
+#                    print 'i, j, k', i, j, k
+#                    print 'dist, EBV, RV', dist, EBV, RV
+#                    print "reddening excess:", ftz_curve
+#                    print "12cu color excess:", excess - dist
                     
                         
                     nanvals = np.isnan(excess)
                     nanmask = ~nanvals
-                    #excess_var = excess_var[nanmask]
                     
                     CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
          
@@ -615,7 +609,7 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
     ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
     
-    #    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
+    ## may need this for running all phases    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
     for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[select_phases]], SN12CU_CHISQ_DATA):
 
 
@@ -638,34 +632,18 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
 
 
         plt.errorbar(filter_eff_waves, phase_excess - best_u, np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
-        #plt.errorbar(filter_eff_waves, phase_excess - best_u, phase_excess_var, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
-
-#pl.errorbar(X.ravel(), y, dy, fmt='r.', markersize=10, label=u'Observations')
-
-        ## reddening law vars
-
+ 
+ 
+        ## plot best-fit reddening curve and uncertainty snake
         
         reg_wave = np.arange(3000,10000,10)
-        #xinv = 10000./x
+        #xinv = 10000./x # can probably delete this soon.  12/18/14
         red_curve = red_law(reg_wave, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
         plt.plot(reg_wave, red_curve, 'k--')
-        #slo, shi = plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
-
-#        red_curve_spect = red_law(reg_wave, np.zeros(reg_wave.shape), -ebv_spect, rv_spect, return_excess=True)
-#        plt.plot(reg_wave, red_curve_spect, 'r-')
-
-
-        ## plot best-fit reddening curve
-#        fig = plt.figure(figsize = (20, 12))
-#        ax = fig.add_subplot(111)
-#        plt.plot(x, best_fit_curve, 'k--')
-#        plt.errorbar(wave, excess - best_u, np.sqrt(excess_var), fmt = 'r.', alpha = 0.2)
-#        plt.plot(wave, excess - best_u, 'r.', alpha = 0.3)
-
-
-        ## Plot uncertainty snake.
+        
         ax.fill_between(reg_wave, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.5)
         ax.fill_between(reg_wave, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.3)
+
 
 
         ## plot where V band is.   -XH
@@ -674,7 +652,7 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
 
 
 
-
+        ## Not sure what the following is for.  If I don't find use for it get rid of it.  12/18/14
         #pprint( zip([int(f) for f in filter_eff_waves],
                 #[round(f,2) for f in 10000./np.array(filter_eff_waves)],
                 #filters,
@@ -694,9 +672,6 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
                   "\n$u={:.2f}$" + "\n$R_V(sp) = {:.2f}$" + "\n$E(B-V)(sp) = {:.2f}$" + \
                   "\n$u\_steps, RV\_steps, EBV\_steps = {:d}, {:d}, {:d}$"
                   
-
-
-        print 'best_u', d['BEST_u']
 
         plttext = plttext.format(d['CHI2_DOF_MIN'],
                                  d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
