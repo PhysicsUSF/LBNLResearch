@@ -555,37 +555,8 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
         
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            
-            
-            print 'printing.....................................................'
-            flux = SN2011FE[0]['flux']
-            wave = SN2011FE[0]['wave']
-            
-            
-#            flux_noizy2 = redden_fm(wave, flux, ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(flux.shape[0])
-#            print 'flux var estimated (2)', np.var(flux_noizy2 - flux)
-#            print 'dist_fac', dist_fac
-#            print "var of np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]", np.var(np.sqrt(art_var)*np.random.randn(SN2011FE[0]['flux'].shape[0]))
-            #exit(1)
-            if type(art_var) == float:
-                return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
-            if type(art_var) == list:
-                return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + np.sqrt(art_var[i])*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D, i in zip(SN2011FE[:14], range(len(SN2011FE[:14])))]  # this is NOT true strictly speaking, since we'll skip one of the first 11 of the 11fe phases.
-
-
-            #            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac+ np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
-            #print 'var est (2.5)', [np.var((D['flux'] + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]) - D['fllux']) for D in SN2011FE]
-#            return_lst = []
-#            for D in SN2011FE:
-#                flux = D['flux']
-#                flux_noizy = D['flux'] + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0])
-#                print '(2.8)', np.var(flux_noizy - flux)
-#                #exit(1)
-#                                                                    
-#                #return_lst = [(D['phase'], snc.Spectrum(D['wave'], flux_noizy, D['var']), D['cerr'], D['set']) ]
-#            
-#            return flux_noizy, flux
-                                                                          
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
+                                                                                    
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
             raise ValueError(msg)
