@@ -767,32 +767,40 @@ def simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = 1e-60, ebv = -
 
     phases_12cu = np.array(phases_12cu)
     pristine_11fe = l.nearest_spectra(phases_12cu, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
+#    print type(l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
+#    print 'art_var', art_var
+#    print 'type(art_var) == float', type(art_var) == float
+#    print type(l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
+#    exit(1)
+#    print 'artificially redden 11fe with ebv, rv = ', ebv, rv
+#    #exit(1)
+##    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=sn12cu_flux_var, loadmast=False, loadptf=False))
+#    print type(l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
+#    exit(1)
+    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
 
-    wave_12cu = obs_12cu[0][1].wave
-    wave_11fe = pristine_11fe[0][1].wave
 
-    sn12cu_flux_var = []
-    for obs in obs_12cu:
-        #        for phase_index in phases: # [0,]
-        
-        
-        #         print '\n\n\n Phase_index', phase_index, '\n\n\n'
-
-        #obs =  obs_12cu[phase_index]
-        ## Note: here we're trying to get the variance for 12cu spectra and so N_BUCKETS will always be -1.
-        obs_return_flux_var = extract_wave_flux_var(obs, N_BUCKETS = -1)[3]
-        obs_return_flux_var = interp1d(wave_12cu, obs_return_flux_var)(wave_11fe)  ## of course this is NOT the best (or right) way to get 12cu var matched to 11fe wavelength.
-                                                                                   ## it's only a temporary solution.
-        sn12cu_flux_var.append(obs_return_flux_var)
-    
-    print 'number of 12cu phases:', len(sn12cu_flux_var)
+#    wave_12cu = obs_12cu[0][1].wave
+#    wave_11fe = pristine_11fe[0][1].wave
+#
+#    sn12cu_flux_var = []
+#    for obs in obs_12cu:
+#        #        for phase_index in phases: # [0,]
+#        
+#        
+#        #         print '\n\n\n Phase_index', phase_index, '\n\n\n'
+#
+#        #obs =  obs_12cu[phase_index]
+#        ## Note: here we're trying to get the variance for 12cu spectra and so N_BUCKETS will always be -1.
+#        obs_return_flux_var = extract_wave_flux_var(obs, N_BUCKETS = -1)[3]
+#        obs_return_flux_var = interp1d(wave_12cu, obs_return_flux_var)(wave_11fe)  ## of course this is NOT the best (or right) way to get 12cu var matched to 11fe wavelength.
+#                                                                                   ## it's only a temporary solution.
+#        sn12cu_flux_var.append(obs_return_flux_var)
+#    
+#    print 'number of 12cu phases:', len(sn12cu_flux_var)
     #exit(1)
     #pristine_11fe = l.get_11fe_nearest_phase(phases_12cu, redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_var = no_var, art_var = 0, loadsnf=True)
     #pristine_11fe = l.get_11fe(no_var = no_var, loadmast=False, loadptf=False)
-    print 'artificially redden 11fe with ebv, rv = ', ebv, rv
-    #exit(1)
-#    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=sn12cu_flux_var, loadmast=False, loadptf=False))
-    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
 
     phases_11fe = [t[0] for t in pristine_11fe]
     phases_reddened_11fe = [t[0] for t in art_reddened_11fe]
@@ -809,13 +817,13 @@ if __name__ == "__main__":
         
     To use artificially reddened 11fe as testing case:
     
-    python photom_vs_spectral3D.py -obs_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -unfilt
+    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -unfilt
     
     
     
     To run 12cu:
     
-    python photom_vs_spectral3D.py -obs_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
+    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
     
     
     
@@ -824,7 +832,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-N_BUCKETS', type = int)
     parser.add_argument('-del_mu', type = float)
-    parser.add_argument('-obs_SN', type = str)
+    parser.add_argument('-select_SN', type = str)
     parser.add_argument('-RV_GUESS', type = float)
     parser.add_argument('-RV_PAD', type = float)
     parser.add_argument('-RV_STEPS', type = int)
@@ -846,7 +854,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     print 'args', args
-    obs_SN = args.obs_SN
+    select_SN = args.select_SN
     N_BUCKETS = args.N_BUCKETS
     del_mu = args.del_mu
     RV_GUESS = args.RV_GUESS
@@ -878,9 +886,12 @@ if __name__ == "__main__":
  
  
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
-    if obs_SN == 'red_11fe':
-        pristine_11fe, obs_SN = simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = del_mu)
-    elif obs_SN == '12cu':
+    if select_SN == 'red_11fe':
+        if art_var != None:
+            pristine_11fe, obs_SN = simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = del_mu)
+        else:
+            print 'To use artificially reddened 11fe, need to supply art_var.'
+    elif select_SN == '12cu':
         obs_SN = obs_12cu
         pristine_11fe = l.nearest_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
         #pristine_11fe = l.interpolate_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
@@ -889,7 +900,7 @@ if __name__ == "__main__":
 
     ref_wave = pristine_11fe[0][1].wave   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
 
-
+    ## Make mask for spectral features (see Chotard 2011)
     if unfilt == True:
         FEATURES_ACTUAL = []
     else:
@@ -900,6 +911,7 @@ if __name__ == "__main__":
     mask = filter_features(FEATURES_ACTUAL, ref_wave)
 
     ref_wave = ref_wave[mask]   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
+                                ## More importantly I shouldn't use ref_wave anymore.  12/17/2014
 
 
 
@@ -911,16 +923,21 @@ if __name__ == "__main__":
 
 
 
+    print 'select_SN', select_SN
     if N_BUCKETS > 0:
         filters = filters_bucket
     ## this really only applies to the case of simulated 11fe, for the purpose of checking spectral fit vs. 1000 band fit.
-    else:
-        filters = []
-        for i, wave in enumerate(ref_wave):
-            if i == np.argmin(abs(wave - V_wave)):
-                filters.append('V')
-            else:
-                filters.append(i)
+    else: 
+        if select_SN == 'red_11fe':
+            filters = []
+            for i, wave in enumerate(ref_wave):
+                if i == np.argmin(abs(wave - V_wave)):
+                    filters.append('V')
+                else:
+                    filters.append(i)
+        else:
+            print 'Spectral fit should only be used for articificially reddened 11fe.  Exiting...'
+            exit(1)
 
 
     EXCESS, EXCESS_VAR, wave = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = None, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
