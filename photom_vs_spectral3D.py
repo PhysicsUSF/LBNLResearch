@@ -172,7 +172,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         print 'ref_mag_var', ref_mag_var.mean()
         print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/(ref_mag_var + obs_mag_var))/(len(obs_mag_norm) - 2)
 
-
+        plt.figure()
         plt.plot(return_wave, ref_return_flux, 'k.')
         plt.errorbar(return_wave, obs_return_flux, np.sqrt(obs_return_flux_var), fmt='r.')
         plt.title('Spectrum in flux space')
@@ -182,9 +182,9 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         plt.errorbar(return_wave, obs_mag_norm, np.sqrt(obs_mag_var), fmt='r.')
         plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
         plt.plot([V_wave, V_wave], [obs_mag_norm.min(), obs_mag_norm.max()] ,'--')
-        plt.title('Spectrum in mag space')
+        plt.title('Spectrum in mag space (normalized to V)')
         
-        plt.show()
+        #plt.show()
 
         #exit(1)
 
@@ -230,15 +230,15 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
             EXCESS[phase_index] = phase_excess
             EXCESS_VAR[phase_index] = phase_var
 
-        print 'type phase_excess', type(phase_excess)
         #plt.plot(return_wave, np.array(phase_excess), 'r.')
+        plt.figure()
         plt.errorbar(return_wave, np.array(phase_excess), np.array(phase_var), fmt='r.', label=u'excess (w/o u)') #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
 
         plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
         plt.plot([V_wave, V_wave], [np.array(phase_excess).min(), np.array(phase_excess).max()] ,'--')
         plt.title('Color Excess')
 
-        plt.show()
+        #plt.show()
 
     if norm_meth == 'AVG':
         return DEL_MAG, DEL_MAG_VAR, return_wave
@@ -345,8 +345,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                     nanmask = ~nanvals
                     
                     CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
-         
-        print 'CHI2: ', CHI2
         
 
         if np.sum(nanvals):
@@ -362,7 +360,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
         CHI2_dof = CHI2/dof
 
-        print 'CHI2_dof', CHI2_dof
+        #print 'CHI2_dof', CHI2_dof
         CHI2_dof_min = np.min(CHI2_dof)
         log("dof: {}".format(dof))
         log( "min CHI2: {}".format(np.min(CHI2)) )
@@ -378,8 +376,8 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
         ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
         mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
-        print 'mindex', mindex
-        print 'mu, mx, my', mu, mx, my
+        #print 'mindex', mindex
+        #print 'mu, mx, my', mu, mx, my
         best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
         print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
         ## estimate of distance modulus
@@ -450,7 +448,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         print 'rv_uncert_upper, rv_uncert_lower', rv_uncert_upper, rv_uncert_upper
         
 
-        log( "\t {}".format(mindex) )
+        #log( "\t {}".format(mindex) )
         log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
 
 
@@ -494,8 +492,8 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                                                ## vs. the P above.  But I think the P above is the correct one.
         contour_ax = plt.subplot(111)
         CDF = plot_confidence_contours(contour_ax, X, Y, P)
-        print 'P > 1e-15:', P[P > 1e-15]
-        print 'P > 0.1:', P[P > 0.1]
+#        print 'P > 1e-15:', P[P > 1e-15]
+#        print 'P > 0.1:', P[P > 0.1]
 
 
 ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
@@ -844,7 +842,7 @@ if __name__ == "__main__":
 
 
 
-    print 'select_SN', select_SN
+    print 'select_SN:', select_SN
     if N_BUCKETS > 0:
         filters = filters_bucket
     else:       ## this really only applies to the case of simulated 11fe, for the purpose of checking spectral fit vs. 1000 band fit.
