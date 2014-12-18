@@ -137,17 +137,17 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         ref = pristine_11fe[phase_index]
         ## Note: I have determined that ref_wave is equally spaced at 2A.
         
-        ## Even though ref_wave is defined here and is fed into extract_wave_flux_var(), it's not used for N-band fitting.
-        ref_wave = ref[1].wave  # it is inefficient to define ref_wave in the for loop.  Should take it outside.  12/7/14.
-                                ## more importantly do I really need it?  If not, get rid of it.
+#        ## Even though ref_wave is defined here and is fed into extract_wave_flux_var(), it's not used for N-band fitting.
+#        ref_wave = ref[1].wave  # it is inefficient to define ref_wave in the for loop.  Should take it outside.  12/7/14.
+#                                ## more importantly do I really need it?  If not, get rid of it.
 
         obs = obs_SN[phase_index]
 
 
-        ref_flux = ref[1].flux
-        obs_flux = obs[1].flux
-        #print 'obs_flux var estimated', np.var(obs_flux - ref_flux)
-        #exit(1)
+#        ref_flux = ref[1].flux
+#        obs_flux = obs[1].flux
+#        #print 'obs_flux var estimated', np.var(obs_flux - ref_flux)
+#        #exit(1)
 
 
 
