@@ -139,6 +139,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         
         ## Even though ref_wave is defined here and is fed into extract_wave_flux_var(), it's not used for N-band fitting.
         ref_wave = ref[1].wave  # it is inefficient to define ref_wave in the for loop.  Should take it outside.  12/7/14.
+                                ## more importantly do I really need it?  If not, get rid of it.
 
         obs = obs_SN[phase_index]
 
@@ -153,14 +154,14 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         ## mask for spectral features not included in fit
 
 
-        ref_mag_norm, return_wave, ref_return_flux, ref_return_flux_var, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_mag_V_var, ref_calib_err, nanmask_ref, _ \
+        ref_mag_norm, return_wave, ref_return_flux, ref_return_flux_var, ref_mag_avg_flux, ref_V_mag, ref_mag_var, ref_calib_err, nanmask_ref, _ \
                     = extract_wave_flux_var(ref, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
 
 
 
 
         ## 12cu or artificially reddened 11fe
-        obs_mag_norm, _, obs_return_flux, obs_return_flux_var, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_mag_V_var, obs_calib_err, nanmask_obs, obs_flux \
+        obs_mag_norm, _, obs_return_flux, obs_return_flux_var, obs_mag_avg_flux, obs_V_mag, obs_mag_var, obs_calib_err, nanmask_obs, obs_flux \
                     = extract_wave_flux_var(obs, N_BUCKETS = N_BUCKETS, mask = mask, norm_meth = norm_meth)
 
         print 'flux var estimated:', np.var(obs_return_flux - ref_return_flux)
@@ -307,7 +308,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, ebv_steps)
         y = np.linspace(rv-rv_pad, rv+rv_pad, rv_steps)
         
-        X, Y = np.meshgrid(x, y)  ## <-------------- This part needs to be changed so that the steps for RV and EBV don't have to be the same: see how it's done in mag_spectrum_fitting.py
+        X, Y = np.meshgrid(x, y)  
 
 
 #        u_guess = 0
@@ -589,13 +590,148 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 ## In terms of returned values, I don't think returning CDF is necessary for excess plot.  12/9/14
 
-        return x, y, u, CDF, x[mx], y[my], u[mu], best_av, (minebv_1sig, maxebv_1sig), \
+        return x, y, u, CDF, CHI2_dof_min, x[mx], y[my], u[mu], best_av, (minebv_1sig, maxebv_1sig), \
                                                  (minebv_2sig, maxebv_2sig), \
                                                  (minrv_1sig,  maxrv_1sig), \
                                                  (minrv_2sig,  maxrv_2sig), \
                                                  av_1sig, av_2sig, \
                                                  snake_hi_1sig, snake_lo_1sig, \
                                                  snake_hi_2sig, snake_lo_2sig
+
+
+
+
+def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, snake_hi_1sig, snake_lo_1sig, \
+                                                 snake_hi_2sig, snake_lo_2sig, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS):
+
+    ''' 
+     
+    
+    '''
+
+    
+    print "Plotting excesses of",name," with best fit from contour..."
+    
+    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+    ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
+    
+    #    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
+    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[select_phases]], SN12CU_CHISQ_DATA):
+
+
+        print "Plotting phase {} ...".format(phase)
+        
+            
+        ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
+        ax = plt.subplot(111)
+
+
+        phase_excess = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
+        phase_excess_var = np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
+
+
+
+        ## Keep the following two line in case I want to plot the symbols with different colors for different phases.  12/10/14
+        #mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
+        #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+
+
+
+        plt.errorbar(filter_eff_waves, phase_excess - best_u, np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
+        #plt.errorbar(filter_eff_waves, phase_excess - best_u, phase_excess_var, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
+
+#pl.errorbar(X.ravel(), y, dy, fmt='r.', markersize=10, label=u'Observations')
+
+        ## reddening law vars
+
+        
+        reg_wave = np.arange(3000,10000,10)
+        #xinv = 10000./x
+        red_curve = red_law(reg_wave, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
+        plt.plot(reg_wave, red_curve, 'k--')
+        #slo, shi = plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
+
+#        red_curve_spect = red_law(reg_wave, np.zeros(reg_wave.shape), -ebv_spect, rv_spect, return_excess=True)
+#        plt.plot(reg_wave, red_curve_spect, 'r-')
+
+
+        ## plot best-fit reddening curve
+#        fig = plt.figure(figsize = (20, 12))
+#        ax = fig.add_subplot(111)
+#        plt.plot(x, best_fit_curve, 'k--')
+#        plt.errorbar(wave, excess - best_u, np.sqrt(excess_var), fmt = 'r.', alpha = 0.2)
+#        plt.plot(wave, excess - best_u, 'r.', alpha = 0.3)
+
+
+        ## Plot uncertainty snake.
+        ax.fill_between(reg_wave, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.5)
+        ax.fill_between(reg_wave, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.3)
+
+
+        ## plot where V band is.   -XH
+        plt.plot([reg_wave.min(), reg_wave.max()], [0, 0] ,'--')
+        plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
+
+
+
+
+        #pprint( zip([int(f) for f in filter_eff_waves],
+                #[round(f,2) for f in 10000./np.array(filter_eff_waves)],
+                #filters,
+                #[round(p,2) for p in phase_excesses],
+                #[round(r,2) for r in shi(filter_eff_waves)],
+                #[round(r,2) for r in slo(filter_eff_waves)],
+                #[round(r,2) for r in interp1d(x, test_red_curve)(filter_eff_waves)]
+                #)
+               #)
+        
+        
+        ## print data on subplot
+        plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
+                  "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                  "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                  "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                  "\n$u={:.2f}$" + "\n$R_V(sp) = {:.2f}$" + "\n$E(B-V)(sp) = {:.2f}$" + \
+                  "\n$u\_steps, RV\_steps, EBV\_steps = {:d}, {:d}, {:d}$"
+                  
+
+
+        print 'best_u', d['BEST_u']
+
+        plttext = plttext.format(d['CHI2_DOF_MIN'],
+                                 d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
+                                 d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
+                                 d['BEST_AV'], d['AV_1SIG'][1]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][0],
+                                 d['BEST_u'], rv_spect, ebv_spect, \
+                                 u_steps, RV_STEPS, EBV_STEPS)
+            
+
+
+        ax.text(.95, .5, plttext, size=INPLOT_LEGEND_FONTSIZE,
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes)
+        
+        ## format subplot
+        if i%PLOTS_PER_ROW == 0:
+            ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
+            plt.ylabel('$E(V-X)$', fontsize=AXIS_LABEL_FONTSIZE)
+        else:
+            ax.set_title('{}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
+    
+        plt.xlim(3000, 10000)
+        plt.ylim(-3.0, 2.0)
+        
+        labels = ax.get_yticks().tolist()
+        labels[0] = labels[-1] = ''
+        ax.set_yticklabels(labels)
+        
+        labels = ax.get_xticks().tolist()
+        labels[0] = labels[-1] = ''
+        ax.set_xticklabels(labels)
+        
+        plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+        plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
 
 
 
@@ -763,7 +899,7 @@ if __name__ == "__main__":
         
         ## plot_contour3D() is where chi2 is calculated.
  
-        x, y, u, CDF, \
+        x, y, u, CDF, chi2_dof_min, \
         best_ebv, best_rv, best_u, best_av, \
             ebv_1sig, ebv_2sig, \
             rv_1sig, rv_2sig, \
@@ -773,21 +909,22 @@ if __name__ == "__main__":
                                             wave, EBV_GUESS,
                                             EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps, contour_ax = contour_ax)
         
-        SN12CU_CHISQ_DATA.append({'phase'   : phase,
-                                 'x'       : x,
-                                 'y'       : y,
-                                 'u'       : u,
-                                 'CDF'     : CDF,
-                                 'BEST_EBV': best_ebv,
-                                 'BEST_RV' : best_rv,
-                                 'BEST_u'  : best_u,
-                                 'BEST_AV' : best_av,
-                                 'EBV_1SIG': ebv_1sig,
-                                 'EBV_2SIG': ebv_2sig,
-                                 'RV_1SIG' : rv_1sig,
-                                 'RV_2SIG' : rv_2sig,
-                                 'AV_1SIG' : av_1sig,
-                                 'AV_2SIG' : av_2sig
+        SN12CU_CHISQ_DATA.append({'phase'       : phase,
+                                 'x'            : x,
+                                 'y'            : y,
+                                 'u'            : u,
+                                 'CDF'          : CDF,
+                                 'CHI2_DOF_MIN' : chi2_dof_min,
+                                 'BEST_EBV'     : best_ebv,
+                                 'BEST_RV'      : best_rv,
+                                 'BEST_u'       : best_u,
+                                 'BEST_AV'      : best_av,
+                                 'EBV_1SIG'     : ebv_1sig,
+                                 'EBV_2SIG'     : ebv_2sig,
+                                 'RV_1SIG'      : rv_1sig,
+                                 'RV_2SIG'      : rv_2sig,
+                                 'AV_1SIG'      : av_1sig,
+                                 'AV_2SIG'      : av_2sig
                                  })
 
 
@@ -796,7 +933,7 @@ if __name__ == "__main__":
 
     fig = plt.figure(figsize = (20, 12))
     plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, snake_hi_1sig, snake_lo_1sig, \
-                    snake_hi_2sig, snake_lo_2sig, rv_spect, ebv_spect)
+                    snake_hi_2sig, snake_lo_2sig, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS)
 
     plt.show()
 
@@ -804,142 +941,18 @@ if __name__ == "__main__":
 
 
 
-def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, snake_hi_1sig, snake_lo_1sig, \
-                                                 snake_hi_2sig, snake_lo_2sig, rv_spect, ebv_spect):
-
-    ''' 
-    
-    Date thrown into junk yard: 12/17/14
-    
-    Reason: The approach used here to calculate the error snakes is based on CDF (see the last code segement), which sounds right but the error snakes produced seem to be too fat for artificially reddened 11fe.  I need to think this through (why is it like this) before throwing away this function.   12/17/14.
-
-    
-    
-    '''
-
-    
-    print "Plotting excesses of",name," with best fit from contour..."
-    
-    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
-    ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
-    
-    #    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
-    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[select_phases]], SN12CU_CHISQ_DATA):
-
-
-        print "Plotting phase {} ...".format(phase)
-        
-            
-        ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
-        ax = plt.subplot(111)
-
-
-        phase_excess = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
-        phase_excess_var = np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
-
-
-
-        ## Keep the following two line in case I want to plot the symbols with different colors for different phases.  12/10/14
-        #mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
-        #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
-
-
-
-        plt.errorbar(filter_eff_waves, phase_excess - best_u, np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
-        #plt.errorbar(filter_eff_waves, phase_excess - best_u, phase_excess_var, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
-
-#pl.errorbar(X.ravel(), y, dy, fmt='r.', markersize=10, label=u'Observations')
-
-        ## reddening law vars
-
-        
-        reg_wave = np.arange(3000,10000,10)
-        #xinv = 10000./x
-        red_curve = red_law(reg_wave, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
-        plt.plot(reg_wave, red_curve, 'k--')
-        #slo, shi = plot_snake(ax, x, red_curve, red_law, d['x'], d['y'], d['CDF'])
-
-#        red_curve_spect = red_law(reg_wave, np.zeros(reg_wave.shape), -ebv_spect, rv_spect, return_excess=True)
-#        plt.plot(reg_wave, red_curve_spect, 'r-')
-
-
-        ## plot best-fit reddening curve
-#        fig = plt.figure(figsize = (20, 12))
-#        ax = fig.add_subplot(111)
-#        plt.plot(x, best_fit_curve, 'k--')
-#        plt.errorbar(wave, excess - best_u, np.sqrt(excess_var), fmt = 'r.', alpha = 0.2)
-#        plt.plot(wave, excess - best_u, 'r.', alpha = 0.3)
-
-
-        ## Plot uncertainty snake.
-        ax.fill_between(reg_wave, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.5)
-        ax.fill_between(reg_wave, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.3)
-
-
-        ## plot where V band is.   -XH
-        plt.plot([reg_wave.min(), reg_wave.max()], [0, 0] ,'--')
-        plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
-
-
-
-
-        #pprint( zip([int(f) for f in filter_eff_waves],
-                #[round(f,2) for f in 10000./np.array(filter_eff_waves)],
-                #filters,
-                #[round(p,2) for p in phase_excesses],
-                #[round(r,2) for r in shi(filter_eff_waves)],
-                #[round(r,2) for r in slo(filter_eff_waves)],
-                #[round(r,2) for r in interp1d(x, test_red_curve)(filter_eff_waves)]
-                #)
-               #)
-        
-        
-        ## print data on subplot
-        plttext = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$u={:.2f}$" + "\n$R_V(sp) = {:.2f}$" + "\n$E(B-V)(sp) = {:.2f}$"
-                  
-
-
-        print 'best_u', d['BEST_u']
-
-        plttext = plttext.format(d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
-                                 d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
-                                 d['BEST_AV'], d['AV_1SIG'][1]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][0],
-                                 d['BEST_u'], rv_spect, ebv_spect)
-            
-
-
-        ax.text(.95, .3, plttext, size=INPLOT_LEGEND_FONTSIZE,
-                horizontalalignment='right',
-                verticalalignment='top',
-                transform=ax.transAxes)
-        
-        ## format subplot
-        if i%PLOTS_PER_ROW == 0:
-            ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
-            plt.ylabel('$E(V-X)$', fontsize=AXIS_LABEL_FONTSIZE)
-        else:
-            ax.set_title('{}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
-    
-        plt.xlim(3000, 10000)
-        plt.ylim(-3.0, 2.0)
-        
-        labels = ax.get_yticks().tolist()
-        labels[0] = labels[-1] = ''
-        ax.set_yticklabels(labels)
-        
-        labels = ax.get_xticks().tolist()
-        labels[0] = labels[-1] = ''
-        ax.set_xticklabels(labels)
-        
-        plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
-        plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
 
 
 ## I don't use the following approach to calculate the error snakes -- they seem to be too fat.  So this function at the moment is defunct.  12/17/14.
 def plot_snake(ax, wave, best_fit_curve, red_law, x, y, CDF, plot2sig=False):
+    
+    '''
+    Date thrown into junk yard: 12/17/14
+    
+    Reason: The approach used here to calculate the error snakes is based on CDF (see the last code segement), which sounds right but the error snakes produced seem to be too fat for artificially reddened 11fe.  I need to think this through (why is it like this) before throwing away this function.   12/17/14.
+
+    '''
+    
     snake_hi_1sig = deepcopy(best_fit_curve)
     snake_lo_1sig = deepcopy(best_fit_curve)
     if plot2sig:
