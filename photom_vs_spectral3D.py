@@ -281,13 +281,26 @@ def plot_confidence_contours(ax, xdata, ydata, P, scatter=False, **kwargs):
     
         
     """
-    sigma = compute_sigma_level(P)
-    ax.contour(xdata, ydata, sigma.T, levels=[0.683, 0.955], **kwargs)
+    CDF = compute_sigma_level(P).T
+
+#    ax.contour(xdata, ydata, sigma.T, levels=[0.683, 0.955], **kwargs)
+
+    contour_levels = [0.0, 0.683, 0.955, 1.0]
+    ## plots 1- and 2-sigma regions and shades them with different hues.
+    contour_ax.contourf(xdata, ydata, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
+#    contour_ax.contourf(xdata, ydata, CDF, levels = [0.683, 0.955], cmap=mpl.cm.summer, alpha=0.5)
+    ## Outlines 1-sigma contour
+    C1 = plt.contour(xdata, ydata, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+
+                     
+    #ax.contourf(xdata, ydata, sigma.T, levels=[0.683, 0.955], cmap=mpl.cm.summer, alpha=0.5)
+    #C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+
 
     ax.set_xlabel(r'$\alpha$')
     ax.set_ylabel(r'$\beta$')
 
-    return sigma # it's really the CDF
+    return CDF # it's really the CDF
 
 
 def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
@@ -495,6 +508,27 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 #        print 'P > 1e-15:', P[P > 1e-15]
 #        print 'P > 0.1:', P[P > 0.1]
 
+
+        plttext1 = "Phase: {}".format(phase)
+
+        plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+        plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
+                                   y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
+                                   best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
+                                   )
+                                   
+        contour_ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                horizontalalignment='left',
+                verticalalignment='top',
+                transform=contour_ax.transAxes)
+        contour_ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                horizontalalignment='left',
+                verticalalignment='top',
+                transform=contour_ax.transAxes)
+        contour_ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
+        contour_ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
 
 ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
 ## Don't delete below yet.  There is useful code below about the plotting styles. 
