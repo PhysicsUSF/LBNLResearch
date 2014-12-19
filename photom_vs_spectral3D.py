@@ -74,6 +74,7 @@ This program will fit RV based on color excess of 2012cu
 '''
 import argparse
 from copy import deepcopy
+import math
 
 import loader as l
 import matplotlib as mpl
@@ -110,7 +111,7 @@ TICK_LABEL_FONTSIZE = 16
 INPLOT_LEGEND_FONTSIZE = 20
 LEGEND_FONTSIZE = 15
 
-PLOTS_PER_ROW = 6
+
 
 V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
@@ -129,7 +130,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
     DEL_MAG = {}
     DEL_MAG_VAR = {}
 
-    for phase_index, phase in zip(select_phases, [phases[select_phases]]):        
+    for phase_index, phase in zip(select_phases, [phases[i] for i in select_phases]):        
         
         print '\n\n\n Phase_index', phase_index, '\n\n\n'
     
@@ -172,21 +173,19 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         print 'ref_mag_var', ref_mag_var.mean()
         print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/(ref_mag_var + obs_mag_var))/(len(obs_mag_norm) - 2)
 
-        plt.figure()
-        plt.plot(return_wave, ref_return_flux, 'k.')
-        plt.errorbar(return_wave, obs_return_flux, np.sqrt(obs_return_flux_var), fmt='r.')
-        plt.title('Spectrum in flux space')
-
-        plt.figure()
-        plt.plot(return_wave, ref_mag_norm, 'k.')
-        plt.errorbar(return_wave, obs_mag_norm, np.sqrt(obs_mag_var), fmt='r.')
-        plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
-        plt.plot([V_wave, V_wave], [obs_mag_norm.min(), obs_mag_norm.max()] ,'--')
-        plt.title('Spectrum in mag space (normalized to V)')
+## All plots below are diagnostic.  Need to be deleted soon.
+#        plt.figure()
+#        plt.plot(return_wave, ref_return_flux, 'k.')
+#        plt.errorbar(return_wave, obs_return_flux, np.sqrt(obs_return_flux_var), fmt='r.')
+#        plt.title('Spectrum in flux space')
+#
+#        plt.figure()
+#        plt.plot(return_wave, ref_mag_norm, 'k.')
+#        plt.errorbar(return_wave, obs_mag_norm, np.sqrt(obs_mag_var), fmt='r.')
+#        plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
+#        plt.plot([V_wave, V_wave], [obs_mag_norm.min(), obs_mag_norm.max()] ,'--')
+#        plt.title('Spectrum in mag space (normalized to V)')
         
-        #plt.show()
-
-        #exit(1)
 
 ## Keep the following block for a bit longer; it's effective in diagnostics.  12/10/14
 #                plt.figure()
@@ -231,14 +230,14 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
             EXCESS_VAR[phase_index] = phase_var
 
         #plt.plot(return_wave, np.array(phase_excess), 'r.')
-        plt.figure()
-        plt.errorbar(return_wave, np.array(phase_excess), np.array(phase_var), fmt='r.', label=u'excess (w/o u)') #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
-
-        plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
-        plt.plot([V_wave, V_wave], [np.array(phase_excess).min(), np.array(phase_excess).max()] ,'--')
-        plt.title('Color Excess')
-
-        #plt.show()
+#        plt.figure()
+#        plt.errorbar(return_wave, np.array(phase_excess), np.array(phase_var), fmt='r.', label=u'excess (w/o u)') #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
+#
+#        plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
+#        plt.plot([V_wave, V_wave], [np.array(phase_excess).min(), np.array(phase_excess).max()] ,'--')
+#        plt.title('Color Excess')
+#
+#        #plt.show()
 
     if norm_meth == 'AVG':
         return DEL_MAG, DEL_MAG_VAR, return_wave
@@ -270,7 +269,7 @@ def compute_sigma_level(L):
     return L_cumsum[i_unsort].reshape(shape)
 
 
-def plot_confidence_contours(ax, xdata, ydata, P, scatter=False, **kwargs):
+def plot_confidence_contours(ax, xdata, ydata, CDF, scatter=False, **kwargs):
     """Plot contours
         
         Adopted from:
@@ -281,30 +280,25 @@ def plot_confidence_contours(ax, xdata, ydata, P, scatter=False, **kwargs):
     
         
     """
-    CDF = compute_sigma_level(P).T
+    #CDF = compute_sigma_level(P).T
 
-#    ax.contour(xdata, ydata, sigma.T, levels=[0.683, 0.955], **kwargs)
 
     contour_levels = [0.0, 0.683, 0.955, 1.0]
     ## plots 1- and 2-sigma regions and shades them with different hues.
-    contour_ax.contourf(xdata, ydata, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
-#    contour_ax.contourf(xdata, ydata, CDF, levels = [0.683, 0.955], cmap=mpl.cm.summer, alpha=0.5)
+    ax.contourf(xdata, ydata, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
     ## Outlines 1-sigma contour
     C1 = plt.contour(xdata, ydata, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
 
                      
-    #ax.contourf(xdata, ydata, sigma.T, levels=[0.683, 0.955], cmap=mpl.cm.summer, alpha=0.5)
-    #C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
 
+    ax.set_xlabel(r'$E(B-V)$')
+    ax.set_ylabel(r'$R_V$')
 
-    ax.set_xlabel(r'$\alpha$')
-    ax.set_ylabel(r'$\beta$')
-
-    return CDF # it's really the CDF
+    return CDF 
 
 
 def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
-                 ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps, contour_ax=None):
+                 ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps, ax=None):
     
     
     
@@ -340,7 +334,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
         CHI2 = np.zeros((len(u), len(x), len(y)))
 
-
+        print 'ph'
         log( "Scanning CHI2 grid..." )
         for i, dist in enumerate(u):
             for j, EBV in enumerate(x):
@@ -503,114 +497,125 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         P = np.sum(np.exp(-delCHI2_dof/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
         ##P = np.exp(-delCHI2_dof[mu, :, :]/2) ## choose the best u instead of integrating over u. There is a slight difference between contour plots based on this P
                                                ## vs. the P above.  But I think the P above is the correct one.
-        contour_ax = plt.subplot(111)
-        CDF = plot_confidence_contours(contour_ax, X, Y, P)
-#        print 'P > 1e-15:', P[P > 1e-15]
-#        print 'P > 0.1:', P[P > 0.1]
+        #contour_ax = plt.subplot(111)
+        CDF = compute_sigma_level(P).T
+
+#        plot_confidence_contours(ax, X, Y, CDF)
+#
+#
+#        plttext1 = "Phase: {}".format(phase)
+#
+#        plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+#                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+#                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+#        plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
+#                                   y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
+#                                   best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
+#                                   )
+#                                   
+#        contour_ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+#                horizontalalignment='left',
+#                verticalalignment='top',
+#                transform=contour_ax.transAxes)
+#        contour_ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+#                horizontalalignment='left',
+#                verticalalignment='top',
+#                transform=contour_ax.transAxes)
+#        contour_ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
+#        contour_ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
+#
+#
+#        plt.show()
+#        exit(1)
 
 
-        plttext1 = "Phase: {}".format(phase)
-
-        plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-        plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
-                                   y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
-                                   best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
-                                   )
-                                   
-        contour_ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
-                horizontalalignment='left',
-                verticalalignment='top',
-                transform=contour_ax.transAxes)
-        contour_ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
-                horizontalalignment='left',
-                verticalalignment='top',
-                transform=contour_ax.transAxes)
-        contour_ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
-        contour_ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
 
 ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
 ## Don't delete below yet.  There is useful code below about the plotting styles. 
-#        if ax != None:
-#                # plot contours
-#                contour_levels = [0.0, 0.683, 0.955, 1.0]
-#                plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
-#                C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
-#                
-#                #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
-#                
-#                # mark minimum
-#                plt.scatter(x[mx], y[my], marker='s', facecolors='r')
-#                
-#                # show results on plot
-#                if subplot_index%6==0:
-#                        plttext1 = "Phase: {}".format(phase)
-#                else:
-#                        plttext1 = "{}".format(phase)
-#                        
-#                plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-#                           "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-#                           "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-#                plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
-#                                           y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
-#                                           best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
-#                                           )
-#                                                   
-#                if phase not in [11.5, 16.5, 18.5, 21.5]:
-#                        ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
-#                                horizontalalignment='left',
-#                                verticalalignment='top',
-#                                transform=ax.transAxes)
-#                        ax.text(.04, .85, plttext2, size=INPLOT_LEGEND_FONTSIZE,
-#                                horizontalalignment='left',
-#                                verticalalignment='top',
-#                                transform=ax.transAxes)
-#                        ax.axhspan(2.9, (rv+rv_pad), facecolor='k', alpha=0.1)
-#                
-#                else:
-#                        ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
-#                                horizontalalignment='left',
-#                                verticalalignment='top',
-#                                transform=ax.transAxes)
-#                        ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
-#                                horizontalalignment='left',
-#                                verticalalignment='top',
-#                                transform=ax.transAxes)
-#                        ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
-#                        ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
-#                        
-#                        
-#                # format subplot...
-#                plt.ylim(rv-rv_pad, rv+rv_pad)
-#                plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
-#                
-#                ax.set_yticklabels([])
-#                ax2 = ax.twinx()
-#                ax2.set_xlim(ebv-ebv_pad, ebv+ebv_pad)
-#                ax2.set_ylim(rv-rv_pad, rv+rv_pad)
-#                
-#                if subplot_index%6 == 5:
-#                        ax2.set_ylabel('\n$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=5)
-#                if subplot_index%6 == 0:
-#                        ax.set_ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=-2)
-#                if subplot_index>=6:
-#                        ax.set_xlabel('\n$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
-#                
-#                # format x labels
-#                labels = ax.get_xticks().tolist()
-#                labels[0] = labels[-1] = ''
-#                ax.set_xticklabels(labels)
-#                ax.get_xaxis().set_tick_params(direction='in', pad=-20)
-#                
-#                # format y labels
-#                labels = ax2.get_yticks().tolist()
-#                labels[0] = labels[-1] = ''
-#                ax2.set_yticklabels(labels)
-#                ax2.get_yaxis().set_tick_params(direction='in', pad=-30)
-#                
-#                plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
-#                plt.setp(ax2.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+        if ax != None:
+            ## plot contours
+            
+            contour_levels = [0.0, 0.683, 0.955, 1.0]
+            
+            ## plots 1- and 2-sigma regions and shades them with different hues.
+            plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
+
+            ## Outlines 1-sigma contour
+            C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+            
+            #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
+            
+            ## mark minimum
+            plt.scatter(x[mx], y[my], marker='s', facecolors='r')
+            
+            # show results on plot
+            if subplot_index%6==0:
+                    plttext1 = "Phase: {}".format(phase)
+            else:
+                    plttext1 = "{}".format(phase)
+                    
+            plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                       "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                       "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+            plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
+                                       y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
+                                       best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
+                                       )
+                                               
+            if phase not in [11.5, 16.5, 18.5, 21.5]:
+                    ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                            horizontalalignment='left',
+                            verticalalignment='top',
+                            transform=ax.transAxes)
+                    ax.text(.04, .85, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                            horizontalalignment='left',
+                            verticalalignment='top',
+                            transform=ax.transAxes)
+                    ax.axhspan(2.9, (rv+rv_pad), facecolor='k', alpha=0.1)
+            
+            else:
+                    ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                            horizontalalignment='left',
+                            verticalalignment='top',
+                            transform=ax.transAxes)
+                    ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                            horizontalalignment='left',
+                            verticalalignment='top',
+                            transform=ax.transAxes)
+                    ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
+                    ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
+                    
+                    
+            # format subplot...
+            plt.ylim(rv-rv_pad, rv+rv_pad)
+            plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
+            
+            ax.set_yticklabels([])
+            ax2 = ax.twinx()
+            ax2.set_xlim(ebv-ebv_pad, ebv+ebv_pad)
+            ax2.set_ylim(rv-rv_pad, rv+rv_pad)
+            
+            if subplot_index%6 == 5:
+                    ax2.set_ylabel('\n$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=5)
+            if subplot_index%6 == 0:
+                    ax.set_ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=-2)
+            if subplot_index>=6:
+                    ax.set_xlabel('\n$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
+            
+            # format x labels
+            labels = ax.get_xticks().tolist()
+            labels[0] = labels[-1] = ''
+            ax.set_xticklabels(labels)
+            ax.get_xaxis().set_tick_params(direction='in', pad=-20)
+            
+            # format y labels
+            labels = ax2.get_yticks().tolist()
+            labels[0] = labels[-1] = ''
+            ax2.set_yticklabels(labels)
+            ax2.get_yaxis().set_tick_params(direction='in', pad=-30)
+            
+            plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+            plt.setp(ax2.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
 
 
 
@@ -638,18 +643,27 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
     
     print "Plotting excesses of",name," with best fit from contour..."
     
-    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+    #numrows = (len(EXCESS)-1)//PLOTS_PER_ROW + 1
     ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
     
     ## may need this for running all phases    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
-    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[select_phases]], SN12CU_CHISQ_DATA):
+    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
 
 
         print "Plotting phase {} ...".format(phase)
         
             
         ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
-        ax = plt.subplot(111)
+        
+        
+#        print 'len(EXCESS)', len(EXCESS)
+#        print 'len(select_phases)', len(select_phases)
+        print  'select_phases', select_phases
+        #exit(1)
+        
+
+        ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)   
+
 
 
         phase_excess = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
@@ -662,8 +676,7 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
 
 
-
-        plt.errorbar(filter_eff_waves, phase_excess - best_u, np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
+        plt.errorbar(filter_eff_waves, phase_excess - d['BEST_u'], np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
  
  
         ## plot best-fit reddening curve and uncertainty snake
@@ -672,17 +685,17 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         #xinv = 10000./x # can probably delete this soon.  12/18/14
         red_curve = red_law(reg_wave, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
         plt.plot(reg_wave, red_curve, 'k--')
-        
-        ax.fill_between(reg_wave, snake_lo_1sig, snake_hi_1sig, facecolor='black', alpha=0.5)
-        ax.fill_between(reg_wave, snake_lo_2sig, snake_hi_2sig, facecolor='black', alpha=0.3)
+
+        ax.fill_between(reg_wave, d['lo_1sig'], d['hi_1sig'], facecolor='black', alpha=0.5)
+        ax.fill_between(reg_wave, d['lo_2sig'], d['hi_2sig'], facecolor='black', alpha=0.3)
 
 
 
         ## plot where V band is.   -XH
         plt.plot([reg_wave.min(), reg_wave.max()], [0, 0] ,'--')
         plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
-
-
+        
+    
 
         ## Not sure what the following is for.  If I don't find use for it get rid of it.  12/18/14
         #pprint( zip([int(f) for f in filter_eff_waves],
@@ -697,21 +710,22 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         
         
         ## print data on subplot
+            
+
         plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
                   "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$u={:.2f}$" + "\n$R_V(sp) = {:.2f}$" + "\n$E(B-V)(sp) = {:.2f}$" + \
-                  "\n$u\_steps, RV\_steps, EBV\_steps = {:d}, {:d}, {:d}$"
+                  "\n$u={:.2f}$"
+                  
                   
 
         plttext = plttext.format(d['CHI2_DOF_MIN'],
                                  d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
                                  d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
                                  d['BEST_AV'], d['AV_1SIG'][1]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][0],
-                                 d['BEST_u'], rv_spect, ebv_spect, \
-                                 u_steps, RV_STEPS, EBV_STEPS)
-            
+                                 d['BEST_u'])
+
 
 
         ax.text(.95, .5, plttext, size=INPLOT_LEGEND_FONTSIZE,
@@ -776,9 +790,11 @@ if __name__ == "__main__":
     
     To run 12cu:
     
-    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -unfilt
+    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 
     
     
+    
+    Note: I can select any combination of phases I want.  E.g., I could do -select_phases 0 1 5.
     
     '''
 
@@ -819,7 +835,7 @@ if __name__ == "__main__":
     u_guess = args.u_guess
     u_pad = args.u_pad
     u_steps = args.u_steps
-    select_phases = np.array(args.select_phases) ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
+    select_phases = args.select_phases ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
     ebv_spect = args.ebv_spect
     rv_spect = args.rv_spect
     art_var = args.art_var
@@ -828,7 +844,16 @@ if __name__ == "__main__":
     hi_wave = 9700.
     lo_wave = 3300.
     
+    ## To select all phase by enter a number greater than 11.
+    if len(select_phases) > 11 or (np.array(select_phases) > 11).any():
+        select_phases = range(11)
+        
 
+
+    PLOTS_PER_ROW = math.ceil(len(select_phases)/2.)  # using math.ceil so that I can render the number of rows correctly for one plot.
+    numrows = (len(select_phases)-1)//PLOTS_PER_ROW + 1
+
+    print 'PLOTS_PER_ROW, numrows', PLOTS_PER_ROW, numrows
 
     
     ## load spectra, interpolate 11fe to 12cu phases (only first 11)
@@ -895,17 +920,14 @@ if __name__ == "__main__":
     EXCESS, EXCESS_VAR, wave = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = None, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
 
-    fig = plt.figure(figsize = (10, 8))
+    fig = plt.figure(figsize = (20, 12))
     SN12CU_CHISQ_DATA = []
-    for phase_index, phase in zip(select_phases, [phases_12cu[select_phases]]):
+    ## there is a nearly identical statement in plot_contour; should remove such redundancy which can easily lead to inconsistency. 
+    for i, phase_index, phase in zip(range(len(select_phases)), select_phases, [phases_12cu[i] for i in select_phases]):  ## there is a nearly 
+        
+        contour_ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
 
-        print "Plotting phase {} ...".format(phase)
-        
-        contour_ax = plt.subplot(111)  # ax = plt.subplot(2,6,i+1)
-        
-        
-        ## plot_contour3D() is where chi2 is calculated.
- 
+        ## plot_contour3D() is where chi2 is calculated. 
         x, y, u, CDF, chi2_dof_min, \
         best_ebv, best_rv, best_u, best_av, \
             ebv_1sig, ebv_2sig, \
@@ -914,7 +936,7 @@ if __name__ == "__main__":
             snake_hi_1sig, snake_lo_1sig, \
             snake_hi_2sig, snake_lo_2sig = plot_contour3D(phase_index, phase, redden_fm, EXCESS[phase_index], EXCESS_VAR[phase_index],
                                             wave, EBV_GUESS,
-                                            EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps, contour_ax = contour_ax)
+                                            EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps, ax = contour_ax)
         
         SN12CU_CHISQ_DATA.append({'phase'       : phase,
                                  'x'            : x,
@@ -930,6 +952,10 @@ if __name__ == "__main__":
                                  'EBV_2SIG'     : ebv_2sig,
                                  'RV_1SIG'      : rv_1sig,
                                  'RV_2SIG'      : rv_2sig,
+                                 'hi_1sig'      : snake_hi_1sig,
+                                 'lo_1sig'      : snake_lo_1sig,
+                                 'hi_2sig'      : snake_hi_2sig,
+                                 'lo_2sig'      : snake_lo_2sig,
                                  'AV_1SIG'      : av_1sig,
                                  'AV_2SIG'      : av_2sig
                                  })
