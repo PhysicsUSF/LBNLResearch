@@ -790,7 +790,7 @@ if __name__ == "__main__":
     
     To run 12cu:
     
-    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 
+    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 0 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.2 -EBV_STEPS 41 -RV_GUESS 3.0 -RV_PAD 0.5 -RV_STEPS 41 
     
     
     
