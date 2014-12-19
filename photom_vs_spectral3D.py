@@ -297,12 +297,78 @@ def plot_confidence_contours(ax, xdata, ydata, CDF, scatter=False, **kwargs):
     return CDF 
 
 
+
+
+
+def chi2(u, x, y, excess, excess_var, red_law, param_num):
+
+    CHI2 = np.zeros((len(u), len(x), len(y)))
+
+    print 'ph'
+    log( "Scanning CHI2 grid..." )
+    for i, dist in enumerate(u):
+        for j, EBV in enumerate(x):
+            for k, RV in enumerate(y):
+                
+                ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
+
+#                    print 'i, j, k', i, j, k
+#                    print 'dist, EBV, RV', dist, EBV, RV
+#                    print "reddening excess:", ftz_curve
+#                    print "12cu color excess:", excess - dist
+                
+                    
+                nanvals = np.isnan(excess)
+                nanmask = ~nanvals
+                
+                CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
+    
+
+    if np.sum(nanvals):
+        print '\n\n\nWARNING. WARNGING. WARNTING.'
+        print 'WARNING: THERE ARE %d BANDS WITH NAN VALUES.' % (np.sum(nanvals))
+        print 'WARNING. WARNGING. WARNTING.\n\n\n'
+
+                
+    print 'len(excess)', len(excess)
+
+    
+    dof = len(excess) - 1 - param_num  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
+
+    CHI2_dof = CHI2/dof
+
+    #print 'CHI2_dof', CHI2_dof
+    CHI2_dof_min = np.min(CHI2_dof)
+    log("dof: {}".format(dof))
+    log( "min CHI2: {}".format(np.min(CHI2)) )
+    log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
+
+    delCHI2_dof = CHI2_dof - CHI2_dof_min
+
+    mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
+    print 'mindex', mindex
+
+
+    ####**** best fit values
+
+    ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
+    mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
+    #print 'mindex', mindex
+    #print 'mu, mx, my', mu, mx, my
+    best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
+    print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
+
+
+    return delCHI2_dof, CHI2_dof_min, best_u, best_ebv, best_rv
+    
+
 def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                  ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps, ax=None):
     
     
     
-        '''This is where chi2 is calculated. 
+        '''
+            This is where chi2 is calculated. 
             
             I should separate the part that calculates chi2 and the part that plots.  
             
@@ -332,64 +398,69 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             x = np.array([ebv,])
 
 
-        CHI2 = np.zeros((len(u), len(x), len(y)))
+#        CHI2 = np.zeros((len(u), len(x), len(y)))
+#
+#        print 'ph'
+#        log( "Scanning CHI2 grid..." )
+#        for i, dist in enumerate(u):
+#            for j, EBV in enumerate(x):
+#                for k, RV in enumerate(y):
+#                    
+#                    ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
+#
+##                    print 'i, j, k', i, j, k
+##                    print 'dist, EBV, RV', dist, EBV, RV
+##                    print "reddening excess:", ftz_curve
+##                    print "12cu color excess:", excess - dist
+#                    
+#                        
+#                    nanvals = np.isnan(excess)
+#                    nanmask = ~nanvals
+#                    
+#                    CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
+#        
+#
+#        if np.sum(nanvals):
+#            print '\n\n\nWARNING. WARNGING. WARNTING.'
+#            print 'WARNING: THERE ARE %d BANDS WITH NAN VALUES.' % (np.sum(nanvals))
+#            print 'WARNING. WARNGING. WARNTING.\n\n\n'
+#
+#                    
+#        print 'len(excess)', len(excess)
+#
+#        
+#        dof = len(excess) - 1 - param_num  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
+#
+#        CHI2_dof = CHI2/dof
+#
+#        #print 'CHI2_dof', CHI2_dof
+#        CHI2_dof_min = np.min(CHI2_dof)
+#        log("dof: {}".format(dof))
+#        log( "min CHI2: {}".format(np.min(CHI2)) )
+#        log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
+#
+#        delCHI2_dof = CHI2_dof - CHI2_dof_min
+#
+#        mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
+#        print 'mindex', mindex
+#
+#
+#        ####**** best fit values
+#
+#        ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
+#        mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
+#        #print 'mindex', mindex
+#        #print 'mu, mx, my', mu, mx, my
+#        best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
+#        print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
+#        ## estimate of distance modulus
+#        best_av = best_rv*best_ebv
 
-        print 'ph'
-        log( "Scanning CHI2 grid..." )
-        for i, dist in enumerate(u):
-            for j, EBV in enumerate(x):
-                for k, RV in enumerate(y):
-                    
-                    ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
 
-#                    print 'i, j, k', i, j, k
-#                    print 'dist, EBV, RV', dist, EBV, RV
-#                    print "reddening excess:", ftz_curve
-#                    print "12cu color excess:", excess - dist
-                    
-                        
-                    nanvals = np.isnan(excess)
-                    nanmask = ~nanvals
-                    
-                    CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
+        delCHI2_dof, CHI2_dof_min, best_u, best_ebv, best_rv = chi2(u, x, y, excess, excess_var, red_law, param_num)
+
         
-
-        if np.sum(nanvals):
-            print '\n\n\nWARNING. WARNGING. WARNTING.'
-            print 'WARNING: THERE ARE %d BANDS WITH NAN VALUES.' % (np.sum(nanvals))
-            print 'WARNING. WARNGING. WARNTING.\n\n\n'
-
-                    
-        print 'len(excess)', len(excess)
-
-        
-        dof = len(excess) - 1 - param_num  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
-
-        CHI2_dof = CHI2/dof
-
-        #print 'CHI2_dof', CHI2_dof
-        CHI2_dof_min = np.min(CHI2_dof)
-        log("dof: {}".format(dof))
-        log( "min CHI2: {}".format(np.min(CHI2)) )
-        log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
-
-        delCHI2_dof = CHI2_dof - CHI2_dof_min
-
-        mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
-        print 'mindex', mindex
-
-
-        ####**** best fit values
-
-        ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
-        mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
-        #print 'mindex', mindex
-        #print 'mu, mx, my', mu, mx, my
-        best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
-        print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
-        ## estimate of distance modulus
         best_av = best_rv*best_ebv
-
 
 
         ####**** find 1-sigma and 2-sigma errors based on confidence
@@ -482,12 +553,12 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 
         # get best AV and calculate error in quadrature   # This is NOT the correct way. though the correct probably would give similar AV error since RV error dominates  -XH 12/2/14
-        best_av = x[mx]*y[my]
-        av_1sig = (best_av-np.sqrt((minebv_1sig-x[mx])**2 + (minrv_1sig-y[my])**2),
-                   best_av+np.sqrt((maxebv_1sig-x[mx])**2 + (maxrv_1sig-y[my])**2))
+#        best_av = x[mx]*y[my]
+        av_1sig = (best_av-np.sqrt((minebv_1sig-best_ebv)**2 + (minrv_1sig-best_rv)**2),
+                   best_av+np.sqrt((maxebv_1sig-best_ebv)**2 + (maxrv_1sig-best_rv)**2))
                    
-        av_2sig = (best_av-np.sqrt((minebv_2sig-x[mx])**2 + (minrv_2sig-y[my])**2),
-                   best_av+np.sqrt((maxebv_2sig-x[mx])**2 + (maxrv_2sig-y[my])**2))
+        av_2sig = (best_av-np.sqrt((minebv_2sig-best_ebv)**2 + (minrv_2sig-best_rv)**2),
+                   best_av+np.sqrt((maxebv_2sig-best_ebv)**2 + (maxrv_2sig-best_rv)**2))
         
 
 
@@ -546,7 +617,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
             
             ## mark minimum
-            plt.scatter(x[mx], y[my], marker='s', facecolors='r')
+            plt.scatter(best_ebv, best_rv, marker='s', facecolors='r')
             
             # show results on plot
             if subplot_index%6==0:
@@ -557,8 +628,8 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                        "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
                        "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-            plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
-                                       y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
+            plttext2 = plttext2.format(best_ebv, maxebv_1sig-best_ebv, best_ebv-minebv_1sig,
+                                       best_rv, maxrv_1sig-best_rv, best_rv-minrv_1sig,
                                        best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
                                        )
                                                
@@ -621,7 +692,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 ## In terms of returned values, I don't think returning CDF is necessary for excess plot.  12/9/14
 
-        return x, y, u, CDF, CHI2_dof_min, x[mx], y[my], u[mu], best_av, (minebv_1sig, maxebv_1sig), \
+        return x, y, u, CDF, CHI2_dof_min, best_u, best_ebv, best_rv, best_av, (minebv_1sig, maxebv_1sig), \
                                                  (minebv_2sig, maxebv_2sig), \
                                                  (minrv_1sig,  maxrv_1sig), \
                                                  (minrv_2sig,  maxrv_2sig), \
@@ -929,7 +1000,7 @@ if __name__ == "__main__":
 
         ## plot_contour3D() is where chi2 is calculated. 
         x, y, u, CDF, chi2_dof_min, \
-        best_ebv, best_rv, best_u, best_av, \
+        best_u, best_ebv, best_rv, best_av, \
             ebv_1sig, ebv_2sig, \
             rv_1sig, rv_2sig, \
             av_1sig, av_2sig,\
