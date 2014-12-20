@@ -82,7 +82,7 @@ def ABmag_nu(flux, wave = None):
                                               ## using 48.6 is just fine.
 
 
-def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG', ebv = None, rv = None):
+def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None, rv = None):
 
     '''
     Added Nov 25, 2014.
@@ -125,14 +125,14 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
     #flux = flux_interp(ref_wave)#*(ref_wave**2)
     #var = interp1d(wave, var)(ref_wave)  ####****-----------> This is not the right way to figure out the right variance for the interpolated spectrum.
 
-    if mask != None:
-        flux = flux[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
-                                   # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
-                                   # be blocked, the operation mag_norm[mask] does just that.  One can think of mask as providing a truth table that tells python
-                                   # which of the elements in mag_norm to keep and which to discard.  Yes, it doesn't make sense at first sight since mask doesn't
-                                   # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
-        ref_wave = ref_wave[mask]
-        var = var[mask]
+#    if mask != None:
+#        flux = flux[mask]  # Note: mask has the same length as mag_norm, and contains a bunch of 0's and 1's (the 0's are where the blocked features are).
+#                                   # This is a very pythonic way of doing things: even though mask doesn't specifiy the indices of the wavelengths that should
+#                                   # be blocked, the operation mag_norm[mask] does just that.  One can think of mask as providing a truth table that tells python
+#                                   # which of the elements in mag_norm to keep and which to discard.  Yes, it doesn't make sense at first sight since mask doesn't
+#                                   # contain indices.  But it does work, and is the pythonic way!  -XH 11/25/14.
+#        ref_wave = ref_wave[mask]
+#        var = var[mask]
 
     flux_per_Hz = flux * (wave**2/c)
     mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
@@ -227,7 +227,7 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, mask = None, norm_meth = 'AVG'
     nanmask = ~np.isnan(mag_norm)
     
 
-    return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, calib_err_mag, nanmask, flux
+    return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, calib_err_mag, flux
 
 
 def flux2mag(flux_per_Hz, flux, wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
