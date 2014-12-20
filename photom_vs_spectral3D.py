@@ -857,20 +857,34 @@ def plot_time_dep(name, SN12CU_CHISQ_DATA, phases_12cu):
     phase_index = np.array([phase_index for phase_index in [phases_12cu[i] for i in select_phases]])
     print phase_index
     
-    
+    ebvs = np.array([d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
+    sig_lo_ebv = np.array([d['BEST_EBV'] - d['EBV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
+    sig_hi_ebv = np.array([d['EBV_1SIG'][1] - d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
+
+
+
     rvs = np.array([d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
     sig_lo_rv = np.array([d['BEST_RV'] - d['RV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
     sig_hi_rv = np.array([d['RV_1SIG'][1] - d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
-    
-    plt.figure()
-    plt.errorbar(phase_index, rvs, yerr = [sig_lo_rv, sig_hi_rv], fmt = 'k.')
+
+    avs = np.array([d['BEST_AV'] for d in SN12CU_CHISQ_DATA])
+    sig_av = np.array([d['SIG_AV'] for d in SN12CU_CHISQ_DATA])
+
+
+    fig = plt.figure(figsize = (15, 12))
+    ax_rv = fig.add_subplot(311) 
+    plt.errorbar(phase_index, ebvs, yerr = [sig_lo_ebv, sig_hi_ebv], fmt = 'b.')
+    plt.ylabel('$R_V$')
+    ax_rv = fig.add_subplot(312) 
+    plt.errorbar(phase_index, rvs, yerr = [sig_lo_rv, sig_hi_rv], fmt = 'r.')
+    plt.ylabel('$E(B-V)$')
+    ax_av = fig.add_subplot(313) 
+    plt.errorbar(phase_index, avs, yerr = sig_av, fmt = 'g.')
+    plt.ylabel('$A_V$')
+    plt.xlabel('Phases')
     plt.show()
     
-    print rvs
-    print sig_lo_rv
-    print sig_hi_rv
-    
-    exit(1)
+
                             
 
 #    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
