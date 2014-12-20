@@ -87,6 +87,7 @@ from loader import redden_fm, redden_pl, redden_pl2
 from pprint import pprint
 from scipy.stats import chisquare
 from scipy.interpolate import interp1d
+from scipy.optimize import minimize
 
 from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log, filter_features
 
@@ -226,8 +227,8 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
                                                                         # off (obs_V_mag - ref_V_mag).
                 phase_var.append(var[j])
             
-            EXCESS[phase_index] = phase_excess
-            EXCESS_VAR[phase_index] = phase_var
+            EXCESS[phase_index] = np.array(phase_excess)
+            EXCESS_VAR[phase_index] = np.array(phase_var)
 
         #plt.plot(return_wave, np.array(phase_excess), 'r.')
 #        plt.figure()
@@ -300,11 +301,10 @@ def plot_confidence_contours(ax, xdata, ydata, CDF, scatter=False, **kwargs):
 
 
 
-def chi2(u, x, y, excess, excess_var, red_law, param_num):
+def chi2grid(u, x, y, excess, excess_var, red_law):
 
     CHI2 = np.zeros((len(u), len(x), len(y)))
 
-    print 'ph'
     log( "Scanning CHI2 grid..." )
     for i, dist in enumerate(u):
         for j, EBV in enumerate(x):
@@ -333,34 +333,45 @@ def chi2(u, x, y, excess, excess_var, red_law, param_num):
     print 'len(excess)', len(excess)
 
     
-    dof = len(excess) - 1 - param_num  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
+    dof = len(excess) - 3 - (len(u) > 1)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
+    log("dof: {}".format(dof))
+    log( "min CHI2: {}".format(np.min(CHI2)) )
+
 
     CHI2_dof = CHI2/dof
 
-    #print 'CHI2_dof', CHI2_dof
-    CHI2_dof_min = np.min(CHI2_dof)
-    log("dof: {}".format(dof))
-    log( "min CHI2: {}".format(np.min(CHI2)) )
-    log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
-
-    delCHI2_dof = CHI2_dof - CHI2_dof_min
-
-    mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
-    print 'mindex', mindex
+    return CHI2_dof
 
 
-    ####**** best fit values
-
-    ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
-    mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
-    #print 'mindex', mindex
-    #print 'mu, mx, my', mu, mx, my
-    best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
-    print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
-
-
-    return delCHI2_dof, CHI2_dof_min, best_u, best_ebv, best_rv
+def chi2fun(params, excess = 0, excess_var = 1e-60, wave = np.linspace(3000, 10000, 1000), dist = 0):
     
+
+
+    ebv = params[0]
+    rv = params[1]
+                
+    ftz_curve = redden_fm(wave, np.zeros(wave.shape), -ebv, rv, return_excess=True)
+                    
+#    nanvals = np.isnan(excess)
+#    nanmask = ~nanvals
+
+
+    chi2 = np.sum( (((ftz_curve-excess) + dist)**2/excess_var) )   #[nanmask])
+    
+
+#    if np.sum(nanvals):
+#        print '\n\n\nWARNING. WARNGING. WARNTING.'
+#        print 'WARNING: THERE ARE %d BANDS WITH NAN VALUES.' % (np.sum(nanvals))
+#        print 'WARNING. WARNGING. WARNTING.\n\n\n'
+
+                
+    dof = len(wave) - 3 #- (len(u) > 1)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
+
+
+    chi2_dof = chi2/dof
+
+    return chi2_dof
+
 
 def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                  ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps, ax=None):
@@ -376,8 +387,15 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
             
             
         '''
+        
+        
+        
+        
+#        chi2 = chi2fun(ebv, rv, excess = excess, excess_var = excess_var, wave = wave, dist = 0)
+#        print chi2
 
-                         
+               
+               
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, ebv_steps)
         y = np.linspace(rv-rv_pad, rv+rv_pad, rv_steps)
         
@@ -388,79 +406,45 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         if u_steps > 1:
             ## 3D case
             u = np.linspace(u_guess - u_pad, u_guess + u_pad, u_steps)
-            param_num = 3
         elif u_steps == 1:
             ## 2D case: only use the central value of u
             u = np.array([u_guess,])
-            param_num = 2
 
         if ebv_steps == 1:
             x = np.array([ebv,])
 
 
-#        CHI2 = np.zeros((len(u), len(x), len(y)))
-#
-#        print 'ph'
-#        log( "Scanning CHI2 grid..." )
-#        for i, dist in enumerate(u):
-#            for j, EBV in enumerate(x):
-#                for k, RV in enumerate(y):
-#                    
-#                    ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
-#
-##                    print 'i, j, k', i, j, k
-##                    print 'dist, EBV, RV', dist, EBV, RV
-##                    print "reddening excess:", ftz_curve
-##                    print "12cu color excess:", excess - dist
-#                    
-#                        
-#                    nanvals = np.isnan(excess)
-#                    nanmask = ~nanvals
-#                    
-#                    CHI2[i, j, k] = np.sum( (((ftz_curve-excess) + dist)**2/excess_var)[nanmask])
-#        
-#
-#        if np.sum(nanvals):
-#            print '\n\n\nWARNING. WARNGING. WARNTING.'
-#            print 'WARNING: THERE ARE %d BANDS WITH NAN VALUES.' % (np.sum(nanvals))
-#            print 'WARNING. WARNGING. WARNTING.\n\n\n'
-#
-#                    
-#        print 'len(excess)', len(excess)
-#
-#        
-#        dof = len(excess) - 1 - param_num  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
-#
-#        CHI2_dof = CHI2/dof
-#
-#        #print 'CHI2_dof', CHI2_dof
-#        CHI2_dof_min = np.min(CHI2_dof)
-#        log("dof: {}".format(dof))
-#        log( "min CHI2: {}".format(np.min(CHI2)) )
-#        log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
-#
-#        delCHI2_dof = CHI2_dof - CHI2_dof_min
-#
-#        mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
-#        print 'mindex', mindex
-#
-#
-#        ####**** best fit values
-#
-#        ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
-#        mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
-#        #print 'mindex', mindex
-#        #print 'mu, mx, my', mu, mx, my
-#        best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
-#        print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
-#        ## estimate of distance modulus
-#        best_av = best_rv*best_ebv
+        CHI2_dof = chi2grid(u, x, y, excess, excess_var, red_law)
 
 
-        delCHI2_dof, CHI2_dof_min, best_u, best_ebv, best_rv = chi2(u, x, y, excess, excess_var, red_law, param_num)
+        #print 'CHI2_dof', CHI2_dof
+        CHI2_dof_min = np.min(CHI2_dof)
+        log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
 
-        
-        best_av = best_rv*best_ebv
+        delCHI2_dof = CHI2_dof - CHI2_dof_min
+
+        mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
+        print 'mindex', mindex
+
+            
+       
+       
+        ####**** best fit values
+
+        ## basically it's the two elements in mindex.  But each element is a one-element array; hence one needs an addition index of 0.
+        mu, mx, my = mindex[0][0], mindex[1][0], mindex[2][0]
+        #print 'mindex', mindex
+        #print 'mu, mx, my', mu, mx, my
+        best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
+        print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
+
+
+#        res = minimize(chi2fun, [best_ebv, best_rv], args = (excess, excess_var, wave, best_u), tol = 1e-16, method = 'BFGS') 
+#        print res.success
+#        print res.x
+#        print res.hess_inv
+#        print 'inv Hessian:', np.sqrt(res.hess_inv)
+
 
 
         ####**** find 1-sigma and 2-sigma errors based on confidence
@@ -526,6 +510,50 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         print 'rv_uncert_upper, rv_uncert_lower', rv_uncert_upper, rv_uncert_upper
         
 
+        ## either choise of P seems to lead to large 1-sig error snakes -- not sure why.  Need to think about this more.  This is not a huge issue, because
+        ## it's mainly a presentation issue.  The quoted RV and EBV uncertainties are not affected how P is calculated -- although the visual should agree with 
+        ## the numbers.
+        P = np.sum(np.exp(-delCHI2_dof/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
+        P = P/np.sum(P)  ## normalization.  This is now pmf (or less precisely, pdf).
+        ##P = np.exp(-delCHI2_dof[mu, :, :]/2) ## choose the best u instead of integrating over u. There is a slight difference between contour plots based on this P vs. the P above.  But I think the P above is the correct one.
+        
+
+####*****Calculating AV uncertainty*******************
+
+
+        ## Marginalized pdf -- see MIT 18.05 lecture 7 prep notes.
+        Px = np.sum(P, axis = 1)
+        Py = np.sum(P, axis = 0) 
+
+        ## Note EBV_avg and RV_avg are very similar to their best-fit values.
+        EBV_avg = np.sum(x*Px)
+        RV_avg = np.sum(y*Py)
+        ## Not sure if the line below is the right way of calculating AV averge.  I have for now adopted AV_avg = EBV_avg*RV_avg
+        #AV_avg = np.sum(X*Y*P)
+        AV_avg = EBV_avg*RV_avg
+#        print 'Average EBV and RV and AV:', EBV_avg, RV_avg, AV_avg
+#        print 'Note: AV_avg calculated this way is in agreement with best_ebv*best_rv'
+
+        print '\n\n\n Calculating AV uncertainty...\n\n'
+        ## Variance and Covariance according to MIT lecture 7
+
+        var_x = np.sum(Px*(x-EBV_avg)**2)   
+        var_y = np.sum(Py*(y-RV_avg)**2)    
+
+
+        ## I'm pretty sure the following way is right.  np.sum(P*np.outer(y-RV_avg, x-EBV_avg)) gives a much larger number.
+        cov_xy = np.sum(P*np.outer(x-EBV_avg, y-RV_avg))  
+
+        print 'sig_ebv, sig_rv', np.sqrt(var_x), np.sqrt(var_y)
+#        print 'sigma_x, sigma_y', np.sqrt(var_x), np.sqrt(var_y)
+#        print 'cov_xy', cov_xy
+
+        best_av = best_rv*best_ebv
+        var_AV = var_x*best_rv**2 + var_y*best_ebv**2 + 2*cov_xy*best_rv*best_ebv
+        sig_av = np.sqrt(var_AV)
+        print 'best_av, AV_avg, sig_av', best_av, AV_avg, sig_av
+
+
         #log( "\t {}".format(mindex) )
         log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
 
@@ -550,55 +578,47 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 #        snake_hi_1sigs.append(snake_hi_1sig)
 
 
-
-
-        # get best AV and calculate error in quadrature   # This is NOT the correct way. though the correct probably would give similar AV error since RV error dominates  -XH 12/2/14
-#        best_av = x[mx]*y[my]
-        av_1sig = (best_av-np.sqrt((minebv_1sig-best_ebv)**2 + (minrv_1sig-best_rv)**2),
-                   best_av+np.sqrt((maxebv_1sig-best_ebv)**2 + (maxrv_1sig-best_rv)**2))
-                   
-        av_2sig = (best_av-np.sqrt((minebv_2sig-best_ebv)**2 + (minrv_2sig-best_rv)**2),
-                   best_av+np.sqrt((maxebv_2sig-best_ebv)**2 + (maxrv_2sig-best_rv)**2))
         
 
 
-        ## either choise of P seems to lead to large 1-sig error snakes -- not sure why.  Need to think about this more.  This is not a huge issue, because
-        ## it's mainly a presentation issue.  The quoted RV and EBV uncertainties are not affected how P is calculated -- although the visual should agree with 
-        ## the numbers.
-        P = np.sum(np.exp(-delCHI2_dof/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
-        ##P = np.exp(-delCHI2_dof[mu, :, :]/2) ## choose the best u instead of integrating over u. There is a slight difference between contour plots based on this P
-                                               ## vs. the P above.  But I think the P above is the correct one.
-        #contour_ax = plt.subplot(111)
-        CDF = compute_sigma_level(P).T
 
-#        plot_confidence_contours(ax, X, Y, CDF)
+
+
+
+        ####**** Calculating Hessian 
+#
+#        chi2_2d = -2*np.log(1-CDF)
+#        chi2_2d_min = chi2_2d.min()
+#        mindex2d = np.where(chi2_2d == chi2_2d_min)   # Note argmin() only works well for 1D array.  -XH
+#        xind = mindex2d[0][0]
+#        yind = mindex2d[1][0]
 #
 #
-#        plttext1 = "Phase: {}".format(phase)
+#        f = chi2_2d
+#        h = x[xind+1]-x[xind]
+#        k = y[yind+1]-y[yind]
+#        f_xx = (f[xind+1, yind] - 2*f[xind, yind] + f[xind-1, yind])/(h**2)
+#        f_yy = (f[xind, yind+1] - 2*f[xind, yind] + f[xind, yind-1])/(k**2)
+#        f_xy = (f[xind+1, yind+1] - f[xind+1, yind-1] - f[xind-1, yind+1] + f[xind-1, yind-1])/(4*h*k)
 #
-#        plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-#                   "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-#                   "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-#        plttext2 = plttext2.format(x[mx], maxebv_1sig-x[mx], x[mx]-minebv_1sig,
-#                                   y[my], maxrv_1sig-y[my], y[my]-minrv_1sig,
-#                                   best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
-#                                   )
-#                                   
-#        contour_ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
-#                horizontalalignment='left',
-#                verticalalignment='top',
-#                transform=contour_ax.transAxes)
-#        contour_ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
-#                horizontalalignment='left',
-#                verticalalignment='top',
-#                transform=contour_ax.transAxes)
-#        contour_ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
-#        contour_ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
-#
-#
-#        plt.show()
+#        print f_xx, f_yy, f_xy
+#        print type(f_xx), type(f_yy), type(f_xy)
+#        f_mat = np.matrix([[f_xx, f_xy], [f_xy, f_yy]])
+#        print f_mat
+#        H = np.linalg.inv(f_mat)
+#        print "Hessian", H
+#        print 'sqrt(H)', np.sqrt(H)
+#        w, v = np.linalg.eig(H)
+#        print 'eigen values', w
+#        print 'sqrt(eigen values', np.sqrt(w)
 #        exit(1)
 
+
+
+####***** Plotting confidence contours **************************
+
+        ## CDF
+        CDF = compute_sigma_level(P).T
 
 
 ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
@@ -630,7 +650,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                        "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
             plttext2 = plttext2.format(best_ebv, maxebv_1sig-best_ebv, best_ebv-minebv_1sig,
                                        best_rv, maxrv_1sig-best_rv, best_rv-minrv_1sig,
-                                       best_av, av_1sig[1]-best_av, best_av-av_1sig[0]
+                                       best_av, sig_av, sig_av
                                        )
                                                
             if phase not in [11.5, 16.5, 18.5, 21.5]:
@@ -696,7 +716,7 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
                                                  (minebv_2sig, maxebv_2sig), \
                                                  (minrv_1sig,  maxrv_1sig), \
                                                  (minrv_2sig,  maxrv_2sig), \
-                                                 av_1sig, av_2sig, \
+                                                 sig_av, \
                                                  snake_hi_1sig, snake_lo_1sig, \
                                                  snake_hi_2sig, snake_lo_2sig
 
@@ -725,12 +745,6 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         
             
         ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
-        
-        
-#        print 'len(EXCESS)', len(EXCESS)
-#        print 'len(select_phases)', len(select_phases)
-        print  'select_phases', select_phases
-        #exit(1)
         
 
         ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)   
@@ -794,7 +808,7 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         plttext = plttext.format(d['CHI2_DOF_MIN'],
                                  d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
                                  d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
-                                 d['BEST_AV'], d['AV_1SIG'][1]-d['BEST_AV'], d['BEST_AV']-d['AV_1SIG'][0],
+                                 d['BEST_AV'], d['SIG_AV'], d['SIG_AV'],
                                  d['BEST_u'])
 
 
@@ -824,6 +838,43 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         
         plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
         plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+
+
+
+
+
+def plot_time_dep(name, SN12CU_CHISQ_DATA, phases_12cu):
+
+    ''' 
+     
+    
+    '''
+
+    
+    print "Plotting time dependence", name
+
+
+    phase_index = np.array([phase_index for phase_index in [phases_12cu[i] for i in select_phases]])
+    print phase_index
+    
+    
+    rvs = np.array([d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
+    sig_lo_rv = np.array([d['BEST_RV'] - d['RV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
+    sig_hi_rv = np.array([d['RV_1SIG'][1] - d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
+    
+    plt.figure()
+    plt.errorbar(phase_index, rvs, yerr = [sig_lo_rv, sig_hi_rv], fmt = 'k.')
+    plt.show()
+    
+    print rvs
+    print sig_lo_rv
+    print sig_hi_rv
+    
+    exit(1)
+                            
+
+#    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
+       
 
 
 
@@ -919,7 +970,7 @@ if __name__ == "__main__":
     if len(select_phases) > 11 or (np.array(select_phases) > 11).any():
         select_phases = range(11)
         
-
+    print 'selecte_phases', select_phases   
 
     PLOTS_PER_ROW = math.ceil(len(select_phases)/2.)  # using math.ceil so that I can render the number of rows correctly for one plot.
     numrows = (len(select_phases)-1)//PLOTS_PER_ROW + 1
@@ -931,7 +982,6 @@ if __name__ == "__main__":
     obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:11]
     phases_12cu = [t[0] for t in obs_12cu]
     print 'Available 12cu phases', phases_12cu
-    #exit(1)
  
  
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
@@ -1003,7 +1053,7 @@ if __name__ == "__main__":
         best_u, best_ebv, best_rv, best_av, \
             ebv_1sig, ebv_2sig, \
             rv_1sig, rv_2sig, \
-            av_1sig, av_2sig,\
+            sig_av, \
             snake_hi_1sig, snake_lo_1sig, \
             snake_hi_2sig, snake_lo_2sig = plot_contour3D(phase_index, phase, redden_fm, EXCESS[phase_index], EXCESS_VAR[phase_index],
                                             wave, EBV_GUESS,
@@ -1027,11 +1077,13 @@ if __name__ == "__main__":
                                  'lo_1sig'      : snake_lo_1sig,
                                  'hi_2sig'      : snake_hi_2sig,
                                  'lo_2sig'      : snake_lo_2sig,
-                                 'AV_1SIG'      : av_1sig,
-                                 'AV_2SIG'      : av_2sig
+                                 'SIG_AV'       : sig_av
                                  })
 
 
+    plot_time_dep('SN2012CU', SN12CU_CHISQ_DATA, phases_12cu)
+                            
+                            
     fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
     fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
