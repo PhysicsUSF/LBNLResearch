@@ -119,10 +119,6 @@ V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
 def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'V_band'):
             
-
-
-#    print len(mask)
-#    exit(1)
     
     del_lamb = 1.
     band_steps = 1200
@@ -244,12 +240,6 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         #plt.plot(return_wave, np.array(phase_excess), 'r.')
 #        plt.figure()
 #        plt.errorbar(return_wave, np.array(phase_excess), np.array(phase_var), fmt='r.', label=u'excess (w/o u)') #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, alpha=0.8)
-#
-#        plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
-#        plt.plot([V_wave, V_wave], [np.array(phase_excess).min(), np.array(phase_excess).max()] ,'--')
-#        plt.title('Color Excess')
-#
-#        #plt.show()
 
     if norm_meth == 'AVG':
         return DEL_MAG, DEL_MAG_VAR, return_wave
@@ -321,13 +311,7 @@ def chi2grid(u, x, y, excess, excess_var, red_law):
         for j, EBV in enumerate(x):
             for k, RV in enumerate(y):
                 
-                ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)
-
-#                    print 'i, j, k', i, j, k
-#                    print 'fluct, EBV, RV', fluct, EBV, RV
-#                    print "reddening excess:", ftz_curve
-#                    print "12cu color excess:", excess - fluct
-                
+                ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)                
                     
                 nanvals = np.isnan(excess)
                 nanmask = ~nanvals
@@ -401,11 +385,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         
         print '\n\n\n Phase_index', phase, '\n\n\n'
         
-        
-        
-#        chi2 = chi2fun(ebv, rv, excess = excess, excess_var = excess_var, wave = wave, fluct = 0)
-#        print chi2
-
                
                
         x = np.linspace(ebv-ebv_pad, ebv+ebv_pad, ebv_steps)
@@ -997,8 +976,7 @@ if __name__ == "__main__":
     
     To run 12cu:
     
-    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 0 2 3 4 5 6 7 8 9 10 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 81 -EBV_GUESS 0.95 -EBV_PAD 0.25 -EBV_STEPS 51 -RV_GUESS 3.0 -RV_PAD 1.0 -RV_STEPS 51
-    
+    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 81 -EBV_GUESS 1. -EBV_PAD 0.3 -EBV_STEPS 61 -RV_GUESS 3.0 -RV_PAD 1.2 -RV_STEPS 61     
     
     
     Note: I can select any combination of phases I want.  E.g., I could do -select_phases 0 1 5.
@@ -1082,17 +1060,6 @@ if __name__ == "__main__":
 
 
 
-    ref_wave = pristine_11fe[0][1].wave   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
-
-    ## Make mask for spectral features (see Chotard 2011)
-
-
-#    mask = filter_features(FEATURES_ACTUAL, ref_wave)
-#
-#    ref_wave = ref_wave[mask]   ## this is not the most elegant way of doing things.  I have an identical statement in get_excess().  need to make this tighter.
-#                                ## More importantly I shouldn't use ref_wave anymore.  12/17/2014
-
-
 
     ## Setting up tophat filters
     filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
@@ -1106,8 +1073,6 @@ if __name__ == "__main__":
                           (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
 
     mask = filter_features(FEATURES, filter_eff_waves)
-#    print len(mask)
-#    exit(1)
     filters_bucket = filters_bucket[mask]
     filters_bucket = filters_bucket.tolist()
    
@@ -1119,10 +1084,6 @@ if __name__ == "__main__":
     print len(filter_eff_waves)   
     print type(filters_bucket)   
     print type(filter_eff_waves)   
-#    print filters_bucket   
-#    print filter_eff_waves
-#
-#    exit(1)
 
 
     print 'select_SN:', select_SN
@@ -1130,7 +1091,9 @@ if __name__ == "__main__":
         filters = filters_bucket
     else:       ## this really only applies to the case of simulated 11fe, for the purpose of checking spectral fit vs. 1000 band fit.
         if select_SN == 'red_11fe':
+            ref_wave = pristine_11fe[0][1].wave
             filters = []
+            mask = filter_features(FEATURES, ref_wave)   # this is only necessary so that the call to get_excess() takes the same form.
             for i, wave in enumerate(ref_wave):
                 if i == np.argmin(abs(wave - V_wave)):
                     filters.append('V')
