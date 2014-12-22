@@ -209,6 +209,8 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         print '\n\n\n difference in magnitudes of average flux:', del_mag_avg
         print ' difference in V magnitudes:', del_V_mag, '\n\n\n'
 
+
+## I think whether norm_meth is "AVG" or "V_band" the treatment below should be the same and thus the if..elif statement below is NOT necessary. 
         ## Total Variance.
         if norm_meth == 'AVG':
             var = ref_mag_var + obs_mag_var  # NOT DEALING WITH BLOCKING FEATURES NOW 12/8/14
