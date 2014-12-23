@@ -70,6 +70,8 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
  
     contour_levels = [0.0, 0.683, 0.955, 1.0]
 
+    fig = plt.figure(figsize = (20, 12))
+
 
     for i, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
 
@@ -190,6 +192,10 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
         plt.setp(ax2.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
 
 
+
+    fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
+    fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
+
     SNcontour = SNname + '_contour'
     
     if unfilt:
@@ -200,6 +206,170 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
     plt.savefig(filenm)
 
     return
+
+
+#def plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake):
+
+def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True):
+
+    ''' 
+     
+    
+    '''
+    wave = SN12CU_CHISQ_DATA[0]['WAVE']
+    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+
+    PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+
+    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+    
+    print "Plotting excesses of", SNname, " with best fit from contour..."
+    
+    fig = plt.figure(figsize = (20, 12))
+    
+    #numrows = (len(EXCESS)-1)//PLOTS_PER_ROW + 1
+    ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
+    
+    ## may need this for running all phases    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
+    ##for i, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
+    for phase_index, phase, d in zip(range(len(phases)), phases, SN12CU_CHISQ_DATA):
+
+
+
+        print "Plotting phase {} ...".format(phase)
+        print 'phase_index', phase_index            
+        
+
+        ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index + 1)   
+
+
+        
+
+
+        phase_excess = d['EXCESS']   #[phase_index][j] for j, f in enumerate(filters)])
+        phase_excess_var = d['EXCESS_VAR']  #  np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
+
+
+
+        ## Keep the following two line in case I want to plot the symbols with different colors for different phases.  12/10/14
+        #mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
+        #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
+
+
+        plt.errorbar(wave, phase_excess - d['BEST_u'], np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
+ 
+ 
+        ## plot best-fit reddening curve and uncertainty snake
+        
+        reg_wave = np.arange(3000,10000,10)
+        #xinv = 10000./x # can probably delete this soon.  12/18/14
+        red_curve = red_law(reg_wave, np.zeros(reg_wave.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
+        plt.plot(reg_wave, red_curve, 'k--')
+
+
+        if snake:
+            ax.fill_between(reg_wave, d['lo_1sig'], d['hi_1sig'], facecolor='black', alpha=0.5)
+            ax.fill_between(reg_wave, d['lo_2sig'], d['hi_2sig'], facecolor='black', alpha=0.3)
+
+
+
+        ## plot where V band is.   -XH
+        plt.plot([reg_wave.min(), reg_wave.max()], [0, 0] ,'--')
+        plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
+        
+    
+
+        ## Not sure what the following is for.  If I don't find use for it get rid of it.  12/18/14
+        #pprint( zip([int(f) for f in filter_eff_waves],
+                #[round(f,2) for f in 10000./np.array(filter_eff_waves)],
+                #filters,
+                #[round(p,2) for p in phase_excesses],
+                #[round(r,2) for r in shi(filter_eff_waves)],
+                #[round(r,2) for r in slo(filter_eff_waves)],
+                #[round(r,2) for r in interp1d(x, test_red_curve)(filter_eff_waves)]
+                #)
+               #)
+        
+        
+        ## print data on subplot
+            
+        if snake:
+            plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
+                      "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                      "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                      "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                      "\n$u={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                      
+                      
+
+            plttext = plttext.format(d['CHI2_DOF_MIN'],
+                                     d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
+                                     d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
+                                     d['BEST_AV'], d['SIG_AV'], d['SIG_AV'],
+                                     d['BEST_u'], d['SIG_U'][1], d['SIG_U'][0])
+        else:
+            plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
+                      "\n$E(B-V)={:.2f}$" + \
+                      "\n$R_V={:.2f}$" + \
+                      "\n$A_V={:.2f}$" + \
+                      "\n$u={:.2f}$"
+                      
+                      
+
+            plttext = plttext.format(d['CHI2_DOF_MIN'],
+                                     d['BEST_EBV'],
+                                     d['BEST_RV'],
+                                     d['BEST_AV'],
+                                     d['BEST_u'])
+
+
+
+
+
+
+        ax.text(.95, .5, plttext, size=INPLOT_LEGEND_FONTSIZE,
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes)
+        
+        ## format subplot
+        if phase_index%PLOTS_PER_ROW == 0:
+            ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
+            plt.ylabel('$E(V-X)$', fontsize=AXIS_LABEL_FONTSIZE)
+        else:
+            ax.set_title('{}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
+    
+        plt.xlim(3000, 10000)
+        plt.ylim(-3.0, 2.0)
+        
+        labels = ax.get_yticks().tolist()
+        labels[0] = labels[-1] = ''
+        ax.set_yticklabels(labels)
+        
+        labels = ax.get_xticks().tolist()
+        labels[0] = labels[-1] = ''
+        ax.set_xticklabels(labels)
+        
+        plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+        plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+
+
+    SNsummary = SNname + '_excess'
+    
+    if unfilt:
+        filenm = SNsummary + '_unfilt.png'
+    else: 
+        filenm = SNsummary + '_filtered.png'
+
+    plt.savefig(filenm)
+            
+
+
+    return # plot_excess()
+
+
+
+
 
 def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
 
@@ -362,5 +532,8 @@ if __name__ == "__main__":
     
     SN12CU_CHISQ_DATA = pickle.load(open(filenm, 'rb'))   
 
+
+
     plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt)
     plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt)
+    plot_phase_excesses('SN2012CU', SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = True)
