@@ -75,6 +75,8 @@ This program will fit RV based on color excess of 2012cu
 import argparse
 from copy import deepcopy
 import math
+import pickle
+
 
 import loader as l
 import matplotlib as mpl
@@ -90,7 +92,7 @@ from scipy.interpolate import interp1d
 from scipy.optimize import minimize
 
 from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log, filter_features
-
+import plots as plots
 
 
 ### CONST ###
@@ -128,6 +130,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
     EXCESS = {}
     EXCESS_VAR = {}
 
+    V_MAG_DIFF = {}
     DEL_MAG = {}
     DEL_MAG_VAR = {}
     
@@ -220,12 +223,10 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
             var = ref_mag_var + obs_mag_var # + obs_mag_V_var + ref_mag_V_var -- apparently to get chi2/dof being 1, I don't need to add
                                             # obs_mag_V_var and ref_mag_V_var.  In fact if I do, I get chi2/dof ~0.5.  Need to think this thru.
 
-            V_mag_diff = obs_V_mag - ref_V_mag
-            print 'V_mag_diff', V_mag_diff
-            #exit(1)
             
             phase_excess = []
             phase_var = []
+
             for j, f in enumerate(filters):
 #                print 'j, f', j, f
 #                print len(filters)
@@ -238,6 +239,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
             
             EXCESS[phase_index] = np.array(phase_excess)
             EXCESS_VAR[phase_index] = np.array(phase_var)
+            V_MAG_DIFF[phase_index] = del_V_mag
 
         #plt.plot(return_wave, np.array(phase_excess), 'r.')
 #        plt.figure()
@@ -246,7 +248,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
     if norm_meth == 'AVG':
         return DEL_MAG, DEL_MAG_VAR, return_wave
     elif norm_meth == 'V_band':
-        return EXCESS, EXCESS_VAR, return_wave
+        return EXCESS, EXCESS_VAR, return_wave, V_MAG_DIFF
 
 
 def compute_sigma_level(L):
@@ -370,8 +372,8 @@ def chi2fun(params, excess = 0, excess_var = 1e-60, wave = np.linspace(3000, 100
     return chi2_dof
 
 
-def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
-                 ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps, ax=None):
+def chi2_minimization(phase, red_law, excess, excess_var, wave,
+                 ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps):
     
     
     
@@ -559,6 +561,8 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
         log( "\t u={} RV={} EBV={} AV={}".format(best_u, best_rv, best_ebv, best_av) )
 
 
+        ## CDF
+        CDF = compute_sigma_level(P).T
 
 
 ## May need the following.
@@ -616,101 +620,6 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 
 
-####***** Plotting confidence contours **************************
-
-        ## CDF
-        CDF = compute_sigma_level(P).T
-
-
-## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
-## Don't delete below yet.  There is useful code below about the plotting styles. 
-        if ax != None:
-            ## plot contours
-            
-            contour_levels = [0.0, 0.683, 0.955, 1.0]
-            
-            ## plots 1- and 2-sigma regions and shades them with different hues.
-            plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
-
-            ## Outlines 1-sigma contour
-            C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
-            
-            #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
-            
-            ## mark minimum
-            plt.scatter(best_ebv, best_rv, marker='s', facecolors='r')
-            
-            # show results on plot
-            if subplot_index%6==0:
-                    plttext1 = "Phase: {}".format(phase)
-            else:
-                    plttext1 = "{}".format(phase)
-                    
-            plttext2 = "$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                       "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                       "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-            plttext2 = plttext2.format(best_ebv, maxebv_1sig-best_ebv, best_ebv-minebv_1sig,
-                                       best_rv, maxrv_1sig-best_rv, best_rv-minrv_1sig,
-                                       best_av, sig_av, sig_av
-                                       )
-                                               
-            if phase not in [11.5, 16.5, 18.5, 21.5]:
-                    ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
-                            horizontalalignment='left',
-                            verticalalignment='top',
-                            transform=ax.transAxes)
-                    ax.text(.04, .85, plttext2, size=INPLOT_LEGEND_FONTSIZE,
-                            horizontalalignment='left',
-                            verticalalignment='top',
-                            transform=ax.transAxes)
-                    ax.axhspan(2.9, (rv+rv_pad), facecolor='k', alpha=0.1)
-            
-            else:
-                    ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
-                            horizontalalignment='left',
-                            verticalalignment='top',
-                            transform=ax.transAxes)
-                    ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
-                            horizontalalignment='left',
-                            verticalalignment='top',
-                            transform=ax.transAxes)
-                    ax.axhspan(3.32, (rv+rv_pad), facecolor='k', alpha=0.1)
-                    ax.axhspan((rv-rv_pad), 2.5, facecolor='k', alpha=0.1)
-                    
-                    
-            # format subplot...
-            plt.ylim(rv-rv_pad, rv+rv_pad)
-            plt.xlim(ebv-ebv_pad, ebv+ebv_pad)
-            
-            ax.set_yticklabels([])
-            ax2 = ax.twinx()
-            ax2.set_xlim(ebv-ebv_pad, ebv+ebv_pad)
-            ax2.set_ylim(rv-rv_pad, rv+rv_pad)
-            
-            if subplot_index%6 == 5:
-                    ax2.set_ylabel('\n$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=5)
-            if subplot_index%6 == 0:
-                    ax.set_ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=-2)
-            if subplot_index>=6:
-                    ax.set_xlabel('\n$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
-            
-            # format x labels
-            labels = ax.get_xticks().tolist()
-            labels[0] = labels[-1] = ''
-            ax.set_xticklabels(labels)
-            ax.get_xaxis().set_tick_params(direction='in', pad=-20)
-            
-            # format y labels
-            labels = ax2.get_yticks().tolist()
-            labels[0] = labels[-1] = ''
-            ax2.set_yticklabels(labels)
-            ax2.get_yaxis().set_tick_params(direction='in', pad=-30)
-            
-            plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
-            plt.setp(ax2.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
-
-
-
 ## In terms of returned values, I don't think returning CDF is necessary for excess plot.  12/9/14
 
         return x, y, u, CDF, CHI2_dof_min, best_u, best_ebv, best_rv, best_av, (minebv_1sig, maxebv_1sig), \
@@ -725,8 +634,12 @@ def plot_contour3D(subplot_index, phase, red_law, excess, excess_var, wave,
 
 
 
+
+
+
+
 def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, snake_hi_1sig, snake_lo_1sig, \
-                                                 snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS):
+                                                 snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = True):
 
     ''' 
      
@@ -773,8 +686,10 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         red_curve = red_law(reg_wave, np.zeros(x.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
         plt.plot(reg_wave, red_curve, 'k--')
 
-        ax.fill_between(reg_wave, d['lo_1sig'], d['hi_1sig'], facecolor='black', alpha=0.5)
-        ax.fill_between(reg_wave, d['lo_2sig'], d['hi_2sig'], facecolor='black', alpha=0.3)
+
+        if snake:
+            ax.fill_between(reg_wave, d['lo_1sig'], d['hi_1sig'], facecolor='black', alpha=0.5)
+            ax.fill_between(reg_wave, d['lo_2sig'], d['hi_2sig'], facecolor='black', alpha=0.3)
 
 
 
@@ -798,20 +713,37 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         
         ## print data on subplot
             
+        if snake:
+            plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
+                      "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                      "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                      "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
+                      "\n$u={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                      
+                      
 
-        plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
-                  "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                  "\n$u={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
-                  
-                  
+            plttext = plttext.format(d['CHI2_DOF_MIN'],
+                                     d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
+                                     d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
+                                     d['BEST_AV'], d['SIG_AV'], d['SIG_AV'],
+                                     d['BEST_u'], d['SIG_U'][1], d['SIG_U'][0])
+        else:
+            plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
+                      "\n$E(B-V)={:.2f}$" + \
+                      "\n$R_V={:.2f}$" + \
+                      "\n$A_V={:.2f}$" + \
+                      "\n$u={:.2f}$"
+                      
+                      
 
-        plttext = plttext.format(d['CHI2_DOF_MIN'],
-                                 d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
-                                 d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
-                                 d['BEST_AV'], d['SIG_AV'], d['SIG_AV'],
-                                 d['BEST_u'], d['SIG_U'][1], d['SIG_U'][0])
+            plttext = plttext.format(d['CHI2_DOF_MIN'],
+                                     d['BEST_EBV'],
+                                     d['BEST_RV'],
+                                     d['BEST_AV'],
+                                     d['BEST_u'])
+
+
+
 
 
 
@@ -845,102 +777,6 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
 
 
 
-def plot_time_dep_calc_overall_avg(name, SN12CU_CHISQ_DATA, phases_12cu):
-
-    ''' 
-     
-    
-    '''
-
-    
-    print "Plotting time dependence", name
-
-
-    phase_index = np.array([phase_index for phase_index in [phases_12cu[i] for i in select_phases]])
-    print phase_index
-    
-    ebvs = np.array([d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
-    sig_lo_ebv = np.array([d['BEST_EBV'] - d['EBV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
-    sig_hi_ebv = np.array([d['EBV_1SIG'][1] - d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
-    sig_ebv = np.array([d['SIG_EBV'] for d in SN12CU_CHISQ_DATA])
-
-
-
-    rvs = np.array([d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
-    sig_lo_rv = np.array([d['BEST_RV'] - d['RV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
-    sig_hi_rv = np.array([d['RV_1SIG'][1] - d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
-    sig_rv = np.array([d['SIG_RV'] for d in SN12CU_CHISQ_DATA])
-
-
-    avs = np.array([d['BEST_AV'] for d in SN12CU_CHISQ_DATA])
-    sig_av = np.array([d['SIG_AV'] for d in SN12CU_CHISQ_DATA])
-
-####***** Calculating Overall Average ************
-
-
-    EBV_overall_avg = np.average(ebvs, weights = 1/sig_ebv**2) 
-    RV_overall_avg = np.average(rvs, weights = 1/sig_rv**2) 
-    AV_overall_avg = np.average(avs, weights = 1/sig_av**2) 
-
-    N = len(sig_ebv)
-    sig_EBV_overall = np.sqrt(np.sum(sig_ebv**2))/N
-    sig_RV_overall = np.sqrt(np.sum(sig_rv**2))/N
-    sig_AV_overall = np.sqrt(np.sum(sig_av**2))/N
-
-    print 'EBV_ovarall_avg, sig_EBV_overall', EBV_overall_avg, sig_EBV_overall   
-    print 'RV_ovarall_avg, sig_RV_overall', RV_overall_avg, sig_RV_overall   
-    print 'AV_ovarall_avg, sig_AV_overall', AV_overall_avg, sig_AV_overall   
-    
-
-####***** Plotting Time Dependence ***************
-
-
-    fig = plt.figure(figsize = (15, 12))
-    ax = fig.add_subplot(311) 
-    plt.errorbar(phase_index, ebvs, yerr = [sig_lo_ebv, sig_hi_ebv], fmt = 'b.')
-    plt.plot(phase_index, EBV_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (EBV_overall_avg+sig_EBV_overall)*np.ones(phase_index.shape), (EBV_overall_avg-sig_EBV_overall)*np.ones(phase_index.shape), \
-                       facecolor='black', alpha=0.1)
-    ebv_txt = "$E(B-V) = {:.3f}\pm{:.3f}$".format(EBV_overall_avg, sig_EBV_overall)
-    ax.text(.04, .9, ebv_txt, size=AXIS_LABEL_FONTSIZE,\
-                            horizontalalignment='left', \
-                            verticalalignment='top', \
-                            transform=ax.transAxes)
-    plt.ylabel('$E(B-V)$')
-
-
-    ax = fig.add_subplot(312) 
-    plt.errorbar(phase_index, rvs, yerr = [sig_lo_rv, sig_hi_rv], fmt = 'r.')
-    plt.plot(phase_index, RV_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (RV_overall_avg+sig_RV_overall)*np.ones(phase_index.shape), (RV_overall_avg-sig_RV_overall)*np.ones(phase_index.shape), \
-                       facecolor='black', alpha=0.1)
-    rv_txt = "$R_V = {:.3f}\pm{:.3f}$".format(RV_overall_avg, sig_RV_overall)
-    ax.text(.04, .9, rv_txt, size=AXIS_LABEL_FONTSIZE,\
-                            horizontalalignment='left', \
-                            verticalalignment='top', \
-                            transform=ax.transAxes)
-    plt.ylabel('$R_V$')
-
-
-    ax = fig.add_subplot(313) 
-    plt.errorbar(phase_index, avs, yerr = sig_av, fmt = 'g.')
-    plt.plot(phase_index, AV_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (AV_overall_avg+sig_AV_overall)*np.ones(phase_index.shape), (AV_overall_avg-sig_AV_overall)*np.ones(phase_index.shape), \
-                       facecolor='black', alpha=0.1)
-    av_txt = "$A_V = {:.3f}\pm{:.3f}$".format(AV_overall_avg, sig_AV_overall)
-    ax.text(.04, .9, av_txt, size=AXIS_LABEL_FONTSIZE,\
-                            horizontalalignment='left', \
-                            verticalalignment='top', \
-                            transform=ax.transAxes)
-    plt.ylabel('$A_V$')
-    plt.xlabel('Phases')
-
-
-
-                            
-
-#    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
-       
 
 
 
@@ -972,13 +808,13 @@ if __name__ == "__main__":
         
     To use artificially reddened 11fe as testing case:
     
-    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -unfilt
+    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -snake 1 -unfilt
     
     
     
     To run 12cu:
     
-    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 81 -EBV_GUESS 1. -EBV_PAD 0.3 -EBV_STEPS 61 -RV_GUESS 3.0 -RV_PAD 1.2 -RV_STEPS 61     
+    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 81 -EBV_GUESS 1. -EBV_PAD 0.3 -EBV_STEPS 61 -RV_GUESS 3.0 -RV_PAD 1.2 -RV_STEPS 61 -snake 1     
     
     
     Note: I can select any combination of phases I want.  E.g., I could do -select_phases 0 1 5.
@@ -1006,6 +842,7 @@ if __name__ == "__main__":
     _ = parser.add_argument('-ebv_spect', type = float)  # just another way to add an argument to the list.
     _ = parser.add_argument('-rv_spect', type = float)  # just another way to add an argument to the list.
     _ = parser.add_argument('-unfilt', '--unfilt', action='store_true')  # just another way to add an argument to the list.
+    _ = parser.add_argument('-snake', type = int)  # just another way to add an argument to the list.
 
 
     args = parser.parse_args()
@@ -1026,6 +863,7 @@ if __name__ == "__main__":
     ebv_spect = args.ebv_spect
     rv_spect = args.rv_spect
     art_var = args.art_var
+    snake = args.snake
     unfilt = args.unfilt
 
     hi_wave = 9700.
@@ -1106,15 +944,16 @@ if __name__ == "__main__":
             exit(1)
 
 
-    EXCESS, EXCESS_VAR, wave = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
+    EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
 
     fig = plt.figure(figsize = (20, 12))
     SN12CU_CHISQ_DATA = []
+
     ## there is a nearly identical statement in plot_contour; should remove such redundancy which can easily lead to inconsistency. 
     for i, phase_index, phase in zip(range(len(select_phases)), select_phases, [phases_12cu[i] for i in select_phases]):  ## there is a nearly 
         
-        contour_ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
+        
 
         ## plot_contour3D() is where chi2 is calculated. 
         x, y, u, CDF, chi2_dof_min, \
@@ -1124,10 +963,17 @@ if __name__ == "__main__":
             sig_u, \
             sig_ebv, sig_rv, sig_av, \
             snake_hi_1sig, snake_lo_1sig, \
-            snake_hi_2sig, snake_lo_2sig = plot_contour3D(phase_index, phase, redden_fm, EXCESS[phase_index], EXCESS_VAR[phase_index],
-                                            wave, EBV_GUESS,
-                                            EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps, ax = contour_ax)
+            snake_hi_2sig, snake_lo_2sig = chi2_minimization(phase, redden_fm, EXCESS[phase_index], EXCESS_VAR[phase_index],
+                                            wave, EBV_GUESS, EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps)
         
+        ## I should do minus best_u below because: in fitting I do (excess - u - FTZ).  But excess = V_mag_diff - X_mag_diff.  Thus del_V should be lowered by u.
+        ## See eq 1 and 2 in draft.   12/22/14
+        del_mu = V_MAG_DIFF[phase_index] - best_u - best_av
+        sig_del_mu = np.sqrt((0.5*sig_u[0] + 0.5*sig_u[1])**2 + sig_av**2)   ## ------------> this is strictly speaking not kosher: there must be a covariance between u and AV.
+                                                     ## Though I'm hoping this won't affect things too much.  Should correct this.  Or get distance modulus
+                                                     ## another way. <------------------   Dec 22, 2014
+                                                    
+
         SN12CU_CHISQ_DATA.append({'phase'       : phase,
                                  'x'            : x,
                                  'y'            : y,
@@ -1149,11 +995,35 @@ if __name__ == "__main__":
                                  'SIG_U'        : sig_u,
                                  'SIG_EBV'      : sig_ebv,
                                  'SIG_RV'       : sig_rv,
-                                 'SIG_AV'       : sig_av
+                                 'SIG_AV'       : sig_av,
+                                 'DEL_MU'       : del_mu,
+                                 'SIG_DEL_MU'   : sig_del_mu
                                  })
 
+    if unfilt:
+        filenm = 'SN12CU_CHISQ_DATA' + '_unfilt.p'
+    else:
+        filenm = 'SN12CU_CHISQ_DATA' + '_filtered.p'
 
-    plot_time_dep_calc_overall_avg('SN2012CU', SN12CU_CHISQ_DATA, phases_12cu)
+    pickle.dump(SN12CU_CHISQ_DATA, open(filenm, 'wb'))
+                
+#    pkl_file = open(filenm, 'rb')
+#
+#    data1 = pickle.load(pkl_file)
+#                
+#    exit(1)            
+#                
+#     
+
+
+
+    SN12CU_CHISQ_DATA_out = pickle.load(open(filenm, 'rb'))   
+
+
+#    plot_contours(x, y, CDF, best_u, best_ebv, best_rv, best_av, ebv_1sig, rv_1sig, sig_av)
+    plots.plot_contours('SN2012CU', SN12CU_CHISQ_DATA_out, unfilt)
+
+    plots.plot_summary('SN2012CU', SN12CU_CHISQ_DATA_out, unfilt)
                             
                             
     fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
@@ -1161,7 +1031,7 @@ if __name__ == "__main__":
 
     fig = plt.figure(figsize = (20, 12))
     plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, snake_hi_1sig, snake_lo_1sig, \
-                    snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS)
+                    snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = snake)
 
     plt.show()
 
