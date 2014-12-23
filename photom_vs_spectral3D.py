@@ -137,7 +137,8 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 
     for phase_index, phase in zip(select_phases, [phases[i] for i in select_phases]):        
         
-        print '\n\n\n Phase_index', phase_index, '\n\n\n'
+        print '\n\n\n Phase_index', phase_index
+        print 'Phase', phase, '\n\n\n'
     
     
         ref = pristine_11fe[phase_index]
@@ -637,6 +638,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
 
 
+#def plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake):
 
 def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, snake_hi_1sig, snake_lo_1sig, \
                                                  snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = True):
@@ -645,6 +647,10 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
      
     
     '''
+    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+
+    PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+
 
     
     print "Plotting excesses of",name," with best fit from contour..."
@@ -653,8 +659,12 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
     ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
     
     ## may need this for running all phases    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
-    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
+    ##for i, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
+    for phase_index, phase, d in zip(select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
 
+        print 'phase_index', phase_index
+        print 'phase', phase
+        #print 'i', i 
 
         print "Plotting phase {} ...".format(phase)
         
@@ -662,7 +672,7 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
         
 
-        ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)   
+        ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index + 1)   
 
 
 
@@ -975,6 +985,10 @@ if __name__ == "__main__":
                                                     
 
         SN12CU_CHISQ_DATA.append({'phase'       : phase,
+                                 'WAVE'         : wave,
+                                 'FILTERS'      : filters,
+                                 'EXCESS'       : EXCESS[i],
+                                 'EXCESS_VAR'   : EXCESS_VAR[i],
                                  'x'            : x,
                                  'y'            : y,
                                  'u'            : u,
@@ -997,7 +1011,11 @@ if __name__ == "__main__":
                                  'SIG_RV'       : sig_rv,
                                  'SIG_AV'       : sig_av,
                                  'DEL_MU'       : del_mu,
-                                 'SIG_DEL_MU'   : sig_del_mu
+                                 'SIG_DEL_MU'   : sig_del_mu,
+                                 'SNAKE_HI_1SIG': snake_hi_1sig,
+                                 'SNAKE_LO_1SIG': snake_lo_1sig,
+                                 'SNAKE_HI_2SIG': snake_hi_2sig,
+                                 'SNAKE_LO_2SIG': snake_lo_2sig
                                  })
 
     if unfilt:
@@ -1032,6 +1050,8 @@ if __name__ == "__main__":
     fig = plt.figure(figsize = (20, 12))
     plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, snake_hi_1sig, snake_lo_1sig, \
                     snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = snake)
+
+#    plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake)
 
     plt.show()
 
