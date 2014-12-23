@@ -640,13 +640,13 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
 #def plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake):
 
-def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ_DATA, filters, red_law, phases, snake_hi_1sig, snake_lo_1sig, \
-                                                 snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = True):
+def plot_phase_excesses(name, SN12CU_CHISQ_DATA, filters, red_law, u_steps, RV_STEPS, EBV_STEPS, snake = True):
 
     ''' 
      
     
     '''
+    wave = SN12CU_CHISQ_DATA[0]['WAVE']
     phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
 
     PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
@@ -662,22 +662,20 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
     ##for i, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
     for phase_index, phase, d in zip(select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
 
-        print 'phase_index', phase_index
-        print 'phase', phase
-        #print 'i', i 
+
 
         print "Plotting phase {} ...".format(phase)
-        
-            
-        ## KEEP, I will revert to this once this program has been thoroughly tested: ax = plt.subplot(numrows, PLOTS_PER_ROW, i+1)
+        print 'phase_index', phase_index            
         
 
         ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index + 1)   
 
 
+        
 
-        phase_excess = np.array([EXCESS[phase_index][j] for j, f in enumerate(filters)])
-        phase_excess_var = np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
+
+        phase_excess = d['EXCESS']   #[phase_index][j] for j, f in enumerate(filters)])
+        phase_excess_var = d['EXCESS_VAR']  #  np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
 
 
 
@@ -686,7 +684,7 @@ def plot_phase_excesses(name, EXCESS, EXCESS_VAR, filter_eff_waves, SN12CU_CHISQ
         #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
 
 
-        plt.errorbar(filter_eff_waves, phase_excess - d['BEST_u'], np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
+        plt.errorbar(wave, phase_excess - d['BEST_u'], np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
  
  
         ## plot best-fit reddening curve and uncertainty snake
@@ -956,7 +954,6 @@ if __name__ == "__main__":
 
     EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
-
     fig = plt.figure(figsize = (20, 12))
     SN12CU_CHISQ_DATA = []
 
@@ -1011,11 +1008,7 @@ if __name__ == "__main__":
                                  'SIG_RV'       : sig_rv,
                                  'SIG_AV'       : sig_av,
                                  'DEL_MU'       : del_mu,
-                                 'SIG_DEL_MU'   : sig_del_mu,
-                                 'SNAKE_HI_1SIG': snake_hi_1sig,
-                                 'SNAKE_LO_1SIG': snake_lo_1sig,
-                                 'SNAKE_HI_2SIG': snake_hi_2sig,
-                                 'SNAKE_LO_2SIG': snake_lo_2sig
+                                 'SIG_DEL_MU'   : sig_del_mu
                                  })
 
     if unfilt:
@@ -1048,8 +1041,9 @@ if __name__ == "__main__":
     fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
     fig = plt.figure(figsize = (20, 12))
-    plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, snake_hi_1sig, snake_lo_1sig, \
-                    snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = snake)
+    plot_phase_excesses('SN2012CU', SN12CU_CHISQ_DATA, filters, redden_fm, u_steps, RV_STEPS, EBV_STEPS, snake = True)
+#    plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, snake_hi_1sig, snake_lo_1sig, \
+#                    snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = snake)
 
 #    plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake)
 
