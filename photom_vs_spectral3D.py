@@ -640,7 +640,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
 #def plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake):
 
-def plot_phase_excesses(name, SN12CU_CHISQ_DATA, filters, red_law, u_steps, RV_STEPS, EBV_STEPS, snake = True):
+def plot_phase_excesses(name, SN12CU_CHISQ_DATA, red_law, snake = True):
 
     ''' 
      
@@ -1041,7 +1041,7 @@ if __name__ == "__main__":
     fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
     fig = plt.figure(figsize = (20, 12))
-    plot_phase_excesses('SN2012CU', SN12CU_CHISQ_DATA, filters, redden_fm, u_steps, RV_STEPS, EBV_STEPS, snake = True)
+    plot_phase_excesses('SN2012CU', SN12CU_CHISQ_DATA, redden_fm, snake = True)
 #    plot_phase_excesses('SN2012CU', EXCESS, EXCESS_VAR, wave, SN12CU_CHISQ_DATA, filters, redden_fm, phases_12cu, snake_hi_1sig, snake_lo_1sig, \
 #                    snake_hi_2sig, snake_lo_2sig, sig_u, rv_spect, ebv_spect, u_steps, RV_STEPS, EBV_STEPS, snake = snake)
 
