@@ -726,7 +726,7 @@ if __name__ == "__main__":
     ## To select all phase by enter a number greater than 11.
     if len(select_phases) > 11 or (np.array(select_phases) > 11).any():
         select_phases = range(11)
-        
+
     print 'selecte_phases', select_phases   
 
     PLOTS_PER_ROW = math.ceil(len(select_phases)/2.)  # using math.ceil so that I can render the number of rows correctly for one plot.
@@ -856,10 +856,15 @@ if __name__ == "__main__":
                                  'SIG_DEL_MU'   : sig_del_mu
                                  })
 
+
+
+    SNdata = 'SN12CU_CHISQ_DATA' + '_' + str(len(select_phases))
+
     if unfilt:
-        filenm = 'SN12CU_CHISQ_DATA' + '_unfilt.p'
+        filenm = SNdata + '_unfilt.p'
     else:
-        filenm = 'SN12CU_CHISQ_DATA' + '_filtered.p'
+        filenm = SNdata + '_filtered.p'
+
 
     pickle.dump(SN12CU_CHISQ_DATA, open(filenm, 'wb'))
 
@@ -867,11 +872,11 @@ if __name__ == "__main__":
     SN12CU_CHISQ_DATA_out = pickle.load(open(filenm, 'rb'))   
 
 
-    plots.plot_contours('SN2012CU', SN12CU_CHISQ_DATA_out, unfilt)
+    plots.plot_contours('SN12CU', SN12CU_CHISQ_DATA_out, unfilt)
 
-    plots.plot_summary('SN2012CU', SN12CU_CHISQ_DATA_out, unfilt)
+    plots.plot_summary('SN12CU', SN12CU_CHISQ_DATA_out, unfilt)
                             
-    plots.plot_phase_excesses('SN2012CU', SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = True)
+    plots.plot_phase_excesses('SN12CU', SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = True)
 
     plt.show()
 
