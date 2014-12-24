@@ -23,6 +23,8 @@ from scipy.optimize import minimize
 
 from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log, filter_features
 
+#from matplotlib import rc
+
 
 
 ### CONST ###
@@ -196,7 +198,7 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
     fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
     #fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
-    SNcontour = SNname + '_contour'
+    SNcontour = SNname + '_contour'+ '_' + str(len(phases))
     
     if unfilt:
         filenm = SNcontour + '_unfilt.png'
@@ -219,13 +221,21 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
     wave = SN12CU_CHISQ_DATA[0]['WAVE']
     phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
 
-    PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
 
-    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+    if len(phases) < 6:
+        numrows = 1
+        PLOTS_PER_ROW = len(phases)
+    else:
+        PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+        numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+
     
     print "Plotting excesses of", SNname, " with best fit from contour..."
     
-    fig = plt.figure(figsize = (24, 15))
+    if len(phases) > 6:
+        fig = plt.figure(figsize = (24, 15))
+    else:
+        fig = plt.figure(figsize = (12, 8))
     
     #numrows = (len(EXCESS)-1)//PLOTS_PER_ROW + 1
     ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
@@ -242,8 +252,6 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
 
         ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index + 1)   
 
-
-        
 
 
         phase_excess = d['EXCESS']   #[phase_index][j] for j, f in enumerate(filters)])
@@ -295,18 +303,18 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
             
         if snake:
             plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
-                      "\n$E(B-V)={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                      "\n$R_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                      "\n$A_V={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$" + \
-                      "\n$u={:.2f}\pm^{{{:.2f}}}_{{{:.2f}}}$"
+                      "\n$E(B-V)={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
+                      "\n$R_V={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
+                      "\n$A_V={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
+                      "\n$u={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$"
                       
                       
 
             plttext = plttext.format(d['CHI2_DOF_MIN'],
-                                     d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['BEST_EBV']-d['EBV_1SIG'][0],
-                                     d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['BEST_RV']-d['RV_1SIG'][0],
-                                     d['BEST_AV'], d['SIG_AV'], d['SIG_AV'],
-                                     d['BEST_u'], d['SIG_U'][1], d['SIG_U'][0])
+                                     d['BEST_EBV'], d['EBV_1SIG'][1]-d['BEST_EBV'], d['EBV_1SIG'][0]-d['BEST_EBV'],
+                                     d['BEST_RV'], d['RV_1SIG'][1]-d['BEST_RV'], d['RV_1SIG'][0]-d['BEST_RV'],
+                                     d['BEST_AV'], d['SIG_AV'], -d['SIG_AV'],
+                                     d['BEST_u'], d['SIG_U'][1], -d['SIG_U'][0])
         else:
             plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
                       "\n$E(B-V)={:.2f}$" + \
@@ -366,10 +374,15 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
         labels = ax.get_xticks().tolist()
         labels = [int(label) for label in labels]
         labels[0] = labels[-1] = ''
-        major_formatter = FormatStrFormatter('%4.0f')
-        ax.xaxis.set_major_formatter(major_formatter)
+        #major_formatter = FormatStrFormatter('%4.0f') ## These two statements don't seem to do anything.
+        #ax.xaxis.set_major_formatter(major_formatter)
         ax.set_xticklabels(labels)
         
+        if phase_index>=5:
+            #fig.gca().set_xlabel(r'wavelength $5000 \AA$')
+            ax.set_xlabel(r'$\lambda (\AA)$', fontsize=AXIS_LABEL_FONTSIZE)
+
+
         plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
         plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
 
@@ -378,7 +391,7 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
 
 
 
-    SNsummary = SNname + '_excess'
+    SNsummary = SNname + '_excess'+ '_' + str(len(phases))
     
     if unfilt:
         filenm = SNsummary + '_unfilt.png'
@@ -406,11 +419,12 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
     print "Plotting time dependence", SNname
 
 
-    phase_index = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
 
 
-#np.array([phase_index for phase_index in SN12CU_CHISQ_DATA['phase']])
-    print phase_index
+#np.array([phases for phases in SN12CU_CHISQ_DATA['phase']])
+    print phases
+
    
     ebvs = np.array([d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
     sig_lo_ebv = np.array([d['BEST_EBV'] - d['EBV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
@@ -447,15 +461,28 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
 
     EBV_overall_avg = np.average(ebvs, weights = 1/sig_ebv**2) 
     RV_overall_avg = np.average(rvs, weights = 1/sig_rv**2) 
-    AV_overall_avg = np.average(avs, weights = 1/sig_av**2) 
+    AV_overall_avg = np.average(avs, weights = 1/sig_av**2)    
     del_mu_overall_avg = np.average(del_mus, weights = 1/sig_del_mu**2) 
 
 
     N = len(sig_ebv)
-    sig_EBV_overall = np.sqrt(np.sum(sig_ebv**2))/N
-    sig_RV_overall = np.sqrt(np.sum(sig_rv**2))/N
-    sig_AV_overall = np.sqrt(np.sum(sig_av**2))/N
-    sig_del_mu_overall = np.sqrt(np.sum(sig_del_mu**2))/N
+    sig_EBV_overall = np.sqrt(np.sum(sig_ebv**2)/N)
+    sig_RV_overall = np.sqrt(np.sum(sig_rv**2)/N)
+    sig_AV_overall = np.sqrt(np.sum(sig_av**2)/N)    
+    sig_del_mu_overall = np.sqrt(np.sum(sig_del_mu**2)/N)
+
+
+#    phases_early = phases[:2]
+    AV_early_avg = np.average(avs[:2], weights = 1/sig_av[:2]**2)
+    sig_AV_early = np.sqrt(np.sum(sig_av[:2]**2)/len(sig_av[:2]))
+
+#    phases_late = phases[2:]
+    AV_late_avg = np.average(avs[2:], weights = 1/sig_av[2:]**2)
+    sig_AV_late = np.sqrt(np.sum(sig_av[2:]**2)/len(sig_av[2:]))
+
+
+
+
 
     print 'EBV_ovarall_avg, sig_EBV_overall', EBV_overall_avg, sig_EBV_overall   
     print 'RV_ovarall_avg, sig_RV_overall', RV_overall_avg, sig_RV_overall   
@@ -468,61 +495,103 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
 
     fig = plt.figure(figsize = (15, 12))
     ax = fig.add_subplot(411) 
-    plt.errorbar(phase_index, ebvs, yerr = [sig_lo_ebv, sig_hi_ebv], fmt = 'b.')
-    plt.plot(phase_index, EBV_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (EBV_overall_avg+sig_EBV_overall)*np.ones(phase_index.shape), (EBV_overall_avg-sig_EBV_overall)*np.ones(phase_index.shape), \
+    plt.errorbar(phases, ebvs, yerr = [sig_lo_ebv, sig_hi_ebv], fmt = 'b.', ms = 8)
+    plt.plot(phases, EBV_overall_avg*np.ones(phases.shape), 'k--')
+    ax.fill_between(phases, (EBV_overall_avg+sig_EBV_overall)*np.ones(phases.shape), (EBV_overall_avg-sig_EBV_overall)*np.ones(phases.shape), \
                        facecolor='black', alpha=0.1)
     ebv_txt = "$E(B-V) = {:.3f}\pm{:.3f}$".format(EBV_overall_avg, sig_EBV_overall)
     ax.text(.04, .9, ebv_txt, size=AXIS_LABEL_FONTSIZE,\
                             horizontalalignment='left', \
                             verticalalignment='top', \
                             transform=ax.transAxes)
-    plt.ylabel('$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
+                            
+    plt.ylabel('$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)   
+    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    labels = ax.get_yticks().tolist()
+    ax.set_yticklabels(labels)
+
 
 
     ax = fig.add_subplot(412) 
-    plt.errorbar(phase_index, rvs, yerr = [sig_lo_rv, sig_hi_rv], fmt = 'r.')
-    plt.plot(phase_index, RV_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (RV_overall_avg+sig_RV_overall)*np.ones(phase_index.shape), (RV_overall_avg-sig_RV_overall)*np.ones(phase_index.shape), \
+    plt.errorbar(phases, rvs, yerr = [sig_lo_rv, sig_hi_rv], fmt = 'r.', ms = 8)
+    plt.plot(phases, RV_overall_avg*np.ones(phases.shape), 'k--')
+    ax.fill_between(phases, (RV_overall_avg+sig_RV_overall)*np.ones(phases.shape), (RV_overall_avg-sig_RV_overall)*np.ones(phases.shape), \
                        facecolor='black', alpha=0.1)
     rv_txt = "$R_V = {:.3f}\pm{:.3f}$".format(RV_overall_avg, sig_RV_overall)
     ax.text(.04, .9, rv_txt, size=AXIS_LABEL_FONTSIZE,\
                             horizontalalignment='left', \
                             verticalalignment='top', \
                             transform=ax.transAxes)
+
     plt.ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE)
+    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    labels = ax.get_yticks().tolist()
+    ax.set_yticklabels(labels)
+
+
+
 
 
     ax = fig.add_subplot(413) 
-    plt.errorbar(phase_index, avs, yerr = sig_av, fmt = 'g.')
-    plt.plot(phase_index, AV_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (AV_overall_avg+sig_AV_overall)*np.ones(phase_index.shape), (AV_overall_avg-sig_AV_overall)*np.ones(phase_index.shape), \
-                       facecolor='black', alpha=0.1)
+    plt.errorbar(phases, avs, yerr = sig_av, fmt = 'g.', ms = 8)
+    
+    plt.plot(phases, AV_overall_avg*np.ones(phases.shape), 'k--')
+    ax.fill_between(phases, (AV_overall_avg+sig_AV_overall)*np.ones(phases.shape), (AV_overall_avg-sig_AV_overall)*np.ones(phases.shape), \
+                       facecolor='black', alpha=0.3)
+                       
+    plt.plot(phases, AV_early_avg*np.ones(phases.shape), 'k:')
+    ax.fill_between(phases, (AV_early_avg+sig_AV_early)*np.ones(phases.shape), (AV_early_avg-sig_AV_early)*np.ones(phases.shape), \
+                       facecolor='cyan', alpha=0.05)
+
+    plt.plot(phases, AV_late_avg*np.ones(phases.shape), 'k:')
+    ax.fill_between(phases, (AV_late_avg+sig_AV_late)*np.ones(phases.shape), (AV_late_avg-sig_AV_late)*np.ones(phases.shape), \
+                       facecolor='cyan', alpha=0.05)
+
+
+
+
     av_txt = "$A_V = {:.3f}\pm{:.3f}$".format(AV_overall_avg, sig_AV_overall)
-    ax.text(.04, .9, av_txt, size=AXIS_LABEL_FONTSIZE,\
-                            horizontalalignment='left', \
-                            verticalalignment='top', \
-                            transform=ax.transAxes)
+    ax.text(.04, .9, av_txt, size=AXIS_LABEL_FONTSIZE, horizontalalignment='left', verticalalignment='top', transform=ax.transAxes)
+
+    av_txt = "$A_V^{early} = %.2f \pm %.2f$" % (AV_early_avg, sig_AV_early) #+ "$\pm$"
+    ax.text(.4, .15, av_txt, size=16, horizontalalignment='left', verticalalignment='top', transform=ax.transAxes)
+
+    av_txt = "$A_V^{late} = %.2f \pm %.2f$" % (AV_late_avg, sig_AV_late) #+ "$\pm$"
+    ax.text(.4, .85, av_txt, size=16, horizontalalignment='left', verticalalignment='top', transform=ax.transAxes)
+
+
+
+
     plt.ylabel('$A_V$', fontsize=AXIS_LABEL_FONTSIZE)
+    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    labels = ax.get_yticks().tolist()
+    ax.set_yticklabels(labels)
 
     
     ax = fig.add_subplot(414) 
-    plt.errorbar(phase_index, del_mus, yerr = sig_del_mu, fmt = 'b.')
-    plt.plot(phase_index, del_mu_overall_avg*np.ones(phase_index.shape), '--')
-    ax.fill_between(phase_index, (del_mu_overall_avg+sig_del_mu_overall)*np.ones(phase_index.shape), (del_mu_overall_avg-sig_del_mu_overall)*np.ones(phase_index.shape), \
+    plt.errorbar(phases, del_mus, yerr = sig_del_mu, fmt = 'm.', ms = 8)
+    plt.plot(phases, del_mu_overall_avg*np.ones(phases.shape), 'k--')
+    ax.fill_between(phases, (del_mu_overall_avg+sig_del_mu_overall)*np.ones(phases.shape), (del_mu_overall_avg-sig_del_mu_overall)*np.ones(phases.shape), \
                        facecolor='black', alpha=0.1)
     del_mu_txt = "$\Delta\mu = {:.3f}\pm{:.3f}$".format(del_mu_overall_avg, sig_del_mu_overall)
     ax.text(.04, .9, del_mu_txt, size=AXIS_LABEL_FONTSIZE,\
                             horizontalalignment='left', \
                             verticalalignment='top', \
                             transform=ax.transAxes)
+
     plt.ylabel('$\Delta\mu$', fontsize=AXIS_LABEL_FONTSIZE)
-
-
+    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    labels = ax.get_yticks().tolist()
+    ax.set_yticklabels(labels)
 
     plt.xlabel('Phases', fontsize=AXIS_LABEL_FONTSIZE)
     
-    SNsummary = SNname + '_summary'
+    plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+    plt.setp(ax.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+
+    
+    
+    SNsummary = SNname + '_summary' + '_' + str(len(phases))
     
     if unfilt:
         filenm = SNsummary + '_unfilt.png'
@@ -542,12 +611,33 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
 
 if __name__ == "__main__":
     
-    
-    SNname = 'SN12CU' 
-    SNdata = SNname + '_CHISQ_DATA'
-    
-    unfilt = 1
-    
+
+    '''
+        python plots.py -SNname 'SN12CU' -num_phases 11 -unfilt -snake 1
+        
+    '''
+  
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-SNname', type = str)
+    parser.add_argument('-num_phases', type = int) 
+    parser.add_argument('-snake', type = int)
+    parser.add_argument('-unfilt', '--unfilt', action='store_true')  # just another way to add an argument to the list.
+
+
+    args = parser.parse_args()
+    print 'args', args
+    SNname = args.SNname
+    num_phases = args.num_phases
+    snake = args.snake
+    unfilt = args.unfilt
+  
+#    SNname = 'SN12CU'
+#    num_phases = 3
+#    unfilt = 1
+
+
+    SNdata = SNname + '_CHISQ_DATA' + '_' + str(num_phases)
+
     if unfilt:
         filenm = SNdata + '_unfilt.p'
     else:
@@ -556,8 +646,10 @@ if __name__ == "__main__":
     
     SN12CU_CHISQ_DATA = pickle.load(open(filenm, 'rb'))   
 
+    print 'filenm', filenm
+    print 'len(SN12CU_CHISQ_DATA)', len(SN12CU_CHISQ_DATA)
 
 
     plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt)
     plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt)
-    plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = True)
+    plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = snake)
