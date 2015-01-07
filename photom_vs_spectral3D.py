@@ -800,7 +800,7 @@ if __name__ == "__main__":
 
     EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
-    SN12CU_CHISQ_DATA = []
+    SN_CHISQ_DATA = []
 
     ## there is a nearly identical statement in plot_contour; should remove such redundancy which can easily lead to inconsistency. 
     for i, phase_index, phase in zip(range(len(select_phases)), select_phases, [phases_12cu[i] for i in select_phases]):  ## there is a nearly 
@@ -826,11 +826,13 @@ if __name__ == "__main__":
                                                      ## another way. <------------------   Dec 22, 2014
                                                     
 
-        SN12CU_CHISQ_DATA.append({'phase'       : phase,
+#        print 'i, phase_index, phase', i, phase_index, phase
+#        exit(1)
+        SN_CHISQ_DATA.append({'phase'       : phase,
                                  'WAVE'         : wave,
                                  'FILTERS'      : filters,
-                                 'EXCESS'       : EXCESS[i],
-                                 'EXCESS_VAR'   : EXCESS_VAR[i],
+                                 'EXCESS'       : EXCESS[phase_index],
+                                 'EXCESS_VAR'   : EXCESS_VAR[phase_index],
                                  'x'            : x,
                                  'y'            : y,
                                  'u'            : u,
@@ -858,7 +860,7 @@ if __name__ == "__main__":
 
 
 
-    SNdata = 'SN12CU_CHISQ_DATA' + '_' + str(len(select_phases))
+    SNdata = select_SN + 'SN_CHISQ_DATA' + '_' + str(len(select_phases))
 
     if unfilt:
         filenm = SNdata + '_unfilt.p'
@@ -866,17 +868,18 @@ if __name__ == "__main__":
         filenm = SNdata + '_filtered.p'
 
 
-    pickle.dump(SN12CU_CHISQ_DATA, open(filenm, 'wb'))
+    pickle.dump(SN_CHISQ_DATA, open(filenm, 'wb'))
 
 
-    SN12CU_CHISQ_DATA_out = pickle.load(open(filenm, 'rb'))   
+    SN_CHISQ_DATA_out = pickle.load(open(filenm, 'rb'))   
 
 
-    plots.plot_contours('SN12CU', SN12CU_CHISQ_DATA_out, unfilt)
+    plots.plot_contours(select_SN, SN_CHISQ_DATA_out, unfilt)
 
-    plots.plot_summary('SN12CU', SN12CU_CHISQ_DATA_out, unfilt)
+    if len(select_phases) == 11:
+        plots.plot_summary(select_SN, SN_CHISQ_DATA_out, unfilt)
                             
-    plots.plot_phase_excesses('SN12CU', SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = True)
+    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = True)
 
     plt.show()
 
