@@ -90,6 +90,9 @@ from pprint import pprint
 from scipy.stats import chisquare
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize
+from scipy.optimize import curve_fit
+
+
 
 from mag_spectrum_fitting import ABmag_nu, extract_wave_flux_var, flux2mag, log, filter_features
 import plots as plots
@@ -137,7 +140,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 
     for phase_index, phase in zip(select_phases, [phases[i] for i in select_phases]):        
         
-        print '\n\n\n Phase_index', phase_index
+        print '\n\n\nPhase_index', phase_index
         print 'Phase', phase, '\n\n\n'
     
     
@@ -253,7 +256,11 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 
 
 def compute_sigma_level(L):
-    """Adopted from: 
+    """
+        Input: probability 
+        Returns: CDF
+        
+        Adopted from: 
         
         https://jakevdp.github.io/blog/2014/06/14/frequentism-and-bayesianism-4-bayesian-in-python/
     """
@@ -276,33 +283,35 @@ def compute_sigma_level(L):
     return L_cumsum[i_unsort].reshape(shape)
 
 
-def plot_confidence_contours(ax, xdata, ydata, CDF, scatter=False, **kwargs):
-    """Plot contours
-        
-        Adopted from:
-            
-            https://jakevdp.github.io/blog/2014/06/14/frequentism-and-bayesianism-4-bayesian-in-python/
-        
-        He also have a function for plotting the best-fit, with error snake, against data, plot_MCMC_model(ax, xdata, ydata, trace) -- I should look into and see if I can adopt it.
-    
-        
-    """
-    #CDF = compute_sigma_level(P).T
-
-
-    contour_levels = [0.0, 0.683, 0.955, 1.0]
-    ## plots 1- and 2-sigma regions and shades them with different hues.
-    ax.contourf(xdata, ydata, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
-    ## Outlines 1-sigma contour
-    C1 = plt.contour(xdata, ydata, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
-
-                     
-
-    ax.set_xlabel(r'$E(B-V)$')
-    ax.set_ylabel(r'$R_V$')
-
-    return CDF 
-
+## This function doesn't seem to be called anywhere.  Can delete soon.  1/7/15
+#
+#def plot_confidence_contours(ax, xdata, ydata, CDF, scatter=False, **kwargs):
+#    """Plot contours
+#        
+#        Adopted from:
+#            
+#            https://jakevdp.github.io/blog/2014/06/14/frequentism-and-bayesianism-4-bayesian-in-python/
+#        
+#        He also have a function for plotting the best-fit, with error snake, against data, plot_MCMC_model(ax, xdata, ydata, trace) -- I should look into and see if I can adopt it.
+#    
+#        
+#    """
+#    #CDF = compute_sigma_level(P).T
+#
+#
+#    contour_levels = [0.0, 0.683, 0.955, 1.0]
+#    ## plots 1- and 2-sigma regions and shades them with different hues.
+#    ax.contourf(xdata, ydata, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
+#    ## Outlines 1-sigma contour
+#    C1 = plt.contour(xdata, ydata, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+#
+#                     
+#
+#    ax.set_xlabel(r'$E(B-V)$')
+#    ax.set_ylabel(r'$R_V$')
+#
+#    return CDF 
+#
 
 
 
@@ -340,9 +349,9 @@ def chi2grid(u, x, y, excess, excess_var, red_law):
 
     CHI2_dof = CHI2/dof
 
-    return CHI2_dof
+    return CHI2, CHI2_dof
 
-
+## Note this function doesn't seem to be in active use.  May put it in the junkyard.  1/11/15
 def chi2fun(params, excess = 0, excess_var = 1e-60, wave = np.linspace(3000, 10000, 1000), fluct = 0):
     
 
@@ -410,13 +419,16 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
             x = np.array([ebv,])
 
 
-        CHI2_dof = chi2grid(u, x, y, excess, excess_var, red_law)
+        CHI2, CHI2_dof = chi2grid(u, x, y, excess, excess_var, red_law)
 
 
         #print 'CHI2_dof', CHI2_dof
+        CHI2_min = CHI2.min()
         CHI2_dof_min = np.min(CHI2_dof)
+        log( "min CHI2: {}".format(CHI2_min) )
         log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
 
+        delCHI2 = CHI2 - CHI2_min
         delCHI2_dof = CHI2_dof - CHI2_dof_min
 
         mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
@@ -462,7 +474,8 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
         for i, fluct in enumerate(u):
             for e, EBV in enumerate(x):
                 for r, RV in enumerate(y):
-                    if delCHI2_dof[i, e, r] < 1.0:
+                    if delCHI2[i, e, r] < 1.0:
+#                    if delCHI2_dof[i, e, r] < 1.0:
                         maxebv_1sig = np.maximum(maxebv_1sig, EBV)
                         minebv_1sig = np.minimum(minebv_1sig, EBV)
                         maxrv_1sig = np.maximum(maxrv_1sig, RV)
@@ -484,7 +497,8 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
                         snake_hi_1sig = np.maximum(snake_hi_1sig, redden_curve)  # the result is the higher values from either array is picked.
                         snake_lo_1sig = np.minimum(snake_lo_1sig, redden_curve)
 
-                    elif delCHI2_dof[i, e, r] < 4.00:
+                    elif delCHI2[i, e, r] < 4.0:
+                    #elif delCHI2_dof[i, e, r] < 4.00:
                         maxebv_2sig = np.maximum(maxebv_2sig, EBV)
                         minebv_2sig = np.minimum(minebv_2sig, EBV)
                         maxrv_2sig = np.maximum(maxrv_2sig, RV)
@@ -517,7 +531,8 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
         ## either choise of P seems to lead to large 1-sig error snakes -- not sure why.  Need to think about this more.  This is not a huge issue, because
         ## it's mainly a presentation issue.  The quoted RV and EBV uncertainties are not affected how P is calculated -- although the visual should agree with 
         ## the numbers.
-        P = np.sum(np.exp(-delCHI2_dof/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
+        #P = np.sum(np.exp(-delCHI2_dof/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
+        P = np.sum(np.exp(-delCHI2/2), axis = 0)  ## probability summed over the nuisance parameter u.  obviously un-normalized.
         P = P/np.sum(P)  ## normalization.  This is now pmf (or less precisely, pdf).
         ##P = np.exp(-delCHI2_dof[mu, :, :]/2) ## choose the best u instead of integrating over u. There is a slight difference between contour plots based on this P vs. the P above.  But I think the P above is the correct one.
         
@@ -655,6 +670,10 @@ def simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = 1e-60, ebv = -
 
     return pristine_11fe, art_reddened_11fe
 
+def func(wave, EBV, RV):
+    return redden_fm(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True) 
+
+
 
 if __name__ == "__main__":
 
@@ -727,7 +746,7 @@ if __name__ == "__main__":
     if len(select_phases) > 11 or (np.array(select_phases) > 11).any():
         select_phases = range(11)
 
-    print 'selecte_phases', select_phases   
+    print 'select_phases', select_phases   
 
     PLOTS_PER_ROW = math.ceil(len(select_phases)/2.)  # using math.ceil so that I can render the number of rows correctly for one plot.
     numrows = (len(select_phases)-1)//PLOTS_PER_ROW + 1
@@ -774,10 +793,10 @@ if __name__ == "__main__":
 
     del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
 
-    print len(filters_bucket)   
-    print len(filter_eff_waves)   
-    print type(filters_bucket)   
-    print type(filter_eff_waves)   
+#    print len(filters_bucket)   
+#    print len(filter_eff_waves)   
+#    print type(filters_bucket)   
+#    print type(filter_eff_waves)   
 
 
     print 'select_SN:', select_SN
@@ -799,6 +818,7 @@ if __name__ == "__main__":
 
 
     EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
+
 
     SN_CHISQ_DATA = []
 
@@ -879,7 +899,18 @@ if __name__ == "__main__":
     if len(select_phases) == 11:
         plots.plot_summary(select_SN, SN_CHISQ_DATA_out, unfilt)
                             
-    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = True)
+    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake)
+
+
+    ## Using scipy.curve_fit()
+    excess_phase = EXCESS[select_phases[0]]
+    excess_sig = np.sqrt(EXCESS_VAR[select_phases[0]]) 
+    popt, pcov = curve_fit(func, wave, excess_phase, p0 = [1.0, 2.8], sigma = excess_sig, absolute_sigma = True)
+
+    print 'optimal m and b', popt
+    print '1-sigma uncertainties on EBV and RV', np.sqrt(np.diag(pcov))
+    print 'covariance matrix between EBV and RV', pcov
+
 
     plt.show()
 
