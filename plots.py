@@ -1,3 +1,12 @@
+'''
+Initial Date: 12/23/14
+
+A bunch of plotting routines
+
+Need to improve: there is redundancy in how information is read from SN12CU_CHISQ_DATA in plot_contours() and plot_excess().
+
+'''
+
 import argparse
 from copy import deepcopy
 import math
@@ -110,8 +119,8 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
         ## plots 1- and 2-sigma regions and shades them with different hues.
         plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
 
-        ## Outlines 1-sigma contour
-        C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+        ## Outlines 1-sigma contour  # this apparently is not used.  Can be deleted soon.  1/11/15
+        # C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
         
         #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
         
@@ -124,9 +133,9 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
         else:
                 plttext1 = "{}".format(phase)
                 
-        plttext2 = "$E(B-V)={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
-                   "\n$R_V={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
-                   "\n$A_V={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$"
+        plttext2 = "$E(B-V)={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
+                   "\n$R_V={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
+                   "\n$A_V={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$"
         
         plttext2 = plttext2.format(best_ebv, maxebv_1sig-best_ebv, minebv_1sig-best_ebv,
                                    best_rv, maxrv_1sig-best_rv, minrv_1sig-best_rv,
@@ -174,7 +183,7 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
                 ax.set_xlabel('\n$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
         
         ## format x labels
-        ax.locator_params(nbins=4)  # this sets the number of tickmarks at 5.
+        ax.locator_params(nbins=6)  # this sets the number of tickmarks.
         labels = ax.get_xticks().tolist()
         
         # get rid of the first (0) and the last label (1.4); i.e. the labels at the ends.
@@ -198,7 +207,12 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
     fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
     #fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
 
-    SNcontour = SNname + '_contour'+ '_' + str(len(phases))
+
+    if len(phases) > 1:
+        SNcontour = SNname + '_contour'+ '_' + str(len(phases))
+    else:
+        SNcontour = SNname + '_contour'+ '_' + 'phase' + str(phases[0])
+    
     
     if unfilt:
         filenm = SNcontour + '_unfilt.png'
@@ -235,7 +249,7 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
     if len(phases) > 6:
         fig = plt.figure(figsize = (24, 15))
     else:
-        fig = plt.figure(figsize = (12, 8))
+        fig = plt.figure(figsize = (20, 14))
     
     #numrows = (len(EXCESS)-1)//PLOTS_PER_ROW + 1
     ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
@@ -249,10 +263,10 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
         print "Plotting phase {} ...".format(phase)
         print 'phase_index', phase_index            
         
-
-        ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index + 1)   
-
-
+        if len(phases) > 1:
+            ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index + 1)   
+        else: 
+            ax = plt.subplot(211)   
 
         phase_excess = d['EXCESS']   #[phase_index][j] for j, f in enumerate(filters)])
         phase_excess_var = d['EXCESS_VAR']  #  np.array([EXCESS_VAR[phase_index][j] for j, f in enumerate(filters)])
@@ -263,27 +277,30 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
         #mfc_color = plt.cm.cool((phase-pmin)/(pmax-pmin))
         #plt.plot(filter_eff_waves, phase_excesses, 's', color=mfc_color, ms=8, mec='none', mfc=mfc_color, alpha=0.8)
 
+        reference_curve = red_law(wave, np.zeros(wave.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
 
-        plt.errorbar(wave, phase_excess - d['BEST_u'], np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
- 
+        plt.errorbar(wave, phase_excess - d['BEST_u'] - reference_curve, np.sqrt(phase_excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', ms=8) #, mec='none', mfc=mfc_color, 
+        plt.plot(wave, np.zeros(wave.shape), 'k--')
  
         ## plot best-fit reddening curve and uncertainty snake
-        
-        reg_wave = np.arange(3000,10000,10)
-        #xinv = 10000./x # can probably delete this soon.  12/18/14
-        red_curve = red_law(reg_wave, np.zeros(reg_wave.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
-        plt.plot(reg_wave, red_curve, 'k--')
 
-
-        if snake:
-            ax.fill_between(reg_wave, d['lo_1sig'], d['hi_1sig'], facecolor='black', alpha=0.5)
-            ax.fill_between(reg_wave, d['lo_2sig'], d['hi_2sig'], facecolor='black', alpha=0.3)
-
-
-
-        ## plot where V band is.   -XH
-        plt.plot([reg_wave.min(), reg_wave.max()], [0, 0] ,'--')
-        plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
+## Temporarily blocked.  1/8/15
+#        reg_wave = np.arange(3000,10000,10)
+#        #xinv = 10000./x # can probably delete this soon.  12/18/14
+#        red_curve = red_law(reg_wave, np.zeros(reg_wave.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)
+#        plt.plot(reg_wave, red_curve, 'k--')
+#
+#
+#
+#        if snake:
+#            ax.fill_between(reg_wave, d['lo_1sig'], d['hi_1sig'], facecolor='black', alpha=0.5)
+#            ax.fill_between(reg_wave, d['lo_2sig'], d['hi_2sig'], facecolor='black', alpha=0.3)
+#
+#
+#
+#        ## plot where V band is.   -XH
+#        plt.plot([reg_wave.min(), reg_wave.max()], [0, 0] ,'--')
+#        plt.plot([V_wave, V_wave], [red_curve.min(), red_curve.max()] ,'--')
         
     
 
@@ -303,9 +320,9 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
             
         if snake:
             plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
-                      "\n$E(B-V)={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
-                      "\n$R_V={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
-                      "\n$A_V={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$" + \
+                      "\n$E(B-V)={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
+                      "\n$R_V={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
+                      "\n$A_V={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
                       "\n$u={:.2f}^{{{:+.2f}}}_{{{:+.2f}}}$"
                       
                       
@@ -317,9 +334,9 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
                                      d['BEST_u'], d['SIG_U'][1], -d['SIG_U'][0])
         else:
             plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
-                      "\n$E(B-V)={:.2f}$" + \
-                      "\n$R_V={:.2f}$" + \
-                      "\n$A_V={:.2f}$" + \
+                      "\n$E(B-V)={:.5f}$" + \
+                      "\n$R_V={:.5f}$" + \
+                      "\n$A_V={:.5f}$" + \
                       "\n$u={:.2f}$"
                       
                       
@@ -332,7 +349,11 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
 
 
 
-
+        # r below stands for raw strings.
+        ax.text(.85, .95, r'color excess $-$ reddening law', size=INPLOT_LEGEND_FONTSIZE,
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes)
 
 
         ax.text(.95, .45, plttext, size=INPLOT_LEGEND_FONTSIZE,
@@ -358,7 +379,7 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
    
         ## format subplot
         if phase_index%PLOTS_PER_ROW == 0:
-            ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
+            ax.set_title('{0} - Phase: {1}'.format(SNname, phase), fontsize=AXIS_LABEL_FONTSIZE)
             plt.ylabel('$E(V-X)$', fontsize=AXIS_LABEL_FONTSIZE)
         else:
             ax.set_title('{}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
@@ -369,14 +390,15 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
         labels = ax.get_yticks().tolist()
         labels[0] = labels[-1] = ''
         ax.set_yticklabels(labels)
-        
-        ax.locator_params(axis = 'x', nbins=4)  # this sets the number of tickmarks at 5.
-        labels = ax.get_xticks().tolist()
-        labels = [int(label) for label in labels]
-        labels[0] = labels[-1] = ''
-        #major_formatter = FormatStrFormatter('%4.0f') ## These two statements don't seem to do anything.
-        #ax.xaxis.set_major_formatter(major_formatter)
-        ax.set_xticklabels(labels)
+
+## temporarily blocked 1/8/15
+#        ax.locator_params(axis = 'x', nbins=4)  # this sets the number of tickmarks at 5.
+#        labels = ax.get_xticks().tolist()
+#        labels = [int(label) for label in labels]
+#        labels[0] = labels[-1] = '' # This is to remove the xticks at the the two end points.
+#        #major_formatter = FormatStrFormatter('%4.0f') ## These two statements don't seem to do anything.
+#        #ax.xaxis.set_major_formatter(major_formatter)
+#        ax.set_xticklabels(labels)
         
         if phase_index>=5:
             #fig.gca().set_xlabel(r'wavelength $5000 \AA$')
@@ -391,12 +413,36 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
 
 
 
-    SNsummary = SNname + '_excess'+ '_' + str(len(phases))
-    
+        ## plot each term in chi2
+        if len(phases) == 1:
+            ftz_curve = red_law(wave, np.zeros(wave.shape), -d['BEST_EBV'], d['BEST_RV'], return_excess=True)                
+                
+            
+            ind_chi2_terms = (ftz_curve - phase_excess + d['BEST_u'])**2/phase_excess_var
+            
+            ax = plt.subplot(212)   
+            
+            ax.plot(wave, ind_chi2_terms, 'k.') 
+
+            # r below stands for raw strings.
+            ax.text(.85, .95, r'(color excess $-$ reddening law)$^2$/$\sigma_i^2$', size=INPLOT_LEGEND_FONTSIZE,
+                horizontalalignment='right',
+                verticalalignment='top',
+                transform=ax.transAxes)
+
+
+
+    if len(phases) > 1:
+        SNexcess = SNname + '_excess'+ '_' + str(len(phases))
+    else:
+        SNexcess = SNname + '_excess'+ '_' + 'phase' + str(phases[0])
+
+
+
     if unfilt:
-        filenm = SNsummary + '_unfilt.png'
+        filenm = SNexcess + '_unfilt.png'
     else: 
-        filenm = SNsummary + '_filtered.png'
+        filenm = SNexcess + '_filtered.png'
 
     plt.savefig(filenm)
             
@@ -506,7 +552,7 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
                             transform=ax.transAxes)
                             
     plt.ylabel('$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)   
-    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    ax.locator_params(axis = 'y', nbins=6)  # this sets the number of tickmarks.
     labels = ax.get_yticks().tolist()
     ax.set_yticklabels(labels)
 
@@ -524,7 +570,7 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
                             transform=ax.transAxes)
 
     plt.ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE)
-    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    ax.locator_params(axis = 'y', nbins=6)  # this sets the number of tickmarks at 5.
     labels = ax.get_yticks().tolist()
     ax.set_yticklabels(labels)
 
@@ -563,7 +609,7 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
 
 
     plt.ylabel('$A_V$', fontsize=AXIS_LABEL_FONTSIZE)
-    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    ax.locator_params(axis = 'y', nbins=6)  # this sets the number of tickmarks at 5.
     labels = ax.get_yticks().tolist()
     ax.set_yticklabels(labels)
 
@@ -580,7 +626,7 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
                             transform=ax.transAxes)
 
     plt.ylabel('$\Delta\mu$', fontsize=AXIS_LABEL_FONTSIZE)
-    ax.locator_params(axis = 'y', nbins=5)  # this sets the number of tickmarks at 5.
+    ax.locator_params(axis = 'y', nbins=6)  # this sets the number of tickmarks at 5.
     labels = ax.get_yticks().tolist()
     ax.set_yticklabels(labels)
 
