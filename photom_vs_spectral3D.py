@@ -880,7 +880,7 @@ if __name__ == "__main__":
 
 
 
-    SNdata = select_SN + 'SN_CHISQ_DATA' + '_' + str(len(select_phases))
+    SNdata = select_SN + '_CHISQ_DATA' + '_' + str(len(select_phases))
 
     if unfilt:
         filenm = SNdata + '_unfilt.p'
