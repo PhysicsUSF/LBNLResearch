@@ -432,6 +432,76 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
 
 
 
+            ## plot derivative spectrum
+            
+            obs_12cu = l.get_12cu('fm', ebv=0.024, rv=3.1)[:11]
+            phases_12cu = [t[0] for t in obs_12cu]
+            pristine_11fe = l.nearest_spectra(phases_12cu, l.get_11fe(loadmast=False, loadptf=False))
+
+            obs = obs_12cu[0]
+            ref = pristine_11fe[0]
+
+            obs_wave = obs[1].wave
+            obs_flux = obs[1].flux
+            dereddened = redden_fm(obs_wave, obs_flux, 1.0, 2.84, return_excess = False)
+
+            #SN = snc.Spectrum(ref[1].wave, redden_fm(ref[1].wave, ref[1].flux, ebv, rv), SN_obs[1].error)
+
+            ref_wave = ref[1].wave
+            ref_flux = ref[1].flux
+            varz = ref[1].error  # it's called error because that's one of the attributes defined in sncosmo
+            weights = 1/varz
+            
+            del_v = 6000
+            c = 3e5
+            frac_wdow = del_v/c
+            
+            cut_wave = ref_wave[-1]*frac_wdow
+            idx = ref_wave < ref_wave[-1] - ref_wave[-1]*frac_wdow
+            wave_cut = ref_wave[idx]
+            w_ctr = []
+            F_log =[]
+            dF_log = []
+            #wv = 5000.
+            for i, wv in enumerate(wave_cut):
+                window = frac_wdow*wv
+                idx = (ref_wave < wv + window) * (ref_wave > wv)
+                wvs = ref_wave[idx]
+                if wvs.size == 0:
+                    print '0 size wavelenght array at', i, wv
+                    raise KeyboardInterrupt
+                wv0 = wvs.mean()
+                #print 'wv0', wv0
+                wvs = wvs - wv0
+                f = ref_flux[idx]
+                wgt = weights[idx]
+                
+                p = np.polyfit(wvs, f, 3, w=wgt)   
+                #print 'p', p
+                #sg = np.poly1d(p)
+                
+                w_ctr.append(wv0)
+                F_log.append(np.log10(p[3]))
+                dF_log.append(p[2]/(p[3]*np.log(10)))
+
+            w_ctr = np.array(w_ctr)
+            F_log = np.array(F_log)
+            dF_log = np.array(dF_log)
+
+            #print w_ctr
+            #print F_log
+
+
+            #ax.plot(w_ctr, (F_log+13.3)*1.5e-5, '-')  #, wave, np.log10(flux), '-')
+
+            mask = filter_features(FEATURES, w_ctr)
+            ax.plot(w_ctr[mask], (dF_log[mask]**2)*1e8, 'x')
+            plt.ylim([0, 700])
+            #show()
+            #xlim([30
+
+
+
     if len(phases) > 1:
         SNexcess = SNname + '_excess'+ '_' + str(len(phases))
     else:
@@ -659,7 +729,7 @@ if __name__ == "__main__":
     
 
     '''
-        python plots.py -SNname 'SN12CU' -num_phases 11 -unfilt -snake 1
+        python plots.py -SNname '12cu' -num_phases 11 -unfilt -snake 1
         
     '''
   
@@ -680,6 +750,12 @@ if __name__ == "__main__":
 #    SNname = 'SN12CU'
 #    num_phases = 3
 #    unfilt = 1
+    if unfilt == True:
+        FEATURES = []
+    else:
+        FEATURES = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),\
+                          (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+
 
 
     SNdata = SNname + '_CHISQ_DATA' + '_' + str(num_phases)
@@ -689,7 +765,7 @@ if __name__ == "__main__":
     else:
         filenm = SNdata + '_filtered.p'
     
-    
+    ## Should change this to a generic name - 1/13/15
     SN12CU_CHISQ_DATA = pickle.load(open(filenm, 'rb'))   
 
     print 'filenm', filenm
@@ -697,5 +773,6 @@ if __name__ == "__main__":
 
 
     plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt)
-    plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt)
     plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = snake)
+    if num_phases > 1:
+        plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt)
