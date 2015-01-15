@@ -226,7 +226,7 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
 
 #def plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake):
 
-def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True):
+def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True, FEATURES = []):
 
     ''' 
      
@@ -497,6 +497,9 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
             mask = filter_features(FEATURES, w_ctr)
             ax.plot(w_ctr[mask], (dF_log[mask]**2)*1e8, 'x')
             plt.ylim([0, 700])
+            ax.text(.85, .85, 'x: abs(derivative) after SG smoothing', color = 'b', size=INPLOT_LEGEND_FONTSIZE, \
+                    horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
+
             #show()
             #xlim([30
 
@@ -773,6 +776,6 @@ if __name__ == "__main__":
 
 
     plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt)
-    plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = snake)
+    plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
     if num_phases > 1:
         plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt)

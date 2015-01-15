@@ -681,13 +681,13 @@ if __name__ == "__main__":
         
     To use artificially reddened 11fe as testing case:
     
-    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.3 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 1.0 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -snake 1 -unfilt
+    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.01 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 0.03 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -snake 1 -unfilt
     
     
     
     To run 12cu:
     
-    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 81 -EBV_GUESS 1. -EBV_PAD 0.3 -EBV_STEPS 61 -RV_GUESS 3.0 -RV_PAD 1.2 -RV_STEPS 61 -snake 1     
+    python photom_vs_spectral3D.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 81 -EBV_GUESS 1. -EBV_PAD 0.01 -EBV_STEPS 61 -RV_GUESS 3.0 -RV_PAD 0.03 -RV_STEPS 61 -snake 1
     
     
     Note: I can select any combination of phases I want.  E.g., I could do -select_phases 0 1 5.
@@ -899,7 +899,7 @@ if __name__ == "__main__":
     if len(select_phases) == 11:
         plots.plot_summary(select_SN, SN_CHISQ_DATA_out, unfilt)
                             
-    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake)
+    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
 
 
     ## Using scipy.curve_fit()
