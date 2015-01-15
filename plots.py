@@ -497,7 +497,7 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
             mask = filter_features(FEATURES, w_ctr)
             ax.plot(w_ctr[mask], (dF_log[mask]**2)*1e8, 'x')
             plt.ylim([0, 700])
-            ax.text(.85, .85, 'x: abs(derivative) after SG smoothing', color = 'b', size=INPLOT_LEGEND_FONTSIZE, \
+            ax.text(.85, .85, 'x: derivative^2 after SG smoothing', color = 'b', size=INPLOT_LEGEND_FONTSIZE, \
                     horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
 
             #show()
