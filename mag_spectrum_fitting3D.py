@@ -122,10 +122,20 @@ LEGEND_FONTSIZE = 15
 V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
 
-def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'V_band'):
+def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'AVG'):
         
     '''
-
+        ************************************IMPORTANT NOTE**********************************
+        
+        Excess doesn't necessarily mean color excess.  If norm_meth = 'V_band', excess is the same as color excess:
+        
+            excess = color excess = (X_12cu - V_12cu) - (X_11fe - V_11fe)
+            
+        But if norm_meth = 'AVG', excess is the extinction in the X-bin, A_X:
+        
+            excess = A_X = (X_12cu - AVG_12cu) - (X_11fe - AVG_11fe)
+            
+        This is because AVG takes out the distance difference between the two SNe.
         
     '''
     
@@ -332,12 +342,17 @@ def chi2grid(u, x, y, wave, excess, excess_var, red_law):
         for j, EBV in enumerate(x):
             for k, RV in enumerate(y):
                 
-                ftz_curve = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)                
-                                ## this is still not ideal: I would like to deal with negative fluxes before taking the log.
+                ftz_ebv = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)                
+                
+                if norm_meth = 'AVG':
+                    expt = ftz_ebv
+                elif norm_meth  = 'AVG':
+                    expt = ftz_ebv + EBV * RV  # this the extinction for X-bin: A_X
+                ## this is still not ideal: I would like to deal with negative fluxes before taking the log.
                 nanvals = np.isnan(excess)
                 nanmask = ~nanvals
                 
-                CHI2[i, j, k] = np.sum( (((ftz_curve - excess) + fluct)**2/excess_var)[nanmask])
+                CHI2[i, j, k] = np.sum( (((expt-excess) + fluct)**2/excess_var)[nanmask])
     
 
     if np.sum(nanvals):
