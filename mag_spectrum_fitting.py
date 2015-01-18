@@ -104,7 +104,7 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None,
     flux = SN.flux
     var = SN.error  # it's called error because that's one of the attributes defined in sncosmo
 
-
+    print '\n\n\nIn extract_...()'
 
     if (flux <= 0).any():
         print "In extract_wave_flux_var():"
@@ -135,12 +135,25 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None,
 #        var = var[mask]
 
     flux_per_Hz = flux * (wave**2/c)
-    mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))
+
+    var_AB = var * (wave**4/c**2)
+    var_tot = 1/np.sum(1/var_AB)  ## This is because sigma_{f_nu} = (lambda^2/c) sigma_{f_lambda}; Bevington eq 3.20
+    f_avg = np.average(flux_per_Hz, weights = 1/var_AB) ## Based on Bessell & Murphy 2012, eq A29.  Doing it this way, one doesn't need zp or worry about the separation between adjacent
+                                                       ## wavelengths.
+
+    f_tot = f_avg * len(flux_per_Hz)
+    mag_avg_flux = ABmag_nu(f_avg)  # In the end I may choose to use ABmag_nu(ftot) as the normalization.  1/16/15
+    print 'Before binning: f_avg, ', f_avg
+    print 'Before binning: mag_avg_flux, ', mag_avg_flux
+
+
+    #mag_avg_flux = ABmag_nu(np.mean(flux_per_Hz))  # this is not the right because I'm not taking into account the variance.
     #flux_single_V = flux_interp(V_wave)#*(V_wave**2)
 
 
 
 
+##-----> Note the code below is not efficiently: flux2mag() is only used for the case of no binning.  And in the binned case, some of the code repeats what already exists in flux2mag()<----------
     ## convert flux, variance, and calibration error to magnitude space
     ## The spectral case:
     if N_BUCKETS < 0:
@@ -170,6 +183,8 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None,
         band_flux = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[0] for f in filters_bucket])  ## the element 1 give error, or it should be variance.  But check!  Since variance
                                                                                                                      ## and error for a band would be very different!
         return_flux = band_flux
+        
+        
         SN_mags = {f:ABmag_nu(band_flux[i]) for i, f in enumerate(filters_bucket)}
         
         mag_V =  SN_mags['V']
@@ -193,8 +208,18 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None,
         mag_norm = -(np.array([SN_mags[f] for f in filters_bucket]) - mag_zp) ## the problem with doing things this way is using vs. not using norm_meth, the sign of SN_mag will be flipped.
                                                                        ## the minus sign is because we will plot E(V-X)
 
+## I may want to do this part myself -- in fact I want to do all of the sncosmo parts myself so as to have no confusion what I have done.
         return_flux_var = np.array([SN.bandflux(prefix+f, del_wave = del_wave, AB_nu = True)[1] for f in filters_bucket])
 
+        return_flux_avg = np.average(return_flux, weights = 1/return_flux_var) 
+## to find the variance (a single value) of return_flux, using the definition: Var(X) = E(X^2) - <X>^2
+        return_flux_mean_var = np.average(return_flux**2, weights = 1/return_flux_var) - return_flux_avg**2  
+        return_flux_std = np.sqrt(return_flux_mean_var)
+
+        mag_return_flux_avg = ABmag_nu(return_flux_avg)  # In the end I may choose to use ABmag_nu(ftot) as the normalization.  1/16/15
+
+        print 'After binning: return_flux_avg, and std of return_flux', return_flux_avg, return_flux_std
+        print 'After binning: mag_return_flux_avg, ', mag_return_flux_avg
 
 
         ## calculate magnitude uncertainty
@@ -226,11 +251,12 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None,
     ## get mask for nan-values
     nanmask = ~np.isnan(mag_norm)
     
-
+    ## consider not returning flux, the last returned quantity.  1/17/15
     return mag_norm, return_wave, return_flux, return_flux_var, mag_avg_flux, mag_V, mag_var, calib_err_mag, flux
 
 
 def flux2mag(flux_per_Hz, flux, wave, mag_avg_flux, var=None, norm_meth = 'AVG'):
+
     mag_var = None
     
     mag = ABmag_nu(flux_per_Hz)
