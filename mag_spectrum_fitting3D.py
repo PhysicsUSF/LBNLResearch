@@ -1,13 +1,12 @@
 '''
 ::Author::
 Xiaosheng Huang
-(based on Andrew's plot_excess_contour.py)
+(based on photom_vs_spectral3D.py)
 
 
-Original Date: 12/8/14
-Last Updated: 12/17/14
-Purpose: calculate effective AB mag for narrow bands equally spaced in inverse wavelength and compare that with the single-wavelength AB_nu (see below).  Also allow F99 to shift vertically.
+Original Date: 1/16/15
 
+Purpose: calculate effective AB mag for narrow bands equally spaced in wavelength and compare that with the single-wavelength AB_nu (see below).  Try to find (grid search) best-fit (EBV, RV, u), where u is essentially distance modulus difference, by comparind de-reddened 12cu to 11fe.
 
 There is A LOT of confusion about how to calculate synthetic photometry.  Here I summarize what is the two most important points from Bessell & Murphy
 2012 (BM12):
@@ -69,7 +68,7 @@ using 48.6 is just fine.)
 This program will fit RV based on color excess of 2012cu
 
 ::Last Modified::
-12/17/2014
+1/16/2015
 
 '''
 import argparse
@@ -122,21 +121,9 @@ LEGEND_FONTSIZE = 15
 V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
 
-def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'AVG'):
+def get_mags(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCKETS = -1, norm_meth = 'AVG'):
         
     '''
-        ************************************IMPORTANT NOTE**********************************
-        
-        Excess doesn't necessarily mean color excess.  If norm_meth = 'V_band', excess is the same as color excess:
-        
-            excess = color excess = (X_12cu - V_12cu) - (X_11fe - V_11fe)
-            
-        But if norm_meth = 'AVG', excess is the extinction in the X-bin, A_X:
-        
-            excess = A_X = (X_12cu - AVG_12cu) - (X_11fe - AVG_11fe)
-            
-        This is because AVG takes out the distance difference between the two SNe.
-        
     '''
     
     del_lamb = 1.
@@ -145,13 +132,19 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
     V_band_range = np.linspace(V_wave - del_lamb*band_steps/2., V_wave + del_lamb*band_steps/2., band_steps+1)
 
 
-    EXCESS = {}
-    EXCESS_VAR = {}
+    mag_diff = {}
+    mag_diff_var = {}
 
     V_MAG_DIFF = {}
     DEL_MAG = {}
     DEL_MAG_VAR = {}
     
+    OBS_MAG = {}
+    REF_MAG = {}
+    MAG_DIFF_VAR = {}
+    
+    OBS_RETURN_FLUX = {}
+    OBS_RETURN_FLUX_VAR = {}
 
     for phase_index, phase in zip(select_phases, [phases[i] for i in select_phases]):        
         
@@ -167,13 +160,14 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         ## mask for spectral features not included in fit
 
 
+        ## Note now the norm_meth for ref is fixed at 'AVG' -- not ideal; should change this later.  -1/17/15
         ref_mag_norm, return_wave, ref_return_flux, ref_return_flux_var, ref_mag_avg_flux, ref_V_mag, ref_mag_var, _ , _ \
-                    = extract_wave_flux_var(ref, N_BUCKETS = N_BUCKETS, norm_meth = norm_meth)
+                    = extract_wave_flux_var(ref, N_BUCKETS = N_BUCKETS, norm_meth = 'AVG')
 
 
         ## 12cu or artificially reddened 11fe
         obs_mag_norm, _, obs_return_flux, obs_return_flux_var, obs_mag_avg_flux, obs_V_mag, obs_mag_var, _ , _ \
-                    = extract_wave_flux_var(obs, N_BUCKETS = N_BUCKETS, norm_meth = norm_meth)
+                    = extract_wave_flux_var(obs, N_BUCKETS = N_BUCKETS, norm_meth = 'AVG') #, norm_meth)
 
         return_wave = return_wave[mask]
         
@@ -188,44 +182,12 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
         obs_return_flux_var = obs_return_flux_var[mask]
 
 
-            
-## Diagnostic printing statements
-#        print 'flux var estimated:', np.var(obs_return_flux - ref_return_flux)
-#        print 'art_var', art_var
-#
-#        print 'mag var estimated:', np.var(obs_mag_norm - ref_mag_norm)
-#        print 'avg obs_mag_var: %.3e' % (obs_mag_var.mean())
-#        print 'ref_mag_var', ref_mag_var.mean()
-#        print 'chi2/dof (in mag space) =', np.sum((obs_mag_norm - ref_mag_norm)**2/(ref_mag_var + obs_mag_var))/(len(obs_mag_norm) - 2)
-
-## All plots below are diagnostic.  Need to be deleted soon.
-#        plt.figure()
-#        plt.plot(return_wave, ref_return_flux, 'k.')
-#        plt.errorbar(return_wave, obs_return_flux, np.sqrt(obs_return_flux_var), fmt='r.')
-#        plt.title('Spectrum in flux space')
-#
-#        plt.figure()
-#        plt.plot(return_wave, ref_mag_norm, 'k.')
-#        plt.errorbar(return_wave, obs_mag_norm, np.sqrt(obs_mag_var), fmt='r.')
-#        plt.plot([return_wave.min(), return_wave.max()], [0, 0] ,'--')
-#        plt.plot([V_wave, V_wave], [obs_mag_norm.min(), obs_mag_norm.max()] ,'--')
-#        plt.title('Spectrum in mag space (normalized to V)')
+        print '\n\n\nIn get_mags(): mean of ref_mag_norm, obs_mag_norm', ref_mag_norm.mean(), obs_mag_norm.mean()
         
-
-## Keep the following block for a bit longer; it's effective in diagnostics.  12/10/14
-#                plt.figure()
-#                plt.plot(return_wave, ref_mag_norm, 'k.')
-#                plt.plot(return_wave, obs_mag_norm, 'r.')
-# 
-#                plt.figure()
-#                plt.plot(return_wave, ref_mag_var, 'k.')
-#                plt.plot(return_wave, obs_mag_var, 'r.')
-#                plt.show()
-
 
         ## estimated of fluctance modulus
 ## ---> THIS CAN BE USED TO SHOW THAT V MAG DIFFERENCE IS A POOR INDICATOR FOR DISTANCE.  THIS MEANS TO USE V MAG NORMALIZATION TO TAKE OUT DISTANCE DIFFERENCE (AS FOLEY 2014 HAS DONE) IS NOT
-## AN EFFECTIVE WAY. BUT THE MAG OF THE AVERAGE FLUX IS A CONSISTENT INDICATOR OF DISTANCE AND THAT'S WHY WE USE THIS AS THE NORMALIZATION TO TAKE OUT DISTANCE DIFFERENCE.
+## AN EFFECTIVE WAY. BUT THE MAG OF THE AVERAGE FLUX (only if it's after dereddening**) IS A CONSISTENT INDICATOR OF DISTANCE AND THAT'S WHY WE USE THIS AS THE NORMALIZATION TO TAKE OUT DISTANCE DIFFERENCE.
         del_mag_avg = obs_mag_avg_flux - ref_mag_avg_flux
         del_V_mag = obs_V_mag - ref_V_mag
         print '\n\n\n difference in magnitudes of average flux:', del_mag_avg
@@ -239,12 +201,18 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 #            DEL_MAG[phase_index] = obs_mag_norm - ref_mag_norm
 #            DEL_MAG_VAR[phase_index] = var
 #        elif norm_meth == 'V_band':
-        var = ref_mag_var + obs_mag_var # + obs_mag_V_var + ref_mag_V_var -- apparently to get chi2/dof being 1, I don't need to add
-                                            # obs_mag_V_var and ref_mag_V_var.  In fact if I do, I get chi2/dof ~0.5.  Need to think this thru.
+        var = ref_mag_var + obs_mag_var # de-reddening will not change var -- because one is simply adding another number to a random variable (which is the observed magnitude.
+        
+        
+        phase_ref_mag_norm = []
+        phase_obs_mag_norm = []
 
-            
-        phase_excess = []
         phase_var = []
+
+        phase_obs_return_flux = [] 
+        phase_obs_return_flux_var = []
+
+
 
 #### --------> It's unclear to me why the for loop below is necessary -- why can't I just do phase_excess = obs_mag_norm - ref_mag_norm and phase_var = var?  1/16/15  <---------------
 
@@ -254,12 +222,24 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 #                print len(obs_mag_norm)
 #                print len(ref_mag_norm)
 #                exit(1)
-            phase_excess.append( (obs_mag_norm - ref_mag_norm)[j])  # Note since the mag's are normalized to V band, there's no need to subtract
-                                                                        # off (obs_V_mag - ref_V_mag).
-            phase_var.append(var[j])
+            phase_ref_mag_norm.append(ref_mag_norm[j]) 
+            phase_obs_mag_norm.append(obs_mag_norm[j]) 
+            phase_var.append(var[j]) 
+
+            phase_obs_return_flux.append(obs_return_flux[j]) 
+            phase_obs_return_flux_var.append(obs_return_flux_var[j]) 
+
+
             
-        EXCESS[phase_index] = np.array(phase_excess)
-        EXCESS_VAR[phase_index] = np.array(phase_var)
+            
+        REF_MAG[phase_index] = np.array(phase_ref_mag_norm)
+        OBS_MAG[phase_index] = np.array(phase_obs_mag_norm)
+        MAG_DIFF_VAR[phase_index] = np.array(phase_var)
+        
+        OBS_RETURN_FLUX[phase_index] = np.array(obs_return_flux)
+        OBS_RETURN_FLUX_VAR[phase_index] = np.array(obs_return_flux_var)
+        
+        
         V_MAG_DIFF[phase_index] = del_V_mag
 
         #plt.plot(return_wave, np.array(phase_excess), 'r.')
@@ -269,7 +249,7 @@ def get_excess(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BU
 #    if norm_meth == 'AVG':
 #        return DEL_MAG, DEL_MAG_VAR, return_wave
 #    elif norm_meth == 'V_band':
-    return EXCESS, EXCESS_VAR, return_wave, V_MAG_DIFF
+    return REF_MAG, OBS_MAG, MAG_DIFF_VAR, return_wave, OBS_RETURN_FLUX, OBS_RETURN_FLUX_VAR, V_MAG_DIFF
 
 
 def compute_sigma_level(L):
@@ -331,28 +311,67 @@ def compute_sigma_level(L):
 #
 
 
+    
 
-
-def chi2grid(u, x, y, wave, excess, excess_var, red_law):
+def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, mag_diff_var, red_law):
 
     CHI2 = np.zeros((len(u), len(x), len(y)))
 
     log( "Scanning CHI2 grid..." )
-    for i, fluct in enumerate(u):   # if norm_meth = 'AVG', fluct should always be 0.  
+    for i, del_mu in enumerate(u):   # if norm_meth = 'AVG', fluct should always be 0.  
         for j, EBV in enumerate(x):
             for k, RV in enumerate(y):
                 
-                ftz_ebv = red_law(wave, np.zeros(wave.shape), -EBV, RV, return_excess=True)                
                 
-                if norm_meth = 'AVG':
-                    expt = ftz_ebv
-                elif norm_meth  = 'AVG':
-                    expt = ftz_ebv + EBV * RV  # this the extinction for X-bin: A_X
+                #EBV = 1e-11
+                #RV = 10.0
+                print '\n\n\nIn chi2grid...\n'
+                
+                obs_flux_avg = np.average(obs_flux, weights = 1/obs_flux_var) 
+        ## to find the variance (a single value) of return_flux, using the definition: Var(X) = E(X^2) - <X>^2
+                obs_flux_mean_var = np.average(obs_flux**2, weights = 1/obs_flux_var) - obs_flux_avg**2  
+                obs_flux_std = np.sqrt(obs_flux_mean_var)
+
+
+
+                print 'mean and std of obs_flux', obs_flux_avg, obs_flux_std
+
+                
+#                print 'recalculate obs_mag_avg_flux', ABmag_nu(obs_flux)
+                print 'normalization for obs mag', ABmag_nu(obs_flux_avg)
+                print 'mean of obs_mag_norm', np.mean(ABmag_nu(obs_flux) - ABmag_nu(obs_flux_avg)) 
+                print 'del_mu, EBV, RV', del_mu, EBV, RV
+                print ''
+                ## To de-redden, ebv should be positive.
+                dered_flux = red_law(wave, obs_flux, EBV, RV)  
+#                plt.plot(wave, (dered_flux - obs_flux)/obs_flux, 'k.')
+                
+                dered_mag = ABmag_nu(dered_flux) 
+                dered_mag_avg_flux = ABmag_nu(np.average(dered_flux, weights = 1/obs_flux_var))
+                
+                ## for the extra negative sign, see extract_wave_flux_var()
+                dered_mag_norm = -(dered_mag - dered_mag_avg_flux)  
+#                plt.figure()
+#                plt.plot(wave, (dered_mag_norm - ref_mag)/ref_mag, 'k.')
+#
+#                
+#                plt.figure()
+#                plt.plot(wave, dered_mag_norm, 'go', wave, ref_mag, 'bx', wave, obs_mag, 'r.', mfc='none',)
+                #plt.show()
+
+
+
+                print 'dered_mag_avg_flux', dered_mag_avg_flux
+                print 'mean of dered_mag, dered_mag_norm', dered_mag.mean(), dered_mag_norm.mean()
+                mag_diff = dered_mag_norm - ref_mag
+                print 'mean of ref_mag, obs_mag, dered_mag, mag_diff', ref_mag.mean(), obs_mag.mean(), dered_mag_norm.mean(), mag_diff.mean()
+                #exit(1)
                 ## this is still not ideal: I would like to deal with negative fluxes before taking the log.
-                nanvals = np.isnan(excess)
+                ## The advantage of doing it here is in one swoop any nan values in either obs_mag or ref_mag are taken care of.
+                nanvals = np.isnan(mag_diff)
                 nanmask = ~nanvals
                 
-                CHI2[i, j, k] = np.sum( (((expt-excess) + fluct)**2/excess_var)[nanmask])
+                CHI2[i, j, k] = np.sum( ((mag_diff - del_mu)**2/mag_diff_var)[nanmask])
     
 
     if np.sum(nanvals):
@@ -361,10 +380,10 @@ def chi2grid(u, x, y, wave, excess, excess_var, red_law):
         print 'WARNING. WARNGING. WARNTING.\n\n\n'
 
                 
-    print 'len(excess)', len(excess)
+    print 'len(mag_diff)', len(mag_diff)
 
     
-    dof = len(excess) - 3 - (len(u) > 1)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
+    dof = len(mag_diff) - 3 - (len(u) > 1)  # degrees of freedom (V-band is fixed, N_BUCKETS-1 floating data pts).  I suppose even if we use mag_avg_flux as normalization we still lose 1 dof.
     log("dof: {}".format(dof))
     log( "min CHI2: {}".format(np.min(CHI2)) )
 
@@ -380,10 +399,8 @@ def chi2grid(u, x, y, wave, excess, excess_var, red_law):
 
 
 
-
-def chi2_minimization(phase, red_law, excess, excess_var, wave,
-                 ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps):
-    
+def chi2_minimization(phase, red_law, ref_mag, obs_mag, obs_flux, obs_flux_var, mag_diff_var, wave,
+                      ebv, ebv_pad, ebv_steps, rv, rv_pad, rv_steps, u_guess, u_pad, u_steps):    
     
     
         '''
@@ -419,11 +436,18 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
         CHI2_dof_min = 1e6
         chi2_rej = 400
-        while CHI2_dof_min > 1.5:
+        temp_int = 0
+##        while CHI2_dof_min > 1.5:
+        while temp_int < 1:
+            
             if len(wave) <=3:
-                print 'len(wave) <= 3...breaking out of while loop...and plotting...'
+                print 'dof is about to go below 1 (len(wave) <= 3)...breaking out of while loop...and plotting...'
                 break
-            CHI2, CHI2_dof, CHI2_min, CHI2_dof_min = chi2grid(u, x, y, wave, excess, excess_var, red_law)
+            CHI2, CHI2_dof, CHI2_min, CHI2_dof_min = chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, mag_diff_var, red_law)
+            
+            print 'finished chi2grid.'
+            #exit(1)
+            
             delCHI2 = CHI2 - CHI2_min
             delCHI2_dof = CHI2_dof - CHI2_dof_min
 
@@ -438,7 +462,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
             best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
             best_av = best_rv * best_ebv
             print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f, best_av = %.3f' % (best_u, best_rv, best_ebv, best_av)
-            
+            exit(1)
 
             ftz_curve = red_law(wave, np.zeros(wave.shape), -best_ebv, best_rv, return_excess=True)                
                     
@@ -493,6 +517,8 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
             wave = wave[mask]            
             excess = excess[mask]
             excess_var = excess_var[mask]
+            
+            temp_int = 1
     
 
 
@@ -731,9 +757,12 @@ def simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = 1e-60, ebv = -
     '''
 
 
+    print 'In simulate_11fe(), del_mu:', del_mu
+
+
     phases_12cu = np.array(phases_12cu)
     pristine_11fe = l.nearest_spectra(phases_12cu, l.get_11fe(no_var = no_var, loadmast=False, loadptf=False))
-    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, loadmast=False, loadptf=False))
+    art_reddened_11fe = l.nearest_spectra(phases_12cu, l.get_11fe('fm', ebv=ebv, rv=rv, art_var=art_var, del_mu=del_mu, loadmast=False, loadptf=False))
 
 
     phases_11fe = [t[0] for t in pristine_11fe]
@@ -755,7 +784,7 @@ if __name__ == "__main__":
         
     To use artificially reddened 11fe as testing case:
     
-    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.01 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 0.03 -RV_STEPS 41 -ebv_spect 1.00 -rv_spect 2.8 -art_var 5e-31 -snake 1 -unfilt
+    python photom_vs_spectral3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 21 -EBV_GUESS 1.0 -EBV_PAD 0.01 -EBV_STEPS 41 -RV_GUESS 2.8 -RV_PAD 0.03 -RV_STEPS 41 -art_var 5e-31 -snake 1 -unfilt
     
     
     
@@ -786,8 +815,6 @@ if __name__ == "__main__":
     
     parser.add_argument('-select_phases',  '--select_phases', nargs='+', type=int)  # this can take a tuple: -select_phases 0 4  but the rest of the program can't handle more than
                                                                                     # one phases yet.  -XH 12/7/14
-    _ = parser.add_argument('-ebv_spect', type = float)  # just another way to add an argument to the list.
-    _ = parser.add_argument('-rv_spect', type = float)  # just another way to add an argument to the list.
     _ = parser.add_argument('-unfilt', '--unfilt', action='store_true')  # just another way to add an argument to the list.
     _ = parser.add_argument('-snake', type = int)  # just another way to add an argument to the list.
 
@@ -807,8 +834,6 @@ if __name__ == "__main__":
     u_pad = args.u_pad
     u_steps = args.u_steps
     select_phases = args.select_phases ## if there is only one phase select, it needs to be in the form of a 1-element array for all things to work.
-    ebv_spect = args.ebv_spect
-    rv_spect = args.rv_spect
     art_var = args.art_var
     snake = args.snake
     unfilt = args.unfilt
@@ -837,7 +862,7 @@ if __name__ == "__main__":
     ## obs_SN is either an artificially reddened 11fe interpolated to the phases of 12cu, or 12cu itself.
     if select_SN == 'red_11fe':
         if art_var != None:
-            pristine_11fe, obs_SN = simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = del_mu)
+            pristine_11fe, obs_SN = simulate_11fe(phases_12cu, obs_12cu, no_var = True, art_var = art_var, ebv = -EBV_GUESS, rv = RV_GUESS, del_mu = u_guess)
         else:
             print 'To use artificially reddened 11fe, need to supply art_var.'
     elif select_SN == '12cu':
@@ -891,27 +916,36 @@ if __name__ == "__main__":
             exit(1)
 
 
-    EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
+
+
+    REF_MAG, OBS_MAG, MAG_DIFF_VAR, wave, OBS_FLUX, OBS_FLUX_VAR, V_MAG_DIFF = get_mags(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = None)
+
+    
+
+#EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
 
 
     SN_CHISQ_DATA = []
 
     ## there is a nearly identical statement in plot_contour; should remove such redundancy which can easily lead to inconsistency. 
-    for i, phase_index, phase in zip(range(len(select_phases)), select_phases, [phases_12cu[i] for i in select_phases]):  ## there is a nearly 
+    for i, phase_index, phase in zip(range(len(select_phases)), select_phases, [phases_12cu[i] for i in select_phases]):  
         
         
 
         ## plot_contour3D() is where chi2 is calculated. 
         x, y, u, CDF, chi2_dof_min, \
         best_u, best_ebv, best_rv, best_av, \
-            ebv_1sig, ebv_2sig, \
-            rv_1sig, rv_2sig, \
-            sig_u, \
-            sig_ebv, sig_rv, sig_av, \
-            snake_hi_1sig, snake_lo_1sig, \
-            snake_hi_2sig, snake_lo_2sig = chi2_minimization(phase, redden_fm, EXCESS[phase_index], EXCESS_VAR[phase_index],
+        ebv_1sig, ebv_2sig, rv_1sig, rv_2sig, \
+        sig_u, sig_ebv, sig_rv, sig_av, \
+        snake_hi_1sig, snake_lo_1sig, \
+        snake_hi_2sig, snake_lo_2sig = chi2_minimization(phase, redden_fm, REF_MAG[phase_index], OBS_MAG[phase_index], OBS_FLUX[phase_index], OBS_FLUX_VAR[phase_index], MAG_DIFF_VAR[phase_index],
                                             wave, EBV_GUESS, EBV_PAD, EBV_STEPS, RV_GUESS, RV_PAD, RV_STEPS, u_guess, u_pad, u_steps)
-        
+
+
+        print 'at least it runs to this point.'
+        exit(1)
+
+
         ## I should do minus best_u below because: in fitting I do (excess - u - FTZ).  But excess = V_mag_diff - X_mag_diff.  Thus del_V should be lowered by u.
         ## See eq 1 and 2 in draft.   12/22/14
         del_mu = V_MAG_DIFF[phase_index] - best_u - best_av
