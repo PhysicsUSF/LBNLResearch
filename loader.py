@@ -123,7 +123,7 @@ def redden_pl2(wave, flux, ebv, R_V, return_excess=False):
 
 
 # Fitzpatrick-Massa (1999) artificial reddening law
-def redden_fm(wave, flux, ebv, R_V, return_excess=False, *args, **kwargs):
+def redden_fm(wave, flux, ebv, R_V, return_excess=False, return_A_X = False, *args, **kwargs):
     '''
     given wavelength and flux info of a spectrum, return:
     reddened spectrum fluxes (ebv < 0)
@@ -227,8 +227,11 @@ def redden_fm(wave, flux, ebv, R_V, return_excess=False, *args, **kwargs):
     if not return_excess:
         # Now apply extinction correction to input flux vector
         curve = ebv * curve[0]
-        flux = flux * 10.**(0.4 * curve)
-        return flux
+        if return_A_X:
+            return curve
+        else:
+            flux = flux * 10.**(0.4 * curve)
+            return flux
     else:
         Alam_over_AV = curve/float(R_V)
         A_V = R_V * ebv
@@ -419,13 +422,13 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
                 var = 1e-60*np.ones(flux.shape[0])
             elif art_var > 0 and type(art_var) == float:  # so that for the artificially reddened 11fe I can control how much variance to put in.
                 var = art_var*np.ones(flux.shape[0])
-                print 'var', var
+                #print 'var', var
                 flux_noizy = flux + np.sqrt(art_var)*np.random.randn(flux.shape[0])
                 
-                print 'flux_noizy - flux', flux_noizy - flux
+                #print 'flux_noizy - flux', flux_noizy - flux
                 
-                print 'flux var estimated:', np.var(flux_noizy - flux)
-                print 'art_var', art_var
+                #print 'flux var estimated:', np.var(flux_noizy - flux)
+                #print 'art_var', art_var
  
  #exit(1)
             else:
