@@ -414,27 +414,31 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
             TMAX   = header['TMAX']   # phase in days relative to B-band maximum
             
             phase = float(TMAX)
-        
+
             flux = pf[0].data
+
+## How did Andrew/Zach dealt with the fact that the wavelength spacing is different for the red and blue parts of the spectrum?  1/20/15
+            wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
             
             
             if no_var:  # assuming 11fe is absolutely perfectly measured.
                 var = 1e-60*np.ones(flux.shape[0])
             elif art_var > 0 and type(art_var) == float:  # so that for the artificially reddened 11fe I can control how much variance to put in.
-                var = art_var*np.ones(flux.shape[0])
-                #print 'var', var
-                flux_noizy = flux + np.sqrt(art_var)*np.random.randn(flux.shape[0])
+
+                ## below I allow the possibility of noise level being different on either side of V_wave.  
+                ## noise level being different doesn't seem to bias RV or distance modulus.  1/20/15    
+                ## V_wave = 5413.5 see mag_spectrum_fitting.py    
                 
-                #print 'flux_noizy - flux', flux_noizy - flux
-                
-                #print 'flux var estimated:', np.var(flux_noizy - flux)
-                #print 'art_var', art_var
+                idx = abs(np.array(wave) - 5413.5).argmin()
+
+                var = np.concatenate( (1.*art_var*np.ones(flux[:idx].shape[0]), 1.*art_var*np.ones(flux[idx:].shape[0])) )
+
+                noiz = np.sqrt(var)*np.random.randn(flux.shape[0])
  
  #exit(1)
             else:
                 var  = pf[1].data
             
-            wave = [float(CRVAL1) + i*float(CDELT1) for i in xrange(flux.shape[0])]
             
             SN2011FE.append({
                             'phase': phase,
@@ -558,7 +562,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
         
     elif redtype=='fm':
         if ebv!=None and rv!=None:
-            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + np.sqrt(art_var)*np.random.randn(D['flux'].shape[0]), D['var']), D['cerr'], D['set']) for D in SN2011FE]
+            return [(D['phase'], snc.Spectrum(D['wave'], redden_fm(D['wave'], D['flux'], ebv, rv)*dist_fac + noiz, D['var']), D['cerr'], D['set']) for D in SN2011FE]
                                                                                     
         else:
             msg = 'Fitzpatrick-Massa Reddening: Invalid values for [ebv] and/or [rv]'
@@ -566,6 +570,7 @@ def get_11fe(redtype=None, ebv=None, rv=None, av=None, p=None, del_mu=0.0, no_va
             
     elif redtype=='pl':
         if av!=None and p!=None:
+            ## note noise_dist_fac is not defined.  See above in the 'fm' section
             return [(D['phase'], snc.Spectrum(D['wave'], redden_pl(D['wave'], D['flux'], av, p)*noise_dist_fac, D['var']), D['cerr'], D['set'])
                     for D in SN2011FE]
         else:
