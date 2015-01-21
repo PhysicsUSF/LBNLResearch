@@ -59,6 +59,166 @@ LEGEND_FONTSIZE = 15
 
 V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
+def plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt):
+
+####***** Plotting confidence contours **************************
+
+
+    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+
+    PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+
+
+#np.array([phase_index for phase_index in SN12CU_CHISQ_DATA['phase']])
+    print 'phases:', phases
+   
+    numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
+
+    x = SN12CU_CHISQ_DATA[0]['x']
+    y = SN12CU_CHISQ_DATA[0]['y']
+    
+    X, Y = np.meshgrid(x, y)  
+ 
+    contour_levels = [0.0, 0.683, 0.955, 1.0]
+
+    fig = plt.figure(figsize = (24, 15))
+
+
+    for phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
+
+    ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
+    ## Don't delete below yet.  There is useful code below about the plotting styles. 
+
+        ## plot contours
+
+
+        ax = plt.subplot(numrows, PLOTS_PER_ROW, phase_index+1)
+
+        best_ebv = d['BEST_EBV'] 
+        minebv_1sig = d['EBV_1SIG'][0] 
+        maxebv_1sig = d['EBV_1SIG'][1]
+
+        best_rv = d['BEST_RV'] 
+        minrv_1sig = d['RV_1SIG'][0] 
+        maxrv_1sig = d['RV_1SIG'][1]
+        
+        CDF = d['CDF']
+        best_av = d['BEST_AV']
+        sig_av = d['SIG_AV']
+
+
+        best_av = d['BEST_AV']
+        sig_av = d['SIG_AV']
+
+
+        
+        ## plots 1- and 2-sigma regions and shades them with different hues.
+        plt.contourf(X, Y, 1-CDF, levels=[1-l for l in contour_levels], cmap=mpl.cm.summer, alpha=0.5)
+
+        ## Outlines 1-sigma contour  # this apparently is not used.  Can be deleted soon.  1/11/15
+        # C1 = plt.contour(X, Y, CDF, levels=[contour_levels[1]], linewidths=1, colors=['k'], alpha=0.7)
+        
+        #plt.contour(X, Y, CHISQ-chisq_min, levels=[1.0, 4.0], colors=['r', 'g'])
+        
+        ## mark minimum
+        plt.scatter(best_ebv, best_rv, marker='s', facecolors='r')
+        
+        # show results on plot
+        if phase_index%6==0:
+                plttext1 = "Phase: {}".format(phase)
+        else:
+                plttext1 = "{}".format(phase)
+                
+        plttext2 = "$E(B-V)={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
+                   "\n$R_V={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$" + \
+                   "\n$A_V={:.5f}^{{{:+.5f}}}_{{{:+.5f}}}$"
+        
+        plttext2 = plttext2.format(best_ebv, maxebv_1sig-best_ebv, minebv_1sig-best_ebv,
+                                   best_rv, maxrv_1sig-best_rv, minrv_1sig-best_rv,
+                                   best_av, sig_av, -sig_av
+                                   )
+                                           
+        if phase not in [14.5, 16.5, 18.5, 21.5, 23.5]:
+                ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                        horizontalalignment='left',
+                        verticalalignment='top',
+                        transform=ax.transAxes)
+                ax.text(.04, .85, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                        horizontalalignment='left',
+                        verticalalignment='top',
+                        transform=ax.transAxes)
+                #ax.axhspan(2.9, (y.max()), facecolor='k', alpha=0.1)  # this produces a gray band, which I'm not using.  12/23/14
+        
+        else:
+                ax.text(.04, .95, plttext1, size=AXIS_LABEL_FONTSIZE,
+                        horizontalalignment='left',
+                        verticalalignment='top',
+                        transform=ax.transAxes)
+                ax.text(.04, .32, plttext2, size=INPLOT_LEGEND_FONTSIZE,
+                        horizontalalignment='left',
+                        verticalalignment='top',
+                        transform=ax.transAxes)
+                #ax.axhspan(3.32, (y.max()), facecolor='k', alpha=0.1)
+                #ax.axhspan((y.min()), 2.5, facecolor='k', alpha=0.1)
+                
+                
+        # format subplot...
+        plt.ylim(y.min(), y.max())
+        plt.xlim(x.min(), x.max())
+        
+        ax.set_yticklabels([])
+        ax2 = ax.twinx()
+        ax2.set_xlim(x.min(), x.max())
+        ax2.set_ylim(y.min(), y.max())
+        
+        if phase_index%6 == 5:
+                ax2.set_ylabel('\n$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=5)
+        if phase_index%6 == 0:
+                ax.set_ylabel('$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=-2)
+        if phase_index>=5:
+                ax.set_xlabel('\n$E(B-V)$', fontsize=AXIS_LABEL_FONTSIZE)
+        
+        ## format x labels
+        ax.locator_params(nbins=6)  # this sets the number of tickmarks.
+        labels = ax.get_xticks().tolist()
+        
+        # get rid of the first (0) and the last label (1.4); i.e. the labels at the ends.
+        labels[0] = labels[-1] = ''   
+
+        #exit(1)
+        ax.set_xticklabels(labels)
+        ax.get_xaxis().set_tick_params(direction='in', pad=-20)
+        
+        # format y labels
+        labels = ax2.get_yticks().tolist()
+        labels[0] = labels[-1] = ''
+        ax2.set_yticklabels(labels)
+        ax2.get_yaxis().set_tick_params(direction='in', pad=-30)
+        
+        plt.setp(ax.get_xticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+        plt.setp(ax2.get_yticklabels(), fontsize=TICK_LABEL_FONTSIZE)
+
+
+
+    fig.subplots_adjust(left=0.04, bottom=0.08, right=0.95, top=0.92, hspace=.06, wspace=.1)
+    #fig.suptitle('SN2012CU: $E(B-V)$ vs. $R_V$ Contour Plot per Phase', fontsize=TITLE_FONTSIZE)
+
+
+    if len(phases) > 1:
+        SNcontour = SNname + '_contour'+ '_' + str(len(phases))
+    else:
+        SNcontour = SNname + '_contour'+ '_' + 'phase' + str(phases[0])
+    
+    
+    if unfilt:
+        filenm = SNcontour + '_unfilt.png'
+    else: 
+        filenm = SNcontour + '_filtered.png'
+
+    plt.savefig(filenm)
+
+    return
+
 
 
 def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
