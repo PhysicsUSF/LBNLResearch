@@ -404,7 +404,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
         CHI2_dof_min = 1e6
         chi2_rej = 400
-        while CHI2_dof_min > 1.5:
+        while CHI2_dof_min > 1.5:   ## usu. the criterion is 1.5
             if len(wave) <=3:
                 print 'len(wave) <= 3...breaking out of while loop...and plotting...'
                 break
@@ -422,7 +422,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
             #print 'mu, mx, my', mu, mx, my
             best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
             best_av = best_rv * best_ebv
-            print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f, best_av = %.3f' % (best_u, best_rv, best_ebv, best_av)
+            print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f, best_av = %.5f' % (best_u, best_rv, best_ebv, best_av)
             
 
             ftz_curve = red_law(wave, np.zeros(wave.shape), -best_ebv, best_rv, return_excess=True)                
@@ -499,12 +499,12 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
         #print 'mindex', mindex
         #print 'mu, mx, my', mu, mx, my
         best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
-        print 'best_u = %.3f, best_rv = %.3f, best_ebv = %.3f ' % (best_u, best_rv, best_ebv)
+        print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f ' % (best_u, best_rv, best_ebv)
 
-        plt.show()
+        #plt.show()
 
 
-        exit(1)
+        #exit(1)
 
 #        res = minimize(chi2fun, [best_ebv, best_rv], args = (excess, excess_var, wave, best_u), tol = 1e-16, method = 'BFGS') 
 #        print res.success
