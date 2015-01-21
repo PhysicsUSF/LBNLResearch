@@ -136,10 +136,30 @@ def extract_wave_flux_var(SN_obs, N_BUCKETS = -1, norm_meth = 'AVG', ebv = None,
 
     flux_per_Hz = flux * (wave**2/c)
 
-    var_AB = var * (wave**4/c**2)
-    var_tot = 1/np.sum(1/var_AB)  ## This is because sigma_{f_nu} = (lambda^2/c) sigma_{f_lambda}; Bevington eq 3.20
-    f_avg = np.average(flux_per_Hz, weights = 1/var_AB) ## Based on Bessell & Murphy 2012, eq A29.  Doing it this way, one doesn't need zp or worry about the separation between adjacent
-                                                       ## wavelengths.
+
+## Based on Bessell & Murphy 2012, eq A29.  Doing it this way, one doesn't need zp or worry about the separation between adjacent
+## wavelengths.
+    var_AB = var * (wave**4/c**2) ## This is because sigma_{f_nu} = (lambda^2/c) sigma_{f_lambda}; Bevington eq 3.20
+
+## This is the CORRECT way of calculating the average flux (no weights needed!).  See NB 1/19/15, p 4.    
+## The uncertainty on f_ave is NOT given by 1/np.sum(1/var_AB) but by the calibration uncertainty (about 0.02 mag for 12cu).
+    f_avg = flux_per_Hz.mean()
+
+ 
+#    plt.figure()
+#    plt.errorbar(wave, flux_per_Hz - f_avg, np.sqrt(var_AB), fmt = 'k.') 
+#    plt.plot(wave, flux_per_Hz - f_avg_unwgt, 'gx') 
+#
+#
+#    plt.figure()
+#    plt.errorbar(wave, (flux_per_Hz - f_avg)/f_avg, np.sqrt(var_AB)/f_avg, fmt = 'k.') 
+#    plt.plot(wave, (flux_per_Hz - f_avg_unwgt)/f_avg_unwgt, 'gx') 
+#
+#
+#    plt.figure()
+#    plt.errorbar(wave, flux_per_Hz/f_avg, np.sqrt(var_AB)/f_avg, fmt = 'k.') 
+#    plt.plot(wave, flux_per_Hz/f_avg_unwgt, 'gx')
+#
 
     f_tot = f_avg * len(flux_per_Hz)
     mag_avg_flux = ABmag_nu(f_avg)  # In the end I may choose to use ABmag_nu(ftot) as the normalization.  1/16/15
@@ -548,8 +568,8 @@ def grid_fit(phases, select_phases, pristine_11fe, obs_SN, N_BUCKETS = -1, u_gue
                 log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
                 delCHI2_dof = CHI2_dof - CHI2_dof_min
 
-                plt.show()
-                exit(1)
+                #plt.show()
+                #exit(1)
 
                 ## plot power law reddening curve
                 ##  pl_red_curve = redden_pl2(ref_wave, np.zeros(ref_wave.shape), -best_ebv, best_rv, return_excess=True)
