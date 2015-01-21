@@ -341,8 +341,10 @@ def calc_dered_mag(red_law, wave, obs_flux, obs_flux_var, ebv, rv):
     #plt.show()
     #exit(1)
     
-    
-    dered_mag_avg_flux = ABmag_nu(np.average(dered_flux, weights = 1/obs_flux_var))
+## This is the CORRECT way of calculating the average flux (no weights needed!).  See NB 1/19/15, p 4.    
+## The uncertainty on f_ave is NOT given by 1/np.sum(1/obs_flux_var) but by the calibration uncertainty (about 0.02 mag for 12cu).
+
+    dered_mag_avg_flux = ABmag_nu(dered_flux.mean())
     
     ## for the extra negative sign, see extract_wave_flux_var()
     dered_mag_norm = -(dered_mag - dered_mag_avg_flux)  
@@ -362,7 +364,7 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
                 
                 #EBV = 1e-11
                 #RV = 10.0
-                print '\n\n\nIn chi2grid...\n'
+#                print '\n\n\nIn chi2grid...\n'
                 
                 obs_flux_avg = np.average(obs_flux, weights = 1/obs_flux_var) 
         ## to find the variance (a single value) of return_flux, using the definition: Var(X) = E(X^2) - <X>^2
@@ -371,18 +373,18 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
 
 
 
-                print 'mean and std of obs_flux', obs_flux_avg, obs_flux_std
+                #print 'mean and std of obs_flux', obs_flux_avg, obs_flux_std
 
                 
 #                print 'recalculate obs_mag_avg_flux', ABmag_nu(obs_flux)
-                print 'normalization for obs mag', ABmag_nu(obs_flux_avg)
+                #print 'normalization for obs mag', ABmag_nu(obs_flux_avg)
 ## The number below obs_mag_avg_flux should be identical to the 'normalization for obs mag' -- but there a 0.003 mag difference.  why?
 ## 1/18/15
 #print 'obs_mag_avg_flux', obs_mag_avg_flux
 #                exit(1)
-                print 'mean of obs_mag_norm', np.mean(ABmag_nu(obs_flux) - ABmag_nu(obs_flux_avg)) 
-                print 'del_mu, ebv, rv', del_mu, ebv, rv
-                print ''
+#                print 'mean of obs_mag_norm', np.mean(ABmag_nu(obs_flux) - ABmag_nu(obs_flux_avg)) 
+#                print 'del_mu, ebv, rv', del_mu, ebv, rv
+#                print ''
 #                plt.figure()
 #                plt.plot(wave, (dered_mag_norm - ref_mag)/ref_mag, 'k.')
 #
@@ -391,12 +393,12 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
 #                plt.plot(wave, dered_mag_norm, 'go', wave, ref_mag, 'bx', wave, obs_mag, 'r.', mfc='none',)
                 #plt.show()
 
-                dered_mag_norm, dered_mag_avg_flux, dered_mag = calc_dered_mag(red_law, wave, obs_flux, obs_flux_var, ebv, rv)
+                dered_mag_norm, dered_mag_avg_flux, dered_mag = calc_dered_mag(red_law, wave, obs_flux, obs_flux_var, ebv, rv)[:-1]
 
-                print 'dered_mag_avg_flux', dered_mag_avg_flux
-                print 'mean of dered_mag, dered_mag_norm', dered_mag.mean(), dered_mag_norm.mean()
+#                print 'dered_mag_avg_flux', dered_mag_avg_flux
+#                print 'mean of dered_mag, dered_mag_norm', dered_mag.mean(), dered_mag_norm.mean()
                 mag_diff = dered_mag_norm - ref_mag
-                print 'mean of ref_mag, obs_mag, dered_mag, mag_diff', ref_mag.mean(), obs_mag.mean(), dered_mag_norm.mean(), mag_diff.mean()
+#                print 'mean of ref_mag, obs_mag, dered_mag, mag_diff', ref_mag.mean(), obs_mag.mean(), dered_mag_norm.mean(), mag_diff.mean()
                 #exit(1)
                 ## this is still not ideal: I would like to deal with negative fluxes before taking the log.
                 ## The advantage of doing it here is in one swoop any nan values in either obs_mag or ref_mag are taken care of.
@@ -406,7 +408,7 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
                 CHI2[i, j, k] = np.sum( ((mag_diff + fluct)**2/mag_diff_var)[nanmask])
  
                 dof = len(mag_diff) - 2  
-                print 'chi2_dof', CHI2[i, j, k]/dof
+                #print 'chi2_dof', CHI2[i, j, k]/dof
 
     log("dof: {}".format(dof))
 
@@ -428,16 +430,16 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
     CHI2_dof = CHI2/dof
         
     CHI2_min = CHI2.min()
-    CHI2_dof_min = np.min(CHI2_dof)
+    chi2_dof_min = np.min(CHI2_dof)
     log( "min CHI2: {}".format(CHI2_min) )
-    log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
+    log( "min CHI2 per dof: {}".format(chi2_dof_min) )
 
-    return CHI2, CHI2_dof, CHI2_min, CHI2_dof_min
+    return CHI2, CHI2_dof, CHI2_min, chi2_dof_min
 
 
 
-def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_mag_avg_flux, obs_flux, obs_flux_var, mag_diff_var, wave,
-                      ebv_guess, ebv_pad, ebv_steps, rv_guess, rv_pad, rv_steps, u_guess, u_pad, u_steps):    
+def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, obs_mag, obs_mag_var, obs_mag_avg_flux, obs_flux, obs_flux_var,   
+                      mag_diff_var, wave, ebv_guess, ebv_pad, ebv_steps, rv_guess, rv_pad, rv_steps, u_guess, u_pad, u_steps):    
     
     
         '''
@@ -474,7 +476,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
         if ebv_steps == 1:
             x = np.array([ebv,])
 
-        CHI2_dof_min = 1e6
+        chi2_dof_min = 1e6
         chi2_rej = 400
         temp_int = 0
 
@@ -490,21 +492,27 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
         #print 'del_mu', (dered_mag_avg_flux - ref_mag_avg_flux) 
         #exit(1)
 
-
-
-##        while CHI2_dof_min > 1.5:
-        while temp_int < 1:
+        chi2_rej = 400
+        chi2_dof_min = 1e6
+        while chi2_dof_min > 1.5:
+#        while temp_int < 1:
+            
+            chi2_dof_min_old = chi2_dof_min
             
             if len(wave) <=3:
                 print 'dof is about to go below 1 (len(wave) <= 3)...breaking out of while loop...and plotting...'
                 break
-            CHI2, CHI2_dof, CHI2_min, CHI2_dof_min = chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_avg_flux,mag_diff_var, red_law)
+            CHI2, CHI2_dof, CHI2_min, chi2_dof_min = chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_avg_flux,mag_diff_var, red_law)
+            
+            
+            if (chi2_dof_min - chi2_dof_min_old)/chi2_dof_min_old < 1e-6:
+                chi2_rej = chi2_rej*0.8
             
             print 'finished chi2grid.'
             #exit(1)
             
             delCHI2 = CHI2 - CHI2_min
-            delCHI2_dof = CHI2_dof - CHI2_dof_min
+            delCHI2_dof = CHI2_dof - chi2_dof_min
 
             mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
             print 'mindex', mindex
@@ -517,7 +525,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
             best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
             best_av = best_rv * best_ebv
 
-            ## potential caveat:
+            ## potential caveat
             if abs(best_u - u_guess - u_pad) < 1e-6 or abs(best_u - u_guess + u_pad) < 1e-6 \
                 or abs(best_ebv - ebv_guess - ebv_pad) < 1e-6 or abs(best_ebv - ebv_guess + ebv_pad) < 1e-6 \
                 or   abs(best_rv - rv_guess - rv_pad) < 1e-6 or abs(best_rv - rv_guess + rv_pad) < 1e-6:
@@ -526,96 +534,106 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
                 print 'At least one of the best-fit parameters is at the boundary'
                 print 'WANRING  WARNING   WANRING\n\n\n'
 
+    
+#            print "True Values WITHOUT 'corrections':"
+#            dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], 1.0, 2.84)[:2]
+#            print 'obs_mag_avg_flux', OBS_MAG_AVG_FLUX[select_phases[0]]
+#            print 'True (dered_mag_avg_flux - ref_mag_avg_flux) (or true del_mu)', dered_mag_avg_flux - REF_MAG_AVG_FLUX[select_phases[0]]
+#            chi2_dof = np.sum((dered_mag_norm - REF_MAG[select_phases[0]])**2/MAG_DIFF_VAR[select_phases[0]])/len(dered_mag_norm)
+#            print 'True chi2_dof:', chi2_dof  
+#                
+#            plt.figure()
+#            plt.plot(wave, dered_mag_norm, 'r.', wave, REF_MAG[select_phases[0]], 'bx')
+#
+#            plt.figure()
+#            plt.errorbar(wave, dered_mag_norm - REF_MAG[select_phases[0]], np.sqrt(mag_diff_var), fmt='r.', ms = 8, alpha = 0.3)
+#            plt.plot(wave, np.zeros(wave.shape))
+#
+#            print "True Values w/ 'correction':"
+#            dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], 1.0, 2.84)[:2]
+#            print 'obs_mag_avg_flux', OBS_MAG_AVG_FLUX[select_phases[0]]
+#            print 'True (dered_mag_avg_flux - ref_mag_avg_flux) (or true del_mu)', dered_mag_avg_flux - REF_MAG_AVG_FLUX[select_phases[0]]
+#            chi2_dof = np.sum((dered_mag_norm + 0.2 - REF_MAG[select_phases[0]])**2/MAG_DIFF_VAR[select_phases[0]])/len(dered_mag_norm)
+#            print 'True chi2_dof:', chi2_dof  
+#                
+#            plt.figure()
+#            plt.plot(wave, dered_mag_norm + 0.2, 'r.', wave, REF_MAG[select_phases[0]], 'bx')
+#
+#            plt.figure()
+#            plt.errorbar(wave, dered_mag_norm - REF_MAG[select_phases[0]] + 0.2, np.sqrt(mag_diff_var), fmt='r.', ms = 8, alpha = 0.3)
+#            plt.plot(wave, np.zeros(wave.shape))
+
+
+
+#### ********************** Diagnostic Plots ***********************
+
+
 
             print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f, best_av = %.5f' % (best_u, best_rv, best_ebv, best_av)
 
             dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(red_law, wave, obs_flux, obs_flux_var, best_ebv, best_rv)[:2]
-            print 'dered_mag_avg_flux', dered_mag_avg_flux    
-            print 'obs_mag_avg_flux', obs_mag_avg_flux
-            print 'ref_mag_avg_flux', ref_mag_avg_flux
+#            print 'dered_mag_avg_flux', dered_mag_avg_flux    
+#            print 'obs_mag_avg_flux', obs_mag_avg_flux
+#            print 'ref_mag_avg_flux', ref_mag_avg_flux
 
-            print 'del_mu', (dered_mag_avg_flux - ref_mag_avg_flux) + best_u
-
-            print " 'best-fit' Values:"
-            print '(dered_mag_avg_flux - ref_mag_avg_flux)', dered_mag_avg_flux - REF_MAG_AVG_FLUX[select_phases[0]]
-            chi2_dof = np.sum((dered_mag_norm +best_u - REF_MAG[select_phases[0]])**2/MAG_DIFF_VAR[select_phases[0]])/len(dered_mag_norm)
-            print 'chi2_dof:', chi2_dof  
-            plt.plot(wave, dered_mag_norm + best_u, 'k.', wave, REF_MAG[select_phases[0]], 'rx')
-
-            plt.figure()
-            plt.errorbar(wave, dered_mag_norm + best_u - REF_MAG[select_phases[0]], np.sqrt(mag_diff_var), fmt='r.', ms = 8, alpha = 0.3)
-            plt.plot(wave, np.zeros(wave.shape))
-    
-            print "True Values WITHOUT 'corrections':"
-            dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], 1.0, 2.84)[:-1]
-            print 'obs_mag_avg_flux', OBS_MAG_AVG_FLUX[select_phases[0]]
-            print 'True (dered_mag_avg_flux - ref_mag_avg_flux) (or true del_mu)', dered_mag_avg_flux - REF_MAG_AVG_FLUX[select_phases[0]]
-            chi2_dof = np.sum((dered_mag_norm - REF_MAG[select_phases[0]])**2/MAG_DIFF_VAR[select_phases[0]])/len(dered_mag_norm)
-            print 'True chi2_dof:', chi2_dof  
+            print 'del_mu', (dered_mag_avg_flux - ref_mag_avg_flux)  + best_u
                 
-            plt.figure()
-            plt.plot(wave, dered_mag_norm, 'r.', wave, REF_MAG[select_phases[0]], 'bx')
-
-            plt.figure()
-            plt.errorbar(wave, dered_mag_norm - REF_MAG[select_phases[0]], np.sqrt(mag_diff_var), fmt='r.', ms = 8, alpha = 0.3)
-            plt.plot(wave, np.zeros(wave.shape))
-
-            print "True Values w/ 'correction':"
-            dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], 1.0, 2.84)[:-1]
-            print 'obs_mag_avg_flux', OBS_MAG_AVG_FLUX[select_phases[0]]
-            print 'True (dered_mag_avg_flux - ref_mag_avg_flux) (or true del_mu)', dered_mag_avg_flux - REF_MAG_AVG_FLUX[select_phases[0]]
-            chi2_dof = np.sum((dered_mag_norm + 0.2 - REF_MAG[select_phases[0]])**2/MAG_DIFF_VAR[select_phases[0]])/len(dered_mag_norm)
-            print 'True chi2_dof:', chi2_dof  
-                
-            plt.figure()
-            plt.plot(wave, dered_mag_norm + 0.2, 'r.', wave, REF_MAG[select_phases[0]], 'bx')
-
-            plt.figure()
-            plt.errorbar(wave, dered_mag_norm - REF_MAG[select_phases[0]] + 0.2, np.sqrt(mag_diff_var), fmt='r.', ms = 8, alpha = 0.3)
-            plt.plot(wave, np.zeros(wave.shape))
-            plt.show()
+            ## trying to normalize with average magnitudes and it's just not right.  1/21/15    
+            #dered_mag_norm = dered_mag_norm - np.average(dered_mag_norm, weights = 1/obs_mag_var)
+            #ref_mag = ref_mag - np.average(ref_mag, weights = 1/ref_mag_var)
 
 
-            exit(1)
+            #ftz_curve = red_law(wave, np.zeros(wave.shape), -best_ebv, best_rv, return_excess=True)                
 
+            mag_diff = dered_mag_norm + best_u - ref_mag
 
-
-
-            ftz_curve = red_law(wave, np.zeros(wave.shape), -best_ebv, best_rv, return_excess=True)                
-                    
-            nanvals = np.isnan(excess)
+            nanvals = np.isnan(mag_diff)
             nanmask = ~nanvals
+
+            mag_diff = mag_diff[nanmask]
+            mag_diff_var = mag_diff_var[nanmask]
+            
+            wave = wave[nanmask]
+            ind_chi2_terms = mag_diff**2/mag_diff_var
+
+            #chi2_dof = np.sum(ind_chi2_terms)/(len(dered_mag_norm) - 2)
+            #print 'chi2_dof:', chi2_dof  
+
                 
-            chi2 = (((ftz_curve-excess) + best_u)**2/excess_var)[nanmask]
+            #chi2 = (((ftz_curve-excess) + best_u)**2/excess_var)[nanmask]
 
             fig = plt.figure(figsize = (20, 16))
 
-            ax = plt.subplot(211)  
+            ax = plt.subplot(311)
+            plt.errorbar(wave, dered_mag_norm + best_u, np.sqrt(obs_mag_var), fmt = 'r.') 
+            plt.errorbar(wave, ref_mag, np.sqrt(ref_mag_var), fmt = 'kx')
+            plt.plot(wave, np.zeros(wave.shape), 'k--')
+            plt.ylim([-0.8, 0.8])
+
+            ax = plt.subplot(312)  
             ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
             plt.ylim([-0.3, 0.3])
-            ax.errorbar(wave, excess - best_u - ftz_curve, np.sqrt(excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
+            ax.errorbar(wave, dered_mag_norm + best_u - ref_mag, np.sqrt(mag_diff_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
+#            ax.errorbar(wave, excess - best_u - ftz_curve, np.sqrt(excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
             ax.plot(wave, np.zeros(wave.shape), 'k--')
             
-            plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
-                      "\n$E(B-V)={:.5f}$" + \
-                      "\n$R_V={:.5f}$" + \
-                      "\n$A_V={:.5f}$" + \
-                      "\n$u={:.2f}$"
-                      
-                      
+            plttext1 = "\n$\chi_{{min}}^2/dof = {:.2f}$" + "\n$E(B-V)={:.5f}$"                      
 
-            plttext = plttext.format(CHI2_dof_min, best_ebv, best_rv, best_av, best_u)
+            plttext1 = plttext1.format(chi2_dof_min, best_ebv)
 
-            ax.text(.95, .95, plttext, size=INPLOT_LEGEND_FONTSIZE,
-                horizontalalignment='right',
-                verticalalignment='top',
-                transform=ax.transAxes)
+            plttext2 = "\n$R_V={:.5f}$" + "\n$A_V={:.5f}$" 
+
+            plttext2 = plttext2.format(best_rv, best_av, best_u)
+
+
+            ax.text(.85, .95, plttext1, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
+            ax.text(.95, .95, plttext2, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
             
-            ind_chi2_terms = (ftz_curve - excess + best_u)**2/excess_var
+            #ind_chi2_terms = (ftz_curve - excess + best_u)**2/excess_var
             
-            ax = plt.subplot(212)   
+            ax = plt.subplot(313)   
             
-            ax.plot(wave, ind_chi2_terms, 'k.') 
+            ax.plot(wave, ind_chi2_terms, 'r.') 
 
             # r below stands for raw strings.
             ax.text(.85, .95, r'(color excess $-$ reddening law)$^2$/$\sigma_i^2$', size=INPLOT_LEGEND_FONTSIZE,
@@ -623,31 +641,48 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
                 verticalalignment='top',
                 transform=ax.transAxes)
 
-            #plt.show()
 
-            chi2_rej *= 0.9
+        
             print 'chi2_rej', chi2_rej
-            mask = chi2 < chi2_rej
+            mask = ind_chi2_terms < chi2_rej
             #print 'mask', mask
             wave_rej = wave[~mask]
             print 'rejected wavelengths:', wave_rej
-            wave = wave[mask]            
-            excess = excess[mask]
-            excess_var = excess_var[mask]
+
+            #print 'len(wave)', len(wave)
             
-            temp_int = 1
+            wave = wave[mask]
+            #print 'wave[mask]', wave
+            
+            #print 'len(wave)', len(wave)
+            #exit(1)
+            
+            ref_mag = ref_mag[mask]
+            ref_mag_var = ref_mag_var[mask]
+            obs_mag = obs_mag[mask] 
+            obs_mag_var = obs_mag_var[mask]
+            obs_flux = obs_flux[mask]
+            obs_flux_var = obs_flux_var[mask]
+            mag_diff_var = mag_diff_var[mask]
+            
+            #excess = excess[mask]
+            #excess_var = excess_var[mask]
+            
+#            temp_int = 1
     
 
 
-        print 'CHI2_dof_min', CHI2_dof_min
+        print 'chi2_dof_min', chi2_dof_min
 
         delCHI2 = CHI2 - CHI2_min
-        delCHI2_dof = CHI2_dof - CHI2_dof_min
+        delCHI2_dof = CHI2_dof - chi2_dof_min
 
         mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
         print 'mindex', mindex
 
-            
+        plt.show()
+        exit(1)
+   
        
        
         ####**** best fit values
@@ -669,7 +704,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
         print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f ' % (best_u, best_rv, best_ebv)
 
 
-        exit(1)
+        #exit(1)
 
 #        res = minimize(chi2fun, [best_ebv, best_rv], args = (excess, excess_var, wave, best_u), tol = 1e-16, method = 'BFGS') 
 #        print res.success
@@ -808,7 +843,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
 ## May need the following.
 #        chi2dofs.append(CHI2_dof)
 #        #chi2_reductions.append(CHI2_dof)
-#        min_chi2s.append(CHI2_dof_min)
+#        min_chi2s.append(chi2_dof_min)
 #        best_us.append(best_u)
 #        best_rvs.append(best_rv)
 #        best_ebvs.append(best_ebv)
@@ -862,7 +897,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_avg_flux, obs_mag, obs_ma
 
 ## In terms of returned values, I don't think returning CDF is necessary for excess plot.  12/9/14
 
-        return x, y, u, CDF, CHI2_dof_min, best_u, best_ebv, best_rv, best_av, (minebv_1sig, maxebv_1sig), \
+        return x, y, u, CDF, chi2_dof_min, best_u, best_ebv, best_rv, best_av, (minebv_1sig, maxebv_1sig), \
                                                  (minebv_2sig, maxebv_2sig), \
                                                  (minrv_1sig,  maxrv_1sig), \
                                                  (minrv_2sig,  maxrv_2sig), \
@@ -908,7 +943,7 @@ if __name__ == "__main__":
         
     To use artificially reddened 11fe as testing case:
     
-    python mag_spectrum_fitting3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 0.0 -u_guess 0.0 -u_pad 0.2 -u_steps 1 -ebv_guess 1.0 -ebv_pad 0.01 -EBV_STEPS 41 -rv_guess 2.8 -rv_pad 0.03 -RV_STEPS 41 -art_var 5e-31 -snake 1 -unfilt
+    python mag_spectrum_fitting3D.py -select_SN 'red_11fe' -select_phases 0 -N_BUCKETS 1000 -del_mu 2.0 -u_guess 0.0 -u_pad 0.2 -u_steps 1 -ebv_guess 1.0 -ebv_pad 0.01 -EBV_STEPS 41 -rv_guess 2.8 -rv_pad 0.03 -RV_STEPS 41 -art_var 5e-32 -snake 1 -unfilt
     
     
     
@@ -1044,39 +1079,19 @@ if __name__ == "__main__":
 
     wave, REF_MAG, REF_MAG_VAR, REF_MAG_AVG_FLUX, REF_FLUX, REF_FLUX_VAR, OBS_MAG, OBS_MAG_VAR, OBS_MAG_AVG_FLUX, OBS_FLUX, OBS_FLUX_VAR, MAG_DIFF_VAR,V_MAG_DIFF = get_mags(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'AVG')
 
-    dered_mag_norm, dered_mag_avg_flux, dered_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], ebv_guess, rv_guess)[:-1]
-
-#    check_ref_mag_norm, check_ref_mag_avg_flux = calc_dered_mag(redden_fm, wave, REF_FLUX[select_phases[0]], REF_FLUX_VAR[select_phases[0]], 1e-10, rv_guess)[:-1]
 
 
-    print 'mean of ref_mag_norm', REF_MAG[select_phases[0]].mean()
-    print 'mean of dered_mag_norm', dered_mag_norm.mean()
+    dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[0], OBS_FLUX_VAR[0], 1.11200, 2.30000)[:2]
+#            print 'dered_mag_avg_flux', dered_mag_avg_flux    
+#            print 'obs_mag_avg_flux', obs_mag_avg_flux
+#            print 'ref_mag_avg_flux', ref_mag_avg_flux
 
-    print 'weighted mean of ref_mag_norm', np.average(REF_MAG[select_phases[0]], weights = 1/REF_MAG_VAR[select_phases[0]])
-    print 'weighted mean of dered_mag_norm', np.average(dered_mag_norm, weights = 1/OBS_MAG_VAR[select_phases[0]])
+#    print 'del_mu', dered_mag_avg_flux - REF_MAG_AVG_FLUX[0]  #  + best_u
+#    plt.plot(wave, dered_mag_norm, 'k.', wave, REF_MAG[0], 'rx')
+#    plt.show()
 
+#    exit(1)
 
- #   print 'mean of check_ref_mag_norm', check_ref_mag_norm.mean()
- #   print 'check_ref_mag_avg_flux', check_ref_mag_avg_flux
-
-    ref_norm_arith_mean =  2.5*np.log10(REF_FLUX[select_phases[0]]/REF_FLUX[select_phases[0]].mean())
-    dered_norm_arith_mean = 2.5*np.log10(dered_flux/dered_flux.mean())
-    print 'ref without variance normalization', ref_norm_arith_mean.mean()  
-    print 'dered without variance normalization', dered_norm_arith_mean.mean()
-
-    print 'ref_mag_avg_flux', REF_MAG_AVG_FLUX[select_phases[0]]
-    print 'dered_mag_avg_flux', dered_mag_avg_flux
-
-
-    plt.plot(wave, REF_MAG[select_phases[0]], 'kx', wave, dered_mag_norm, 'r.')
-#    plt.plot(wave, REF_MAG_AVG_FLUX[select_phases[0]]*np.ones(wave.shape), 'k--', wave, dered_mag_avg_flux*np.ones(wave.shape), 'r--')
-    plt.show()
-    exit(1)
-
-    print 'obs_mag_avg_flux', OBS_MAG_AVG_FLUX[select_phases[0]]
-    print 'dered_mag_avg_flux - ref_mag_avg_flux', dered_mag_avg_flux - REF_MAG_AVG_FLUX[select_phases[0]]
-    chi2_dof = np.sum((dered_mag_norm - REF_MAG[select_phases[0]])**2/MAG_DIFF_VAR[select_phases[0]])/len(dered_mag_norm)
-    print 'In main: chi2_dof', chi2_dof  
 
 
 #EXCESS, EXCESS_VAR, wave, V_MAG_DIFF = get_excess(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'V_band')
@@ -1095,10 +1110,10 @@ if __name__ == "__main__":
         ebv_1sig, ebv_2sig, rv_1sig, rv_2sig, \
         sig_u, sig_ebv, sig_rv, sig_av, \
         snake_hi_1sig, snake_lo_1sig, \
-        snake_hi_2sig, snake_lo_2sig = chi2_minimization(phase, redden_fm, REF_MAG[phase_index], REF_MAG_AVG_FLUX[phase_index], \
-                                OBS_MAG[phase_index], OBS_MAG_AVG_FLUX[phase_index], OBS_FLUX[phase_index], OBS_FLUX_VAR[phase_index],MAG_DIFF_VAR[phase_index], wave, ebv_guess, ebv_pad, EBV_STEPS, rv_guess, rv_pad, RV_STEPS, u_guess, u_pad, u_steps)
+        snake_hi_2sig, snake_lo_2sig = chi2_minimization(phase, redden_fm, REF_MAG[phase_index], REF_MAG_VAR[phase_index], 
+                                REF_MAG_AVG_FLUX[phase_index], OBS_MAG[phase_index], OBS_MAG_VAR[phase_index], OBS_MAG_AVG_FLUX[phase_index], OBS_FLUX[phase_index], OBS_FLUX_VAR[phase_index],MAG_DIFF_VAR[phase_index], wave, ebv_guess, ebv_pad, EBV_STEPS, rv_guess, rv_pad, RV_STEPS, u_guess, u_pad, u_steps)
 
-
+        mag_diff 
         print 'at least it runs to this point.'
         exit(1)
 
@@ -1119,8 +1134,12 @@ if __name__ == "__main__":
         SN_CHISQ_DATA.append({'phase'       : phase,
                                  'WAVE'         : wave,
                                  'FILTERS'      : filters,
-                                 'EXCESS'       : EXCESS[phase_index],
-                                 'EXCESS_VAR'   : EXCESS_VAR[phase_index],
+                                 'REF_MAG'      : REF_MAG[phase_index],
+                                 'REF_MAG_VAR'  : REF_MAG_VAR[phase_index],
+                                 'OBS_MAG'      : OBS_MAG[phase_index],
+                                 'OBS_MAG_VAR'  : OBS_MAG_VAR[phase_index],
+                                 'OBS_FLUX'     : OBS_FLUX[phase_index], 
+                                 'OBS_FLUX_VAR' : OBS_FLUX_VAR[phase_index],                             
                                  'x'            : x,
                                  'y'            : y,
                                  'u'            : u,
@@ -1162,22 +1181,13 @@ if __name__ == "__main__":
     SN_CHISQ_DATA_out = pickle.load(open(filenm, 'rb'))   
 
 
-    plots.plot_contours(select_SN, SN_CHISQ_DATA_out, unfilt)
+    plots.plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt)
 
-    if len(select_phases) == 11:
-        plots.plot_summary(select_SN, SN_CHISQ_DATA_out, unfilt)
-                            
-    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
+#    if len(select_phases) == 11:
+#        plots.plot_summary(select_SN, SN_CHISQ_DATA_out, unfilt)
+#                            
+#    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
 
-
-    ## Using scipy.curve_fit()
-    excess_phase = EXCESS[select_phases[0]]
-    excess_sig = np.sqrt(EXCESS_VAR[select_phases[0]]) 
-    popt, pcov = curve_fit(func, wave, excess_phase, p0 = [1.0, 2.8], sigma = excess_sig, absolute_sigma = True)
-
-    print 'optimal m and b', popt
-    print '1-sigma uncertainties on EBV and RV', np.sqrt(np.diag(pcov))
-    print 'covariance matrix between EBV and RV', pcov
 
 
     plt.show()
