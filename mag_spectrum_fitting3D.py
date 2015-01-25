@@ -174,22 +174,36 @@ def get_mags(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCK
         ref_mag_norm, return_wave, ref_return_flux, ref_return_flux_var, ref_mag_avg_flux, ref_V_mag, ref_mag_var, _ , _ \
                     = extract_wave_flux_var(ref, N_BUCKETS = N_BUCKETS, norm_meth = norm_meth)
 
-
         ## 12cu or artificially reddened 11fe
         obs_mag_norm, _, obs_return_flux, obs_return_flux_var, obs_mag_avg_flux, obs_V_mag, obs_mag_var, _ , _ \
                     = extract_wave_flux_var(obs, N_BUCKETS = N_BUCKETS, norm_meth = norm_meth) #, norm_meth)
 
-        return_wave = return_wave[mask]
-        
-        ref_return_flux = ref_return_flux[mask]
-        ref_mag_norm = ref_mag_norm[mask]
-        ref_mag_var = ref_mag_var[mask]
-        ref_return_flux_var = ref_return_flux_var[mask]
+        ## mask for negative flux values.
+        nanvals = np.isnan(obs_mag_norm) + np.isnan(ref_mag_norm)
+        nanmask = ~nanvals
 
-        obs_return_flux = obs_return_flux[mask]
-        obs_mag_norm = obs_mag_norm[mask]
-        obs_mag_var = obs_mag_var[mask]
-        obs_return_flux_var = obs_return_flux_var[mask]
+        ## AND operation between the feature mask and nanmask.
+        mask *= nanmask 
+
+        ## masking features and negative flux
+        ref_return_flux, ref_return_flux_var, ref_mag_norm, ref_mag_var, return_wave = \
+                    masking(mask, ref_return_flux, ref_return_flux_var, ref_mag_norm, ref_mag_var, wave = return_wave)
+
+        obs_return_flux, obs_return_flux_var, obs_mag_norm, obs_mag_var = \
+                    masking(mask, obs_return_flux, obs_return_flux_var, obs_mag_norm, obs_mag_var)
+
+
+#        return_wave = return_wave[mask]
+#        
+#        ref_return_flux = ref_return_flux[mask]
+#        ref_mag_norm = ref_mag_norm[mask]
+#        ref_mag_var = ref_mag_var[mask]
+#        ref_return_flux_var = ref_return_flux_var[mask]
+
+#        obs_return_flux = obs_return_flux[mask]
+#        obs_mag_norm = obs_mag_norm[mask]
+#        obs_mag_var = obs_mag_var[mask]
+#        obs_return_flux_var = obs_return_flux_var[mask]
 
 
         print '\n\n\nIn get_mags(): mean of ref_mag_norm, obs_mag_norm', ref_mag_norm.mean(), obs_mag_norm.mean()
@@ -266,6 +280,14 @@ def get_mags(phases, select_phases, filters, pristine_11fe, obs_SN, mask, N_BUCK
 #        return DEL_MAG, DEL_MAG_VAR, return_wave
 #    elif norm_meth == 'V_band':
     return return_wave, REF_MAG, REF_MAG_VAR, REF_MAG_AVG_FLUX, REF_RETURN_FLUX, REF_RETURN_FLUX_VAR, OBS_MAG, OBS_MAG_VAR, OBS_MAG_AVG_FLUX, OBS_RETURN_FLUX, OBS_RETURN_FLUX_VAR, MAG_DIFF_VAR, V_MAG_DIFF
+
+
+def masking(mask, flux, flux_var, mag, mag_var, wave = None):
+
+    if wave == None:
+        return flux[mask], flux_var[mask], mag[mask], mag_var[mask]
+    else:
+        return flux[mask], flux_var[mask], mag[mask], mag_var[mask], wave[mask]
 
 
 def compute_sigma_level(L):
@@ -432,8 +454,10 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
     CHI2_min = CHI2.min()
     chi2_dof_min = np.min(CHI2_dof)
     log( "min CHI2: {}".format(CHI2_min) )
+    log("\n\n\n")
     log( "min CHI2 per dof: {}".format(chi2_dof_min) )
-
+    log("\n\n\n")
+    
     return CHI2, CHI2_dof, CHI2_min, chi2_dof_min
 
 
@@ -457,7 +481,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
 
         print '\n\n\n Phase_index', phase, '\n\n\n'
         
-               
+
                
         x = np.linspace(ebv_guess-ebv_pad, ebv_guess+ebv_pad, ebv_steps)
         y = np.linspace(rv_guess-rv_pad, rv_guess+rv_pad, rv_steps)
@@ -476,10 +500,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         if ebv_steps == 1:
             x = np.array([ebv,])
 
-        chi2_dof_min = 1e6
-        chi2_rej = 400
-        temp_int = 0
-
+ 
         print 'obs_mag_avg_flux', obs_mag_avg_flux
         print 'ref_mag_avg_flux', ref_mag_avg_flux
         print 'obs_mag_avg_flux - ref_mag_avg_flux', obs_mag_avg_flux - ref_mag_avg_flux
@@ -492,16 +513,17 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         #print 'del_mu', (dered_mag_avg_flux - ref_mag_avg_flux) 
         #exit(1)
 
-        chi2_rej = 400
+        i = 0
+        chi2_rej = 1000
         chi2_dof_min = 1e6
-        while chi2_dof_min > 1.5:
-#        while temp_int < 1:
-            
-            chi2_dof_min_old = chi2_dof_min
+        while chi2_dof_min > 1.5:            
             
             if len(wave) <=3:
                 print 'dof is about to go below 1 (len(wave) <= 3)...breaking out of while loop...and plotting...'
                 break
+
+            chi2_dof_min_old = chi2_dof_min
+
             CHI2, CHI2_dof, CHI2_min, chi2_dof_min = chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_avg_flux,mag_diff_var, red_law)
             
             
@@ -525,14 +547,19 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
             best_av = best_rv * best_ebv
 
+
+
             ## potential caveat
+            bndry_flag = False
+            bndry_warning_msg = ''
             if abs(best_u - u_guess - u_pad) < 1e-6 or abs(best_u - u_guess + u_pad) < 1e-6 \
                 or abs(best_ebv - ebv_guess - ebv_pad) < 1e-6 or abs(best_ebv - ebv_guess + ebv_pad) < 1e-6 \
                 or   abs(best_rv - rv_guess - rv_pad) < 1e-6 or abs(best_rv - rv_guess + rv_pad) < 1e-6:
                 
-                print '\n\n\nWANRING  WARNING   WANRING'
-                print 'At least one of the best-fit parameters is at the boundary'
-                print 'WANRING  WARNING   WANRING\n\n\n'
+                bndry_flag = True
+                print 'At least one of the best-fit parameters is at the boundary.  Will exit while loop after plotting.'
+                ## maybe I should change this to raising some type of error.
+               
 
     
 #            print "True Values WITHOUT 'corrections':"
@@ -571,6 +598,16 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
 
             print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f, best_av = %.5f' % (best_u, best_rv, best_ebv, best_av)
 
+            if i > 0:
+                wave_old = wave
+                obs_mag_old = obs_mag
+                obs_mag_var_old = obs_mag_var
+
+                dered_mag_norm_old = dered_mag_norm
+                obs_mag_var_old = obs_mag_var
+
+
+
             dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(red_law, wave, obs_flux, obs_flux_var, best_ebv, best_rv)[:2]
 #            print 'dered_mag_avg_flux', dered_mag_avg_flux    
 #            print 'obs_mag_avg_flux', obs_mag_avg_flux
@@ -594,7 +631,17 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             mag_diff_var = mag_diff_var[nanmask]
             
             wave = wave[nanmask]
+
+            dered_mag_norm = dered_mag_norm[nanmask]
+            obs_mag = obs_mag[nanmask]
+            obs_mag_var = obs_mag_var[nanmask]
+            
+            ref_mag = ref_mag[nanmask]
+            ref_mag_var = ref_mag_var[nanmask]
+
             ind_chi2_terms = mag_diff**2/mag_diff_var
+
+            print '\n\n\n Max ind_chi2_term', ind_chi2_terms.max(), '\n\n\n'
 
             #chi2_dof = np.sum(ind_chi2_terms)/(len(dered_mag_norm) - 2)
             #print 'chi2_dof:', chi2_dof  
@@ -602,39 +649,44 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
                 
             #chi2 = (((ftz_curve-excess) + best_u)**2/excess_var)[nanmask]
 
+
+
             fig = plt.figure(figsize = (20, 16))
 
             ax = plt.subplot(311)
             plt.errorbar(wave, dered_mag_norm + best_u, np.sqrt(obs_mag_var), fmt = 'r.') 
             plt.errorbar(wave, ref_mag, np.sqrt(ref_mag_var), fmt = 'kx')
             plt.plot(wave, np.zeros(wave.shape), 'k--')
-            plt.ylim([-0.8, 0.8])
+            plt.xlim([3000, 10000])
+            plt.ylim([-3., 3.])
 
             ax = plt.subplot(312)  
             ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
-            plt.ylim([-0.3, 0.3])
+            plt.xlim([3000, 10000])
+            plt.ylim([-1., 1.])
             ax.errorbar(wave, dered_mag_norm + best_u - ref_mag, np.sqrt(mag_diff_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
 #            ax.errorbar(wave, excess - best_u - ftz_curve, np.sqrt(excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
             ax.plot(wave, np.zeros(wave.shape), 'k--')
             
-            plttext1 = "\n$\chi_{{min}}^2/dof = {:.2f}$" + "\n$E(B-V)={:.5f}$"                      
+            plttext1 = "$\chi_{{min}}^2/dof = {:.2f}$" + "\n$\sigma_{{rej}} = {:.2f}$"                      
 
-            plttext1 = plttext1.format(chi2_dof_min, best_ebv)
+            plttext1 = plttext1.format(chi2_dof_min, np.sqrt(chi2_rej))
 
-            plttext2 = "\n$R_V={:.5f}$" + "\n$A_V={:.5f}$" 
+            plttext2 = "$A_V={:.5f}$" + "\n$E(B-V)={:.5f}$" + "\n$R_V={:.5f}$" + "\n$u={:.5f}$" 
 
-            plttext2 = plttext2.format(best_rv, best_av, best_u)
+            plttext2 = plttext2.format(best_av, best_ebv, best_rv, best_u)
 
 
-            ax.text(.85, .95, plttext1, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
-            ax.text(.95, .95, plttext2, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
+            ax.text(0.8, 0.95, bndry_warning_msg, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
+            ax.text(.8, .95, plttext1, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
+            ax.text(.95, .98, plttext2, size=16, horizontalalignment='right', verticalalignment='top', transform=ax.transAxes)
             
             #ind_chi2_terms = (ftz_curve - excess + best_u)**2/excess_var
             
             ax = plt.subplot(313)   
             
             ax.plot(wave, ind_chi2_terms, 'r.') 
-
+            plt.xlim([3000, 10000])
             # r below stands for raw strings.
             ax.text(.85, .95, r'(color excess $-$ reddening law)$^2$/$\sigma_i^2$', size=INPLOT_LEGEND_FONTSIZE,
                 horizontalalignment='right',
@@ -642,14 +694,24 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
                 transform=ax.transAxes)
 
 
+
+
         
-            print 'chi2_rej', chi2_rej
+            print '\n\nchi2_rej', chi2_rej, '\n\n'
             mask = ind_chi2_terms < chi2_rej
             #print 'mask', mask
             wave_rej = wave[~mask]
             print 'rejected wavelengths:', wave_rej
 
             #print 'len(wave)', len(wave)
+#            wave_old = wave
+#            obs_mag_old = obs_mag
+#            obs_mag_var_old = obs_mag_var
+#
+#            dered_mag_norm_old = dered_mag_norm
+#            obs_mag_var_old = obs_mag_var
+
+            
             
             wave = wave[mask]
             #print 'wave[mask]', wave
@@ -657,6 +719,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             #print 'len(wave)', len(wave)
             #exit(1)
             
+            dered_mag_norm = dered_mag_norm[mask]
             ref_mag = ref_mag[mask]
             ref_mag_var = ref_mag_var[mask]
             obs_mag = obs_mag[mask] 
@@ -667,12 +730,22 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             
             #excess = excess[mask]
             #excess_var = excess_var[mask]
+
+#            if i > 0:
+#                plt.figure()
+#                plt.errorbar(wave_old, dered_mag_norm_old, np.sqrt(obs_mag_var_old), fmt = 'r.')
+#                plt.errorbar(wave, dered_mag_norm, np.sqrt(obs_mag_var), fmt = 'k.')
+
+
+
+            if bndry_flag:
+                print 'At least one of the best-fit parameters is at the boundary. Exiting while loop...'
+                break
             
-#            temp_int = 1
-    
+            i += 1
+           
 
-
-        print 'chi2_dof_min', chi2_dof_min
+        print '\n\nchi2_dof_min', chi2_dof_min, '\n\n'
 
         delCHI2 = CHI2 - CHI2_min
         delCHI2_dof = CHI2_dof - chi2_dof_min
@@ -681,6 +754,12 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         print 'mindex', mindex
 
         plt.show()
+
+        if bndry_flag:
+            print 'At least one of the best-fit parameters is at the boundary. Exiting...'
+            exit(1)
+        
+        print 'Finished while loop.  Exiting...'
         exit(1)
    
        
@@ -692,13 +771,13 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         #print 'mindex', mindex
         #print 'mu, mx, my', mu, mx, my
         best_u, best_rv, best_ebv = u[mu], y[my], x[mx]
-        if abs(best_u - u_guess - u_pad) < 1e-6 or abs(best_u - u_guess + u_pad) < 1e-6 \
-            or abs(best_ebv - ebv_guess - ebv_pad) < 1e-6 or abs(best_ebv - ebv_guess + ebv_pad) < 1e-6 \
-            or   abs(best_rv - rv_guess - rv_pad) < 1e-6 or abs(best_rv - rv_guess + rv_pad) < 1e-6:
-            
-            print 'WANRING  WARNING   WANRING'
-            print 'At least one of the best-fit parameters is at the boundary'
-            print 'WANRING  WARNING   WANRING'
+#        if abs(best_u - u_guess - u_pad) < 1e-6 or abs(best_u - u_guess + u_pad) < 1e-6 \
+#            or abs(best_ebv - ebv_guess - ebv_pad) < 1e-6 or abs(best_ebv - ebv_guess + ebv_pad) < 1e-6 \
+#            or   abs(best_rv - rv_guess - rv_pad) < 1e-6 or abs(best_rv - rv_guess + rv_pad) < 1e-6:
+#            
+#            print 'At least one of the best-fit parameters is at the boundary.  Exiting...'
+#            ## maybe I should change this to raising some type of error.
+#            exit(1)
                 
         print abs(best_ebv - ebv_guess - ebv_pad), abs(best_ebv - ebv_guess + ebv_pad)
         print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f ' % (best_u, best_rv, best_ebv)
@@ -840,58 +919,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         CDF = compute_sigma_level(P).T
 
 
-## May need the following.
-#        chi2dofs.append(CHI2_dof)
-#        #chi2_reductions.append(CHI2_dof)
-#        min_chi2s.append(chi2_dof_min)
-#        best_us.append(best_u)
-#        best_rvs.append(best_rv)
-#        best_ebvs.append(best_ebv)
-#        best_avs.append(best_av)
-#        
-#        ebv_uncert_uppers.append(ebv_uncert_upper)
-#        ebv_uncert_lowers.append(ebv_uncert_lower)
-#        rv_uncert_uppers.append(rv_uncert_upper)
-#        rv_uncert_lowers.append(rv_uncert_lower)
 
-#        snake_lo_1sigs.append(snake_lo_1sig)
-#        snake_hi_1sigs.append(snake_hi_1sig)
-
-
-        
-
-
-
-
-
-
-        ####**** Calculating Hessian 
-#
-#        chi2_2d = -2*np.log(1-CDF)
-#        chi2_2d_min = chi2_2d.min()
-#        mindex2d = np.where(chi2_2d == chi2_2d_min)   # Note argmin() only works well for 1D array.  -XH
-#        xind = mindex2d[0][0]
-#        yind = mindex2d[1][0]
-#
-#
-#        f = chi2_2d
-#        h = x[xind+1]-x[xind]
-#        k = y[yind+1]-y[yind]
-#        f_xx = (f[xind+1, yind] - 2*f[xind, yind] + f[xind-1, yind])/(h**2)
-#        f_yy = (f[xind, yind+1] - 2*f[xind, yind] + f[xind, yind-1])/(k**2)
-#        f_xy = (f[xind+1, yind+1] - f[xind+1, yind-1] - f[xind-1, yind+1] + f[xind-1, yind-1])/(4*h*k)
-#
-#        print f_xx, f_yy, f_xy
-#        print type(f_xx), type(f_yy), type(f_xy)
-#        f_mat = np.matrix([[f_xx, f_xy], [f_xy, f_yy]])
-#        print f_mat
-#        H = np.linalg.inv(f_mat)
-#        print "Hessian", H
-#        print 'sqrt(H)', np.sqrt(H)
-#        w, v = np.linalg.eig(H)
-#        print 'eigen values', w
-#        print 'sqrt(eigen values', np.sqrt(w)
-#        exit(1)
 
 
 
@@ -949,7 +977,7 @@ if __name__ == "__main__":
     
     To run 12cu:
     
-    python mag_spectrum_fitting.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 1 -ebv_guess 1. -ebv_pad 0.01 -EBV_STEPS 61 -rv_guess 3.0 -rv_pad 0.03 -RV_STEPS 61 -snake 1
+    python mag_spectrum_fitting3D.py -select_SN '12cu' -select_phases 12 -N_BUCKETS 1000 -u_guess 0.0 -u_pad 0.2 -u_steps 1 -ebv_guess 1. -ebv_pad 0.01 -EBV_STEPS 61 -rv_guess 3.0 -rv_pad 0.03 -RV_STEPS 61 -snake 1
     
     
     Note: I can select any combination of phases I want.  E.g., I could do -select_phases 0 1 5.
@@ -1081,7 +1109,7 @@ if __name__ == "__main__":
 
 
 
-    dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[0], OBS_FLUX_VAR[0], 1.11200, 2.30000)[:2]
+    #dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], 1.11200, 2.30000)[:2]
 #            print 'dered_mag_avg_flux', dered_mag_avg_flux    
 #            print 'obs_mag_avg_flux', obs_mag_avg_flux
 #            print 'ref_mag_avg_flux', ref_mag_avg_flux
@@ -1261,3 +1289,57 @@ if __name__ == "__main__":
 #    chi2_dof = chi2/dof
 #
 #    return chi2_dof
+
+
+## May need the following.
+#        chi2dofs.append(CHI2_dof)
+#        #chi2_reductions.append(CHI2_dof)
+#        min_chi2s.append(chi2_dof_min)
+#        best_us.append(best_u)
+#        best_rvs.append(best_rv)
+#        best_ebvs.append(best_ebv)
+#        best_avs.append(best_av)
+#        
+#        ebv_uncert_uppers.append(ebv_uncert_upper)
+#        ebv_uncert_lowers.append(ebv_uncert_lower)
+#        rv_uncert_uppers.append(rv_uncert_upper)
+#        rv_uncert_lowers.append(rv_uncert_lower)
+
+#        snake_lo_1sigs.append(snake_lo_1sig)
+#        snake_hi_1sigs.append(snake_hi_1sig)
+
+
+
+
+
+
+
+
+
+####**** Calculating Hessian 
+#
+#        chi2_2d = -2*np.log(1-CDF)
+#        chi2_2d_min = chi2_2d.min()
+#        mindex2d = np.where(chi2_2d == chi2_2d_min)   # Note argmin() only works well for 1D array.  -XH
+#        xind = mindex2d[0][0]
+#        yind = mindex2d[1][0]
+#
+#
+#        f = chi2_2d
+#        h = x[xind+1]-x[xind]
+#        k = y[yind+1]-y[yind]
+#        f_xx = (f[xind+1, yind] - 2*f[xind, yind] + f[xind-1, yind])/(h**2)
+#        f_yy = (f[xind, yind+1] - 2*f[xind, yind] + f[xind, yind-1])/(k**2)
+#        f_xy = (f[xind+1, yind+1] - f[xind+1, yind-1] - f[xind-1, yind+1] + f[xind-1, yind-1])/(4*h*k)
+#
+#        print f_xx, f_yy, f_xy
+#        print type(f_xx), type(f_yy), type(f_xy)
+#        f_mat = np.matrix([[f_xx, f_xy], [f_xy, f_yy]])
+#        print f_mat
+#        H = np.linalg.inv(f_mat)
+#        print "Hessian", H
+#        print 'sqrt(H)', np.sqrt(H)
+#        w, v = np.linalg.eig(H)
+#        print 'eigen values', w
+#        print 'sqrt(eigen values', np.sqrt(w)
+#        exit(1)
