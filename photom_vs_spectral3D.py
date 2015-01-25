@@ -357,11 +357,11 @@ def chi2grid(u, x, y, wave, excess, excess_var, red_law):
     CHI2_dof = CHI2/dof
         
     CHI2_min = CHI2.min()
-    CHI2_dof_min = np.min(CHI2_dof)
+    chi2_dof_min = np.min(CHI2_dof)
     log( "min CHI2: {}".format(CHI2_min) )
-    log( "min CHI2 per dof: {}".format(CHI2_dof_min) )
+    log( "min CHI2 per dof: {}".format(chi2_dof_min) )
 
-    return CHI2, CHI2_dof, CHI2_min, CHI2_dof_min
+    return CHI2, CHI2_dof, CHI2_min, chi2_dof_min
 
 
 
@@ -402,15 +402,25 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
         if ebv_steps == 1:
             x = np.array([ebv,])
 
-        CHI2_dof_min = 1e6
+        chi2_dof_min = 1e6
         chi2_rej = 400
-        while CHI2_dof_min > 1.5:   ## usu. the criterion is 1.5
+        while chi2_dof_min > 1.5:   ## usu. the criterion is 1.5
+
             if len(wave) <=3:
                 print 'len(wave) <= 3...breaking out of while loop...and plotting...'
                 break
-            CHI2, CHI2_dof, CHI2_min, CHI2_dof_min = chi2grid(u, x, y, wave, excess, excess_var, red_law)
+
+            chi2_dof_min_old = chi2_dof_min
+
+    
+            CHI2, CHI2_dof, CHI2_min, chi2_dof_min = chi2grid(u, x, y, wave, excess, excess_var, red_law)
+
+            if (chi2_dof_min - chi2_dof_min_old)/chi2_dof_min_old < 1e-6:
+                chi2_rej = chi2_rej*0.8
+
+
             delCHI2 = CHI2 - CHI2_min
-            delCHI2_dof = CHI2_dof - CHI2_dof_min
+            delCHI2_dof = CHI2_dof - chi2_dof_min
 
             mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
             print 'mindex', mindex
@@ -429,15 +439,26 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
                     
             nanvals = np.isnan(excess)
             nanmask = ~nanvals
-                
-            chi2 = (((ftz_curve-excess) + best_u)**2/excess_var)[nanmask]
+            
+            pull = (((ftz_curve-excess) + best_u)/np.sqrt(excess_var))[nanmask]
+            ind_chi2_terms = pull**2
+            wave = wave[nanmask]
 
             fig = plt.figure(figsize = (20, 16))
 
+#            ax = plt.subplot(311)
+#            plt.errorbar(wave, dered_mag_norm + best_u, np.sqrt(obs_mag_var), fmt = 'r.') 
+#            plt.errorbar(wave, ref_mag, np.sqrt(ref_mag_var), fmt = 'kx')
+#            plt.plot(wave, np.zeros(wave.shape), 'k--')
+#            plt.ylim([-0.8, 0.8])
+
+
             ax = plt.subplot(211)  
             ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
-            plt.ylim([-0.3, 0.3])
-            ax.errorbar(wave, excess - best_u - ftz_curve, np.sqrt(excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
+            #plt.ylim([-0.3, 0.3])
+            #ax.errorbar(wave, excess - best_u - ftz_curve, np.sqrt(excess_var), fmt='r.', ms = 8, label=u'excess', alpha = 0.3) #, 's', color='black', 
+            ax.plot(wave, pull, 'r.', ms = 8, label=u'pull', alpha = 0.3) #, 's', color='black', 
+
             ax.plot(wave, np.zeros(wave.shape), 'k--')
             
             plttext = "\n$\chi_{{min}}^2/dof = {:.2f}$" + \
@@ -448,14 +469,14 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
                       
                       
 
-            plttext = plttext.format(CHI2_dof_min, best_ebv, best_rv, best_av, best_u)
+            plttext = plttext.format(chi2_dof_min, best_ebv, best_rv, best_av, best_u)
 
             ax.text(.95, .95, plttext, size=INPLOT_LEGEND_FONTSIZE,
                 horizontalalignment='right',
                 verticalalignment='top',
                 transform=ax.transAxes)
             
-            ind_chi2_terms = (ftz_curve - excess + best_u)**2/excess_var
+            #ind_chi2_terms = (ftz_curve - excess + best_u)**2/excess_var
             
             ax = plt.subplot(212)   
             
@@ -469,22 +490,25 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
             #plt.show()
 
-            chi2_rej *= 0.9
+
+        
             print 'chi2_rej', chi2_rej
-            mask = chi2 < chi2_rej
+            mask = ind_chi2_terms < chi2_rej
             #print 'mask', mask
             wave_rej = wave[~mask]
             print 'rejected wavelengths:', wave_rej
-            wave = wave[mask]            
+
+             
+            wave = wave[mask]
             excess = excess[mask]
             excess_var = excess_var[mask]
     
 
 
-        print 'CHI2_dof_min', CHI2_dof_min
+        print 'chi2_dof_min', chi2_dof_min
 
         delCHI2 = CHI2 - CHI2_min
-        delCHI2_dof = CHI2_dof - CHI2_dof_min
+        delCHI2_dof = CHI2_dof - chi2_dof_min
 
         mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
         print 'mindex', mindex
@@ -643,7 +667,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 ## May need the following.
 #        chi2dofs.append(CHI2_dof)
 #        #chi2_reductions.append(CHI2_dof)
-#        min_chi2s.append(CHI2_dof_min)
+#        min_chi2s.append(chi2_dof_min)
 #        best_us.append(best_u)
 #        best_rvs.append(best_rv)
 #        best_ebvs.append(best_ebv)
@@ -697,7 +721,7 @@ def chi2_minimization(phase, red_law, excess, excess_var, wave,
 
 ## In terms of returned values, I don't think returning CDF is necessary for excess plot.  12/9/14
 
-        return x, y, u, CDF, CHI2_dof_min, best_u, best_ebv, best_rv, best_av, (minebv_1sig, maxebv_1sig), \
+        return x, y, u, CDF, chi2_dof_min, best_u, best_ebv, best_rv, best_av, (minebv_1sig, maxebv_1sig), \
                                                  (minebv_2sig, maxebv_2sig), \
                                                  (minrv_1sig,  maxrv_1sig), \
                                                  (minrv_2sig,  maxrv_2sig), \
