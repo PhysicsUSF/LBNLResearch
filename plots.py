@@ -3,7 +3,7 @@ Initial Date: 12/23/14
 
 A bunch of plotting routines
 
-Need to improve: there is redundancy in how information is read from SN12CU_CHISQ_DATA in plot_contours() and plot_excess().
+Need to improve: there is redundancy in how information is read from SN_CHISQ_DATA in plot_contours() and plot_excess().
 
 '''
 
@@ -59,23 +59,23 @@ LEGEND_FONTSIZE = 15
 
 V_wave = 5413.5  # the wavelength at which F99's excess curve is zero.
 
-def plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt):
+def plot_contours_mag_diff(SNname, SN_CHISQ_DATA, unfilt):
 
 ####***** Plotting confidence contours **************************
 
 
-    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+    phases = np.array([d['phase'] for d in SN_CHISQ_DATA])
 
-    PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+    PLOTS_PER_ROW = math.ceil(len(SN_CHISQ_DATA)/2.)
 
 
-#np.array([phase_index for phase_index in SN12CU_CHISQ_DATA['phase']])
+#np.array([phase_index for phase_index in SN_CHISQ_DATA['phase']])
     print 'phases:', phases
    
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
 
-    x = SN12CU_CHISQ_DATA[0]['x']
-    y = SN12CU_CHISQ_DATA[0]['y']
+    x = SN_CHISQ_DATA[0]['x']
+    y = SN_CHISQ_DATA[0]['y']
     
     X, Y = np.meshgrid(x, y)  
  
@@ -84,7 +84,7 @@ def plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt):
     fig = plt.figure(figsize = (24, 15))
 
 
-    for phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
+    for phase_index, phase, d in zip(range(len(SN_CHISQ_DATA)), phases, SN_CHISQ_DATA):
 
     ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
     ## Don't delete below yet.  There is useful code below about the plotting styles. 
@@ -97,18 +97,21 @@ def plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt):
         best_ebv = d['BEST_EBV'] 
         minebv_1sig = d['EBV_1SIG'][0] 
         maxebv_1sig = d['EBV_1SIG'][1]
+        sig_ebv = d['SIG_EBV']
+
 
         best_rv = d['BEST_RV'] 
         minrv_1sig = d['RV_1SIG'][0] 
         maxrv_1sig = d['RV_1SIG'][1]
-        
+        sig_rv = d['SIG_RV']
+
+
+
         CDF = d['CDF']
         best_av = d['BEST_AV']
         sig_av = d['SIG_AV']
 
 
-        best_av = d['BEST_AV']
-        sig_av = d['SIG_AV']
 
 
         
@@ -163,13 +166,15 @@ def plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt):
                 
                 
         # format subplot...
-        plt.ylim(y.min(), y.max())
-        plt.xlim(x.min(), x.max())
+        xlo, xhi = best_ebv - 4*sig_ebv, best_ebv + 4*sig_ebv
+        ylo, yhi = best_rv - 4*sig_rv, best_rv + 4*sig_rv
+        plt.ylim(ylo, yhi)
+        plt.xlim(xlo, xhi)
         
         ax.set_yticklabels([])
         ax2 = ax.twinx()
-        ax2.set_xlim(x.min(), x.max())
-        ax2.set_ylim(y.min(), y.max())
+        ax2.set_xlim(xlo, xhi)
+        ax2.set_ylim(ylo, yhi)
         
         if phase_index%6 == 5:
                 ax2.set_ylabel('\n$R_V$', fontsize=AXIS_LABEL_FONTSIZE, labelpad=5)
@@ -221,25 +226,25 @@ def plot_contours_mag_diff(select_SN, SN_CHISQ_DATA_out, unfilt):
 
 
 
-def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
+def plot_contours(SNname, SN_CHISQ_DATA, unfilt):
 
 
 ## , best_av, sig_av  
 ####***** Plotting confidence contours **************************
 
 
-    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+    phases = np.array([d['phase'] for d in SN_CHISQ_DATA])
 
-    PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+    PLOTS_PER_ROW = math.ceil(len(SN_CHISQ_DATA)/2.)
 
 
-#np.array([phase_index for phase_index in SN12CU_CHISQ_DATA['phase']])
+#np.array([phase_index for phase_index in SN_CHISQ_DATA['phase']])
     print 'phases:', phases
    
     numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
 
-    x = SN12CU_CHISQ_DATA[0]['x']
-    y = SN12CU_CHISQ_DATA[0]['y']
+    x = SN_CHISQ_DATA[0]['x']
+    y = SN_CHISQ_DATA[0]['y']
     
     X, Y = np.meshgrid(x, y)  
  
@@ -248,7 +253,7 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
     fig = plt.figure(figsize = (24, 15))
 
 
-    for phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
+    for phase_index, phase, d in zip(range(len(SN_CHISQ_DATA)), phases, SN_CHISQ_DATA):
 
     ## Need to think about how to do contour plots -- basically what Zach and I went through in Starbucks in October.
     ## Don't delete below yet.  There is useful code below about the plotting styles. 
@@ -384,23 +389,23 @@ def plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt):
     return
 
 
-#def plot_phase_excesses(SN12CU_CHISQ_DATA, redden_fm, snake = snake):
+#def plot_phase_excesses(SN_CHISQ_DATA, redden_fm, snake = snake):
 
-def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True, FEATURES = []):
+def plot_phase_excesses(SNname, SN_CHISQ_DATA, red_law, unfilt, snake = True, FEATURES = []):
 
     ''' 
      
     
     '''
-    wave = SN12CU_CHISQ_DATA[0]['WAVE']
-    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+    wave = SN_CHISQ_DATA[0]['WAVE']
+    phases = np.array([d['phase'] for d in SN_CHISQ_DATA])
 
 
     if len(phases) < 6:
         numrows = 1
         PLOTS_PER_ROW = len(phases)
     else:
-        PLOTS_PER_ROW = math.ceil(len(SN12CU_CHISQ_DATA)/2.)
+        PLOTS_PER_ROW = math.ceil(len(SN_CHISQ_DATA)/2.)
         numrows = (len(phases)-1)//PLOTS_PER_ROW + 1
 
     
@@ -414,9 +419,9 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
     #numrows = (len(EXCESS)-1)//PLOTS_PER_ROW + 1
     ## Keep; may need this later: pmin, pmax = np.min(phases), np.max(phases)
     
-    ## may need this for running all phases    for i, d, sn11fe_phase in izip(xrange(len(SN12CU_CHISQ_DATA)), SN12CU_CHISQ_DATA, sn11fe):
-    ##for i, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), phases, SN12CU_CHISQ_DATA):
-    for phase_index, phase, d in zip(range(len(phases)), phases, SN12CU_CHISQ_DATA):
+    ## may need this for running all phases    for i, d, sn11fe_phase in izip(xrange(len(SN_CHISQ_DATA)), SN_CHISQ_DATA, sn11fe):
+    ##for i, phase, d in zip(range(len(SN_CHISQ_DATA)), phases, SN_CHISQ_DATA):
+    for phase_index, phase, d in zip(range(len(phases)), phases, SN_CHISQ_DATA):
 
 
 
@@ -621,7 +626,7 @@ def plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, red_law, unfilt, snake = True
 
 
 
-def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
+def plot_summary(SNname, SN_CHISQ_DATA, unfilt):
 
     ''' 
      
@@ -632,28 +637,28 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
     print "Plotting time dependence", SNname
 
 
-    phases = np.array([d['phase'] for d in SN12CU_CHISQ_DATA])
+    phases = np.array([d['phase'] for d in SN_CHISQ_DATA])
 
 
-#np.array([phases for phases in SN12CU_CHISQ_DATA['phase']])
+#np.array([phases for phases in SN_CHISQ_DATA['phase']])
     print phases
 
    
-    ebvs = np.array([d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
-    sig_lo_ebv = np.array([d['BEST_EBV'] - d['EBV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
-    sig_hi_ebv = np.array([d['EBV_1SIG'][1] - d['BEST_EBV'] for d in SN12CU_CHISQ_DATA])
-    sig_ebv = np.array([d['SIG_EBV'] for d in SN12CU_CHISQ_DATA])
+    ebvs = np.array([d['BEST_EBV'] for d in SN_CHISQ_DATA])
+    sig_lo_ebv = np.array([d['BEST_EBV'] - d['EBV_1SIG'][0] for d in SN_CHISQ_DATA])
+    sig_hi_ebv = np.array([d['EBV_1SIG'][1] - d['BEST_EBV'] for d in SN_CHISQ_DATA])
+    sig_ebv = np.array([d['SIG_EBV'] for d in SN_CHISQ_DATA])
 
 
 
-    rvs = np.array([d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
-    sig_lo_rv = np.array([d['BEST_RV'] - d['RV_1SIG'][0] for d in SN12CU_CHISQ_DATA])
-    sig_hi_rv = np.array([d['RV_1SIG'][1] - d['BEST_RV'] for d in SN12CU_CHISQ_DATA])
-    sig_rv = np.array([d['SIG_RV'] for d in SN12CU_CHISQ_DATA])
+    rvs = np.array([d['BEST_RV'] for d in SN_CHISQ_DATA])
+    sig_lo_rv = np.array([d['BEST_RV'] - d['RV_1SIG'][0] for d in SN_CHISQ_DATA])
+    sig_hi_rv = np.array([d['RV_1SIG'][1] - d['BEST_RV'] for d in SN_CHISQ_DATA])
+    sig_rv = np.array([d['SIG_RV'] for d in SN_CHISQ_DATA])
 
 
-    avs = np.array([d['BEST_AV'] for d in SN12CU_CHISQ_DATA])
-    sig_av = np.array([d['SIG_AV'] for d in SN12CU_CHISQ_DATA])
+    avs = np.array([d['BEST_AV'] for d in SN_CHISQ_DATA])
+    sig_av = np.array([d['SIG_AV'] for d in SN_CHISQ_DATA])
     
     
     var_intrins_cablib = 0.02**2 + 0.03**2 ## ---------> strictly speaking, should convert 0.02 fractional flux error into mag error.  
@@ -663,8 +668,8 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
                                            ## is the right thing to do.  That is, if one observes more phases, these calibration uncertainties do "avearge out".
                                            ## Andrew's loader actually returns the calib uncertainties, and for 11fe they are different for different phases and can be as 
                                            ## high as 5% (if I remember correctly). So should do it right next time.  Though it's still subdominant to all other errors. <--- 12/22/14
-    del_mus = np.array([d['DEL_MU'] for d in SN12CU_CHISQ_DATA])
-    sig_del_mu = np.array([np.sqrt(d['SIG_DEL_MU']**2 + var_intrins_cablib) for d in SN12CU_CHISQ_DATA])
+    del_mus = np.array([d['DEL_MU'] for d in SN_CHISQ_DATA])
+    sig_del_mu = np.array([np.sqrt(d['SIG_DEL_MU']**2 + var_intrins_cablib) for d in SN_CHISQ_DATA])
     
     print 'del_mu, sig_del_mu', del_mus, sig_del_mu
 
@@ -814,7 +819,7 @@ def plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt):
 
                             
 
-#    for i, phase_index, phase, d in zip(range(len(SN12CU_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN12CU_CHISQ_DATA):
+#    for i, phase_index, phase, d in zip(range(len(SN_CHISQ_DATA)), select_phases, [phases[i] for i in select_phases], SN_CHISQ_DATA):
        
 
 
@@ -860,13 +865,13 @@ if __name__ == "__main__":
         filenm = SNdata + '_filtered.p'
     
     ## Should change this to a generic name - 1/13/15
-    SN12CU_CHISQ_DATA = pickle.load(open(filenm, 'rb'))   
+    SN_CHISQ_DATA = pickle.load(open(filenm, 'rb'))   
 
     print 'filenm', filenm
-    print 'len(SN12CU_CHISQ_DATA)', len(SN12CU_CHISQ_DATA)
+    print 'len(SN_CHISQ_DATA)', len(SN_CHISQ_DATA)
 
 
-    plot_contours(SNname, SN12CU_CHISQ_DATA, unfilt)
-    plot_phase_excesses(SNname, SN12CU_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
+    plot_contours(SNname, SN_CHISQ_DATA, unfilt)
+    plot_phase_excesses(SNname, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
     if num_phases > 1:
-        plot_summary(SNname, SN12CU_CHISQ_DATA, unfilt)
+        plot_summary(SNname, SN_CHISQ_DATA, unfilt)
