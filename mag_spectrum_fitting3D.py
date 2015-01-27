@@ -463,7 +463,7 @@ def chi2grid(u, x, y, wave, ref_mag, obs_mag, obs_flux, obs_flux_var, obs_mag_av
 
 
 def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, obs_mag, obs_mag_var, obs_mag_avg_flux, obs_flux, obs_flux_var,   
-                      mag_diff_var, wave, ebv_guess, ebv_pad, ebv_steps, rv_guess, rv_pad, rv_steps, u_guess, u_pad, u_steps):    
+                      mag_diff_var, wave, ebv_guess, ebv_pad, ebv_steps, rv_guess, rv_pad, rv_steps, u_guess, u_pad, u_steps, chotard_mask, filter_eff_waves_unfilt):    
     
     
         '''
@@ -624,21 +624,6 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
 
             mag_diff = dered_mag_norm + best_u - ref_mag
 
-            nanvals = np.isnan(mag_diff)
-            nanmask = ~nanvals
-
-            mag_diff = mag_diff[nanmask]
-            mag_diff_var = mag_diff_var[nanmask]
-            
-            wave = wave[nanmask]
-
-            dered_mag_norm = dered_mag_norm[nanmask]
-            obs_mag = obs_mag[nanmask]
-            obs_mag_var = obs_mag_var[nanmask]
-            
-            ref_mag = ref_mag[nanmask]
-            ref_mag_var = ref_mag_var[nanmask]
-
             ind_chi2_terms = mag_diff**2/mag_diff_var
 
             print '\n\n\n Max ind_chi2_term', ind_chi2_terms.max(), '\n\n\n'
@@ -650,7 +635,7 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             #chi2 = (((ftz_curve-excess) + best_u)**2/excess_var)[nanmask]
 
 
-
+            #plt.figure()
             fig = plt.figure(figsize = (20, 16))
 
             ax = plt.subplot(311)
@@ -658,7 +643,50 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             plt.errorbar(wave, ref_mag, np.sqrt(ref_mag_var), fmt = 'kx')
             plt.plot(wave, np.zeros(wave.shape), 'k--')
             plt.xlim([3000, 10000])
-            plt.ylim([-3., 3.])
+            yhi = 1.0
+            ylo = -1.
+            plt.ylim([ylo, yhi])
+
+
+#            ax = fig.add_subplot(111)
+            width = 6.4  # (9700-3300)/1000
+            ## ax.bar plots bar from non-zero values to the x-axis and that's why the +ve and -ve parts of the bar have to be plotted separately.
+
+            import matplotlib.transforms as mtransforms
+            trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
+           
+#            print chotard_mask.all()
+#            print chotard_mask.any()
+#            print chotard_mask
+#            plt.plot(filter_eff_waves_unfilt, chotard_mask, 'k.')
+#            plt.show()
+#            exit(1)
+#
+
+            sort_idx = np.argsort(filter_eff_waves_unfilt)
+            filter_eff_waves_unfilt = filter_eff_waves_unfilt[sort_idx]
+            chotard_mask = chotard_mask[sort_idx]
+
+#            print type(chotard_mask)
+#            print filter_eff_waves_unfilt
+#            print chotard_mask
+
+#            plt.plot(filter_eff_waves_unfilt, chotard_mask, 'k.')
+#            plt.ylim(-0.1, 1.1)
+#            plt.show()
+#            exit(1)
+#
+
+            ax.fill_between(filter_eff_waves_unfilt, 0, 1, ~chotard_mask, facecolor='green', alpha=0.5, transform=trans)
+
+#            rects_pos = ax.bar(filter_eff_waves_unfilt, -chotard_mask*vert_lim, width, color='r', linewidth = 0, alpha = 0.1)
+#            rects_neg = ax.bar(filter_eff_waves_unfilt, (-1)*(~chotard_mask)*vert_lim, width, color='r', linewidth = 0, alpha = 0.1)
+
+        #    plt.plot(filter_eff_waves, mask, 'k.')
+            #plt.ylim([-.2, 1.2])
+
+#            plt.show()
+#            exit(1)
 
             ax = plt.subplot(312)  
             ax.set_title('Phase: {}'.format(phase), fontsize=AXIS_LABEL_FONTSIZE)
@@ -692,6 +720,10 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
                 horizontalalignment='right',
                 verticalalignment='top',
                 transform=ax.transAxes)
+
+#            if i > 20:
+#                plt.show()
+#                exit(1)
 
 
 
@@ -744,7 +776,8 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
             
             i += 1
            
-
+            #plt.savefig('rej_series_phase'+str(phase)+'frame_'+str(i)+'.png')
+    
         print '\n\nchi2_dof_min', chi2_dof_min, '\n\n'
 
         delCHI2 = CHI2 - CHI2_min
@@ -753,16 +786,23 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         mindex = np.where(delCHI2_dof == 0)   # Note argmin() only works well for 1D array.  -XH
         print 'mindex', mindex
 
-        plt.show()
-
         if bndry_flag:
             print 'At least one of the best-fit parameters is at the boundary. Exiting...'
             exit(1)
         
-        print 'Finished while loop.  Exiting...'
+        
+
+
+        import matplotlib.backends.backend_pdf
+        pdf = matplotlib.backends.backend_pdf.PdfPages('rej_series_phase' + str(phase) + 'AllFrames.pdf')
+        for fig in xrange(1, plt.figure().number): ## will open an empty extra figure :(
+            pdf.savefig( fig )
+        pdf.close()
+
+        plt.show()
+
+
         exit(1)
-   
-       
        
         ####**** best fit values
 
@@ -782,8 +822,6 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
         print abs(best_ebv - ebv_guess - ebv_pad), abs(best_ebv - ebv_guess + ebv_pad)
         print 'best_u = %.5f, best_rv = %.5f, best_ebv = %.5f ' % (best_u, best_rv, best_ebv)
 
-
-        #exit(1)
 
 #        res = minimize(chi2fun, [best_ebv, best_rv], args = (excess, excess_var, wave, best_u), tol = 1e-16, method = 'BFGS') 
 #        print res.success
@@ -917,7 +955,6 @@ def chi2_minimization(phase, red_law, ref_mag, ref_mag_var, ref_mag_avg_flux, ob
 
         ## CDF
         CDF = compute_sigma_level(P).T
-
 
 
 
@@ -1065,19 +1102,31 @@ if __name__ == "__main__":
     ## Setting up tophat filters
     filters_bucket, zp_bucket, LOW_wave, HIGH_wave = l.generate_buckets(lo_wave, hi_wave, N_BUCKETS)  #, inverse_microns=True)
     filters_bucket = np.array(filters_bucket)
-    filter_eff_waves = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
+    filter_eff_waves_unfilt = np.array([snc.get_bandpass(zp_bucket['prefix']+f).wave_eff for f in filters_bucket])
+
+    chotard_FEATURES = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),\
+                          (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+
+    #chotard_FEATURES = [(5000, 7000, 'SiII')]
+
 
     if unfilt == True:
         FEATURES = []
     else:
-        FEATURES = [(3425, 3820, 'CaII'), (3900, 4100, 'SiII'), (5640, 5900, 'SiII'),\
-                          (6000, 6280, 'SiII'), (8000, 8550, 'CaII')]
+        FEATURES = chotard_FEATURES  
 
-    mask = filter_features(FEATURES, filter_eff_waves)
+    chotard_mask = filter_features(chotard_FEATURES, filter_eff_waves_unfilt) 
+
+
+#    print chotard_mask
+#    exit(1)
+
+    mask = filter_features(FEATURES, filter_eff_waves_unfilt)
+
     filters_bucket = filters_bucket[mask]
     filters_bucket = filters_bucket.tolist()
    
-    filter_eff_waves = filter_eff_waves[mask]
+    filter_eff_waves = filter_eff_waves_unfilt[mask]
 
     del_wave = (HIGH_wave  - LOW_wave)/N_BUCKETS
 
@@ -1106,7 +1155,6 @@ if __name__ == "__main__":
 
 
     wave, REF_MAG, REF_MAG_VAR, REF_MAG_AVG_FLUX, REF_FLUX, REF_FLUX_VAR, OBS_MAG, OBS_MAG_VAR, OBS_MAG_AVG_FLUX, OBS_FLUX, OBS_FLUX_VAR, MAG_DIFF_VAR,V_MAG_DIFF = get_mags(phases_12cu, select_phases, filters, pristine_11fe, obs_SN, mask = mask, N_BUCKETS = N_BUCKETS, norm_meth = 'AVG')
-
 
 
     #dered_mag_norm, dered_mag_avg_flux = calc_dered_mag(redden_fm, wave, OBS_FLUX[select_phases[0]], OBS_FLUX_VAR[select_phases[0]], 1.11200, 2.30000)[:2]
@@ -1139,11 +1187,10 @@ if __name__ == "__main__":
         sig_u, sig_ebv, sig_rv, sig_av, \
         snake_hi_1sig, snake_lo_1sig, \
         snake_hi_2sig, snake_lo_2sig = chi2_minimization(phase, redden_fm, REF_MAG[phase_index], REF_MAG_VAR[phase_index], 
-                                REF_MAG_AVG_FLUX[phase_index], OBS_MAG[phase_index], OBS_MAG_VAR[phase_index], OBS_MAG_AVG_FLUX[phase_index], OBS_FLUX[phase_index], OBS_FLUX_VAR[phase_index],MAG_DIFF_VAR[phase_index], wave, ebv_guess, ebv_pad, EBV_STEPS, rv_guess, rv_pad, RV_STEPS, u_guess, u_pad, u_steps)
+                                REF_MAG_AVG_FLUX[phase_index], OBS_MAG[phase_index], OBS_MAG_VAR[phase_index], OBS_MAG_AVG_FLUX[phase_index], OBS_FLUX[phase_index], OBS_FLUX_VAR[phase_index],MAG_DIFF_VAR[phase_index], wave, ebv_guess, ebv_pad, EBV_STEPS, rv_guess, rv_pad, RV_STEPS, u_guess, u_pad, u_steps, chotard_mask, filter_eff_waves_unfilt)
 
-        mag_diff 
-        print 'at least it runs to this point.'
-        exit(1)
+#        print 'at least it runs to this point.'
+#        exit(1)
 
 
         ## I should do minus best_u below because: in fitting I do (excess - u - FTZ).  But excess = V_mag_diff - X_mag_diff.  Thus del_V should be lowered by u.
@@ -1217,8 +1264,6 @@ if __name__ == "__main__":
 #    plots.plot_phase_excesses(select_SN, SN_CHISQ_DATA, redden_fm, unfilt, snake = snake, FEATURES = FEATURES)
 
 
-
-    plt.show()
 
 ########################################## Function Junk Yard (I no longer use these but am keeping them for the time being ##################################
 
